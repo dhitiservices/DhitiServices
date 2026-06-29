@@ -155,12 +155,69 @@ function Stat({ v, suf, l }) {
   );
 }
 
+function InquiryModal({ mode, onClose }) {
+  const isWork = mode === "work";
+  const [f, setF] = useState({ name: "", org: "", email: "", phone: "", msg: "" });
+  const [sent, setSent] = useState(false);
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [onClose]);
+
+  const submit = () => {
+    if (!f.name.trim() || !f.email.trim()) return;
+    const subject = isWork ? ("New work inquiry - " + f.name) : ("Training application - " + f.name);
+    const lines = isWork
+      ? ["Name: " + f.name, "Company: " + f.org, "Email: " + f.email, "Phone: " + f.phone, "", "What work can we help with:", f.msg]
+      : ["Name: " + f.name, "Email: " + f.email, "Phone: " + f.phone, "Village / location: " + f.org, "", "Why I want to join:", f.msg];
+    window.location.href = "mailto:info@dhitiservices.in?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(lines.join("\n"));
+    setSent(true);
+  };
+
+  return (
+    <div className="dh-modal-ov" onClick={onClose}>
+      <div className="dh-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button className="dh-modal-x" onClick={onClose} aria-label="Close"><X size={18} /></button>
+        <div className="dh-modal-eyebrow">{isWork ? "Bring your work to us" : "Apply for training"}</div>
+        <h3 className="dh-modal-title">{isWork ? "Tell us about your work." : "Start your application."}</h3>
+        <p className="dh-modal-sub">{isWork ? "Share a few details and we will get back to you about running it with you." : "Fill this in and our team will reach out about the next training batch."}</p>
+        {sent ? (
+          <div className="dh-modal-done">
+            <div className="dh-modal-done-ic"><CheckCircle2 size={26} /></div>
+            <p>Your email is ready in your mail app. Just press send, and we will get back to you soon.</p>
+            <button className="dh-btn dh-btn-primary" onClick={onClose}>Done</button>
+          </div>
+        ) : (
+          <div className="dh-form">
+            <div className="dh-field"><label>Your name</label><input value={f.name} onChange={set("name")} placeholder="Full name" /></div>
+            <div className="dh-field"><label>{isWork ? "Company" : "Village / location"}</label><input value={f.org} onChange={set("org")} placeholder={isWork ? "Company name" : "Your village or town"} /></div>
+            <div className="dh-field"><label>Email</label><input type="email" value={f.email} onChange={set("email")} placeholder="Email address" /></div>
+            <div className="dh-field"><label>Phone</label><input value={f.phone} onChange={set("phone")} placeholder="Phone number" /></div>
+            <div className="dh-field dh-field-full"><label>{isWork ? "What work can we help with?" : "Why do you want to join?"}</label><textarea rows={4} value={f.msg} onChange={set("msg")} placeholder={isWork ? "Briefly describe the work or process you would like us to run." : "Tell us a little about yourself and why you want to join."} /></div>
+            <div className="dh-form-foot">
+              <button className="dh-btn dh-btn-primary" onClick={submit}>Send {isWork ? "inquiry" : "application"} <ArrowRight size={16} /></button>
+              <span className="dh-form-note">Goes to info@dhitiservices.in</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DhitiSite() {
   const [scrolled, setScrolled] = useState(false);
   const [menu, setMenu] = useState(false);
   const [open, setOpen] = useState(0);
   const [prog, setProg] = useState(0);
   const [active, setActive] = useState(0);
+  const [modal, setModal] = useState(null);
+  const openWork = (e) => { if (e) e.preventDefault(); setModal("work"); };
+  const openTraining = (e) => { if (e) e.preventDefault(); setModal("training"); };
 
   useEffect(() => {
     const onScroll = () => {
@@ -226,7 +283,7 @@ export default function DhitiSite() {
             ))}
           </div>
           <div className="dh-nav-cta">
-            <a href="#business" className="dh-btn dh-btn-primary" onClick={go("business")}>
+            <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>
               Bring your work to us <ArrowUpRight size={17} />
             </a>
             <button className="dh-burger" aria-label="Open menu" onClick={() => setMenu(true)}><Menu size={22} /></button>
@@ -237,7 +294,7 @@ export default function DhitiSite() {
       <div className={"dh-mobile" + (menu ? " open" : "")}>
         <button className="dh-burger" aria-label="Close menu" style={{ position: "absolute", top: "1.5rem", right: "8vw" }} onClick={() => setMenu(false)}><X size={22} /></button>
         {NAV.map(([t, id]) => <a key={id} href={"#" + id} onClick={go(id)}>{t}</a>)}
-        <a href="#business" className="dh-btn dh-btn-primary" onClick={go("business")}>Bring your work to us <ArrowUpRight size={17} /></a>
+        <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>Bring your work to us <ArrowUpRight size={17} /></a>
       </div>
 
       <span id="top" />
@@ -259,8 +316,8 @@ export default function DhitiSite() {
               Dhiti Services trains people who have never had a desk job and turns them into operational teams businesses rely on. Data, support, quality and back office work, run with discipline and delivered with care.
             </p>
             <div className="dh-hero-cta" data-reveal style={{ "--d": 3 }}>
-              <motion.a href="#business" className="dh-btn dh-btn-primary" onClick={go("business")} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Bring your work to us <ArrowUpRight size={18} /></motion.a>
-              <motion.a href="#careers" className="dh-btn dh-btn-glass" onClick={go("careers")} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Apply for training <ArrowRight size={17} /></motion.a>
+              <motion.a href="#business" className="dh-btn dh-btn-primary" onClick={openWork} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Bring your work to us <ArrowUpRight size={18} /></motion.a>
+              <motion.a href="#careers" className="dh-btn dh-btn-glass" onClick={openTraining} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Apply for training <ArrowRight size={17} /></motion.a>
             </div>
           </div>
           <div className="dh-hero-visual" data-reveal style={{ "--d": 2 }}>
@@ -521,7 +578,7 @@ export default function DhitiSite() {
                 <li><CheckCircle2 size={19} /> We scale the team once quality holds steady, at a pace that matches your needs.</li>
                 <li><CheckCircle2 size={19} /> You get a named owner accountable for delivery, not a ticket queue.</li>
               </ul>
-              <a href="#contact" className="dh-btn dh-btn-primary" onClick={go("contact")}>Talk to us about your process <ArrowUpRight size={17} /></a>
+              <a href="#contact" className="dh-btn dh-btn-primary" onClick={openWork}>Talk to us about your process <ArrowUpRight size={17} /></a>
             </div>
             <div className="dh-door ppl" id="careers">
               <div className="dh-ph dh-door-ph">
@@ -536,7 +593,7 @@ export default function DhitiSite() {
                 <li><CheckCircle2 size={19} /> Training comes first. You are paid once you are on live work.</li>
                 <li><CheckCircle2 size={19} /> Clear paths to grow, from trainee to team member to leader.</li>
               </ul>
-              <a href="#contact" className="dh-btn" style={{ background: "#fff", color: "#ee0800" }} onClick={go("contact")}>Apply for the next batch <MoveRight size={17} /></a>
+              <a href="#contact" className="dh-btn" style={{ background: "#fff", color: "#ee0800" }} onClick={openTraining}>Apply for the next batch <MoveRight size={17} /></a>
             </div>
           </div>
         </div>
@@ -573,8 +630,8 @@ export default function DhitiSite() {
           <div className="dh-eyebrow center" data-reveal style={{ justifyContent: "center", color: "#ff6a59" }}>Dhiti Services</div>
           <h2 data-reveal style={{ "--d": 1 }}>Whether you have work, or you are looking for the career that finally fits, there is a place for you here.</h2>
           <div className="dh-cta-btns" data-reveal style={{ "--d": 2 }}>
-            <a href="#business" className="dh-btn dh-btn-primary" onClick={go("business")}>Bring your work to us <ArrowUpRight size={18} /></a>
-            <a href="#careers" className="dh-btn dh-btn-ghost" style={{ background: "transparent", color: "#fff", WebkitTextFillColor: "#fff", borderColor: "rgba(255,255,255,.25)" }} onClick={go("careers")}>Apply for training <ArrowRight size={17} /></a>
+            <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>Bring your work to us <ArrowUpRight size={18} /></a>
+            <a href="#careers" className="dh-btn dh-btn-ghost" style={{ background: "transparent", color: "#fff", WebkitTextFillColor: "#fff", borderColor: "rgba(255,255,255,.25)" }} onClick={openTraining}>Apply for training <ArrowRight size={17} /></a>
           </div>
         </div>
       </section>
@@ -610,6 +667,7 @@ export default function DhitiSite() {
           </div>
         </div>
       </footer>
+      {modal && <InquiryModal mode={modal} onClose={() => setModal(null)} />}
     </div>
   );
 }
