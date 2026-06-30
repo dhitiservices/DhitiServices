@@ -286,13 +286,12 @@ export default function DhitiSite() {
             <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>
               Bring your work to us <ArrowUpRight size={17} />
             </a>
-            <button className="dh-burger" aria-label="Open menu" onClick={() => setMenu(true)}><Menu size={22} /></button>
+            <button className="dh-burger" aria-label={menu ? "Close menu" : "Open menu"} onClick={() => setMenu(!menu)}>{menu ? <X size={22} /> : <Menu size={22} />}</button>
           </div>
         </div>
       </nav>
 
       <div className={"dh-mobile" + (menu ? " open" : "")}>
-        <button className="dh-burger" aria-label="Close menu" style={{ position: "absolute", top: "1.5rem", right: "8vw" }} onClick={() => setMenu(false)}><X size={22} /></button>
         {NAV.map(([t, id]) => <a key={id} href={"#" + id} onClick={go(id)}>{t}</a>)}
         <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>Bring your work to us <ArrowUpRight size={17} /></a>
       </div>
