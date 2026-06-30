@@ -1,94 +1,56 @@
-# Dhiti Services — Website
+# Ramsukrut Kalyan Foundation Website
 
-Premium marketing website for **Dhiti Services**, a rural operations and talent
-company based in Dawadi, Pune District, Maharashtra. Built with **React + Vite +
-Tailwind CSS + Framer Motion**.
+A bilingual (English + मराठी) NGO website for Ramsukrut Kalyan Foundation (RKF), built with React 18, Vite 5, Tailwind CSS 3 and Framer Motion. The layout and section structure follow a modern agency-style reference (split hero with a rotating seal badge, scrolling marquees, a dark feature band with a highlighted card, a four-quadrant "why us" panel, numbered process steps and a portfolio grid), rendered entirely in Ramsukrut's own warm brand identity with real RKF photography.
 
----
+## Design system
 
-## Quick start
+- **Palette (Ramsukrut brand):** Cream `#FBF5EA`, Burnt Orange `#EF6C12`, Dark Brown `#231505`, Warm Gold `#C2891B`, Soft Beige `#F4E9D5`. Defined in `tailwind.config.js`.
+- **Type:** Poppins (display / headings) + Inter (body and UI). Marathi uses Mukta automatically for Devanagari glyphs; English visitors do not download it.
+- **Motion:** hero entrance, scroll fade-ins, animated counters, a slowly rotating seal badge, infinite marquees, card hover lifts and smooth page transitions. All motion respects the visitor's "reduce motion" setting.
+- **Photography:** real RKF photos (computer-training labs, eye-care camps, village school gatherings, the team) throughout, per the brief.
 
-You need **Node.js 18 or newer** installed (https://nodejs.org).
+## Run locally
 
 ```bash
-# 1. install dependencies (run once)
 npm install
+npm run dev      # http://localhost:5173
+```
 
-# 2. start the local dev server (hot reload)
-npm run dev
-# open the URL it prints, usually http://localhost:5173
+## Build for production
 
-# 3. build the production site (output goes to the dist/ folder)
-npm run build
-
-# 4. preview the production build locally
+```bash
+npm run build    # outputs dist/
 npm run preview
 ```
 
-## Deploying
+## Deploy on Render (free static hosting)
 
-`npm run build` creates a `dist/` folder containing the finished static site.
-Upload that folder to any static host:
+1. Push this folder to a GitHub repository.
+2. On render.com create a **Static Site** from the repo.
+3. Build Command: `npm run build`  •  Publish Directory: `dist`
+4. Create. Every push redeploys. (Same settings work on Netlify, Vercel, Cloudflare Pages.)
 
-- **Netlify / Vercel / Cloudflare Pages:** build command `npm run build`,
-  publish directory `dist`.
-- **Any web server:** copy the contents of `dist/` to your web root.
+## Languages
 
-## Project structure
+Opens in English; the **मराठी / EN** control in the navbar switches the whole site and the choice is remembered on the device. All copy lives in `src/content/en.js` and `src/content/mr.js` (sourced from the Ramsukrut master brief). Edit the same key in both files to change wording.
 
-```
-dhiti-services-website/
-├── index.html              # HTML shell
-├── package.json            # dependencies + scripts
-├── vite.config.js          # Vite config
-├── tailwind.config.js      # Tailwind theme (brand colours + fonts)
-├── postcss.config.js       # PostCSS (Tailwind + autoprefixer)
-└── src/
-    ├── main.jsx            # app entry (mounts the site, MotionConfig)
-    ├── index.css           # fonts + Tailwind layers + all custom styles
-    ├── DhitiServices.jsx   # the whole one-page site
-    └── assets/
-        ├── photos/         # all section photos (18 images)
-        └── logos/          # partner / group company logos (6 images)
-```
+## Common edits
 
-## Stack
+| What | Where |
+|---|---|
+| Stats (2000+, 24+, 5+) | `home.stats` / `StatRow` in both content files |
+| Focus areas, why-us, process, work cards | the `home` object keys in both content files |
+| Leadership team | `about.team` in both content files; photos in `public/img/` |
+| YouTube videos | `home.reels` (video IDs) in both content files |
+| Photos | files in `public/img/` (named `real-p1.jpg` ... `real-p11.jpg`) |
+| Roadmap / future phases | `roadmap` array in both content files |
+| Phone / email / address | search `7277404040` and `ramsukrutfoundation` in `src/` |
+| Colours, fonts, animations | `tailwind.config.js`, `index.html`, `src/index.css` |
 
-- **React 18** + **Vite 5** for the build.
-- **Tailwind CSS 3** is configured (brand colours and fonts live in
-  `tailwind.config.js`); the bespoke component styling lives in `src/index.css`.
-- **Framer Motion** powers the hero service-card entrance and the call-to-action
-  micro-interactions, and respects the visitor's reduce-motion setting.
-- **lucide-react** for the icons.
-- Fonts: Fraunces, Plus Jakarta Sans, Space Grotesk (loaded from Google Fonts in
-  `src/index.css`).
+## Pages
 
-## Brand
+Home `/` · About `/about` · Our Work `/work` · Impact `/impact` · Media `/media` · Get Involved `/involved` · Contact `/contact`. URLs use `/#/...` (HashRouter) so refreshes work on any static host.
 
-- Primary red: `#EE0800` (deep `#C20600`, bright `#FF3322`).
-- Ink / text: `#15161A`. Backgrounds: white and warm off-white panels.
+## Performance
 
-## Replacing photos
-
-Every photo is a real file in `src/assets/photos/`. To swap one, drop a new
-image in with the **same filename** (keep the aspect ratio close):
-
-| File | Where it appears |
-| --- | --- |
-| `problem.jpg` | "Talent is everywhere" section (tall 4:5) |
-| `story.jpg` | Our story section (tall 4:5) |
-| `service-data.jpg` `service-support.jpg` `service-quality.jpg` `service-group.jpg` | the four service cards (16:10) |
-| `train-recruit.jpg` `train-train.jpg` `train-mentor.jpg` `train-deliver.jpg` | the four training steps (16:10) |
-| `why-choose.jpg` | Why choose us (4:3) |
-| `impact-income.jpg` `impact-skills.jpg` `impact-norelocation.jpg` `impact-dignity.jpg` | the four impact cards (16:10) |
-| `band-team.jpg` | full-width team band (wide) |
-| `door-business.jpg` `door-careers.jpg` | the two "work with us" cards (16:9) |
-
-### Still to add
-
-- **Leadership headshots** (Vidya Kolekar, Prajakta Hundare, Pratiksha Lonkar,
-  Sanket Waykar, Somnath Gadage) are still shown as placeholders with initials.
-  When you have square headshots, we will wire them into the Leadership section.
-- The **Dhiti logo** in the nav and footer is the temporary wordmark.
-- The **techspian** logo sits on a dark tile because the supplied logo is black;
-  a transparent / light version can replace it.
+Real photos are compressed and width-capped (the image folder is ~5.9 MB) and lazy-loaded; each page is code-split; the hero image is preloaded; fonts use `display=swap`; on phones the video row becomes a swipeable slider. Forms open a pre-filled WhatsApp message to +91 72774 04040 (no backend needed). Leadership bios can be added later as an extra line on each team card.
