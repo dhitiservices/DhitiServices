@@ -307,7 +307,6 @@ export default function DhitiSite() {
         </div>
         <div className="dh-wrap dh-hero-grid">
           <div>
-            <div className="dh-eyebrow" data-reveal>Operations &amp; Talent · built in the village</div>
             <h1 className="dh-hero-title" data-reveal style={{ "--d": 1 }}>
               Steady hands. Sharper processes. <span className="dh-grad">Real careers.</span>
             </h1>
