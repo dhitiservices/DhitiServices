@@ -6,4 +6,19 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   base: "./",
+  build: {
+    // Split the big, rarely-changing libraries into their own files so that
+    // returning visitors only re-download the site code, not React/animation.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          motion: ["framer-motion"],
+        },
+      },
+    },
+    cssMinify: true,
+    assetsInlineLimit: 2048,
+    chunkSizeWarningLimit: 700,
+  },
 });

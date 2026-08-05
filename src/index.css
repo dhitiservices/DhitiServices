@@ -512,3 +512,29 @@
 .dh-modal-done-ic{width:58px;height:58px;border-radius:50%;background:var(--mist-2);color:var(--red);display:grid;place-items:center;margin:0 auto 1.1rem}
 .dh-modal-done p{color:var(--ink-2);font-size:.98rem;line-height:1.55;margin:0 auto 1.4rem;max-width:36ch}
 @media(max-width:520px){.dh-form{grid-template-columns:1fr}.dh-modal{padding:1.7rem}.dh-modal-title{font-size:1.45rem}}
+
+/* ===== interaction polish ===== */
+
+/* nav link for the section currently in view */
+.dh-link.active{color:var(--ink);font-weight:600}
+.dh-link.active::after{width:100%}
+
+/* let people read a logo instead of chasing it (hover pause already set; add keyboard) */
+.dh-track{will-change:transform}
+.dh-track:focus-within{animation-play-state:paused}
+
+/* stop long words from breaking narrow cards */
+.dh-svc-body h3,.dh-imp h3,.dh-step h4{overflow-wrap:break-word;hyphens:auto}
+
+/* images: reserve space + smooth decode */
+.dh-ph img,.dh-svc-img img,.dh-step-img img,.dh-imp-img img,.dh-person-ph img,.dh-door-ph img{background:var(--mist)}
+
+/* buttons feel responsive on press, not just hover */
+.dh .dh-btn:active{transform:translateY(0) scale(.985)}
+
+/* honour reduce-motion everywhere, including scroll and transitions */
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .dh *,.dh *::before,.dh *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  .dh-track{animation:none!important;transform:none!important}
+}

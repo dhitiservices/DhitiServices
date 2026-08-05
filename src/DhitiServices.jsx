@@ -7,37 +7,36 @@ import {
 } from "lucide-react";
 
 import { motion } from "framer-motion";
-import logoAhotel from "./assets/logos/ahotel.png";
-import logoVillageTokri from "./assets/logos/villagetokri.png";
-import logoDhiti from "./assets/logos/dhiti-logo.png";
-import leaderVidya from "./assets/photos/leader-vidya.jpg";
-import leaderPrajakta from "./assets/photos/leader-prajakta.jpg";
-import imgProblem from "./assets/photos/problem.jpg";
-import imgStory from "./assets/photos/story.jpg";
-import imgServiceData from "./assets/photos/service-data.jpg";
-import imgServiceSupport from "./assets/photos/service-support.jpg";
-import imgServiceQuality from "./assets/photos/service-quality.jpg";
-import imgServiceGroup from "./assets/photos/service-group.jpg";
-import imgTrainRecruit from "./assets/photos/train-recruit.jpg";
-import imgTrainTrain from "./assets/photos/train-train.jpg";
-import imgTrainMentor from "./assets/photos/train-mentor.jpg";
-import imgTrainDeliver from "./assets/photos/train-deliver.jpg";
-import imgWhy from "./assets/photos/why-choose.jpg";
-import imgImpactIncome from "./assets/photos/impact-income.jpg";
-import imgImpactSkills from "./assets/photos/impact-skills.jpg";
-import imgImpactNoReloc from "./assets/photos/impact-norelocation.jpg";
-import imgImpactDignity from "./assets/photos/impact-dignity.jpg";
-import imgDoorBusiness from "./assets/photos/door-business.jpg";
-import imgDoorCareers from "./assets/photos/door-careers.jpg";
-import imgBandTeam from "./assets/photos/band-team.jpg";
-import logoVervotech from "./assets/logos/vervotech.png";
-import logoZentrumHub from "./assets/logos/zentrumhub.png";
-import logoZealConnect from "./assets/logos/zealconnect.png";
-import logoTechspian from "./assets/logos/techspian.png";
-import logoGuestara from "./assets/logos/guestara.png";
-import logoXeni from "./assets/logos/xeni.png";
+import logoAhotel from "./assets/logos/ahotel.webp";
+import logoVillageTokri from "./assets/logos/villagetokri.webp";
+import logoDhiti from "./assets/logos/dhiti-logo.webp";
+import leaderVidya from "./assets/photos/leader-vidya.webp";
+import leaderPrajakta from "./assets/photos/leader-prajakta.webp";
+import imgProblem from "./assets/photos/problem.webp";
+import imgStory from "./assets/photos/story.webp";
+import imgServiceData from "./assets/photos/service-data.webp";
+import imgServiceSupport from "./assets/photos/service-support.webp";
+import imgServiceQuality from "./assets/photos/service-quality.webp";
+import imgServiceGroup from "./assets/photos/service-group.webp";
+import imgTrainRecruit from "./assets/photos/train-recruit.webp";
+import imgTrainTrain from "./assets/photos/train-train.webp";
+import imgTrainMentor from "./assets/photos/train-mentor.webp";
+import imgTrainDeliver from "./assets/photos/train-deliver.webp";
+import imgWhy from "./assets/photos/why-choose.webp";
+import imgImpactIncome from "./assets/photos/impact-income.webp";
+import imgImpactSkills from "./assets/photos/impact-skills.webp";
+import imgImpactNoReloc from "./assets/photos/impact-norelocation.webp";
+import imgImpactDignity from "./assets/photos/impact-dignity.webp";
+import imgDoorBusiness from "./assets/photos/door-business.webp";
+import imgDoorCareers from "./assets/photos/door-careers.webp";
+import imgBandTeam from "./assets/photos/band-team.webp";
+import logoVervotech from "./assets/logos/vervotech.webp";
+import logoZentrumHub from "./assets/logos/zentrumhub.webp";
+import logoZealConnect from "./assets/logos/zealconnect.webp";
+import logoTechspian from "./assets/logos/techspian.webp";
+import logoXeni from "./assets/logos/xeni.webp";
 
-const DHITI_LOGOS = [{"name": "Vervotech", "src": logoVervotech, "dark": false}, {"name": "ZentrumHub", "src": logoZentrumHub, "dark": false}, {"name": "Zeal Connect", "src": logoZealConnect, "dark": false}, {"name": "techspian", "src": logoTechspian, "dark": false}, {"name": "guestara", "src": logoGuestara, "dark": false}, {"name": "XENI", "src": logoXeni, "dark": false}, {"name": "@hotel", "src": logoAhotel, "dark": false}, {"name": "Bay Organics", "src": logoVillageTokri, "dark": false}];
+const DHITI_LOGOS = [{"name": "Vervotech", "src": logoVervotech, "dark": false}, {"name": "ZentrumHub", "src": logoZentrumHub, "dark": false}, {"name": "Zeal Connect", "src": logoZealConnect, "dark": false}, {"name": "techspian", "src": logoTechspian, "dark": false}, {"name": "XENI", "src": logoXeni, "dark": false}, {"name": "@hotel", "src": logoAhotel, "dark": false}, {"name": "Bay Organics", "src": logoVillageTokri, "dark": false}];
 
 
 /* ============================================================
@@ -54,7 +53,7 @@ const STATS = [
   { v: 50, suf: "+", l: "people trained and working" },
   { v: 4, suf: "", l: "service lines run end to end" },
   { v: 100, suf: "%", l: "of work passes a quality check" },
-  { v: 8, suf: "", l: "brands that trust us" },
+  { v: 7, suf: "", l: "brands that trust us" },
 ];
 
 const DHITI_IMAGES = {
@@ -161,11 +160,38 @@ function InquiryModal({ mode, onClose }) {
   const [sent, setSent] = useState(false);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
 
+  const boxRef = useRef(null);
+
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const opener = document.activeElement;
+    const box = boxRef.current;
+    const focusables = () => Array.from(
+      box.querySelectorAll('input, textarea, button, [href]')
+    ).filter((el) => !el.disabled && el.offsetParent !== null);
+
+    const first = focusables()[0];
+    if (first) first.focus();
+
+    const onKey = (e) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      if (!list.length) return;
+      const firstEl = list[0], lastEl = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
+      else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
+    };
+
     document.addEventListener("keydown", onKey);
+    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+    if (scrollbar > 0) document.body.style.paddingRight = scrollbar + "px";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+      document.body.style.paddingRight = "";
+      if (opener && opener.focus) opener.focus();
+    };
   }, [onClose]);
 
   const submit = () => {
@@ -180,7 +206,7 @@ function InquiryModal({ mode, onClose }) {
 
   return (
     <div className="dh-modal-ov" onClick={onClose}>
-      <div className="dh-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="dh-modal" ref={boxRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={isWork ? "Bring your work to us" : "Apply for training"}>
         <button className="dh-modal-x" onClick={onClose} aria-label="Close"><X size={18} /></button>
         <div className="dh-modal-eyebrow">{isWork ? "Bring your work to us" : "Apply for training"}</div>
         <h3 className="dh-modal-title">{isWork ? "Tell us about your work." : "Start your application."}</h3>
@@ -216,6 +242,7 @@ export default function DhitiSite() {
   const [prog, setProg] = useState(0);
   const [active, setActive] = useState(0);
   const [modal, setModal] = useState(null);
+  const [current, setCurrent] = useState("");
   const openWork = (e) => { if (e) e.preventDefault(); setModal("work"); };
   const openTraining = (e) => { if (e) e.preventDefault(); setModal("training"); };
 
@@ -249,11 +276,30 @@ export default function DhitiSite() {
     return () => clearInterval(id);
   }, []);
 
+
+  // highlight the nav link whose section is currently in view
+  useEffect(() => {
+    const ids = ["services", "training", "impact", "careers", "faq"];
+    const els = ids.map((id) => document.getElementById(id)).filter(Boolean);
+    if (!els.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) setCurrent(visible.target.id);
+      },
+      { rootMargin: "-45% 0px -45% 0px", threshold: [0, 0.25, 0.5, 1] }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
   const go = (id) => (e) => {
     e.preventDefault();
     setMenu(false);
     const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (el) el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   };
 
   const GROUPS = ["Group Co. 01", "Group Co. 02", "Group Co. 03", "Group Co. 04", "Group Co. 05", "Group Co. 06"];
@@ -274,12 +320,12 @@ export default function DhitiSite() {
       <nav className={"dh-nav" + (scrolled ? " scrolled" : "")}>
         <div className="dh-nav-inner">
           <div className="dh-logo" onClick={go("top")}>
-            <img src={logoDhiti} alt="Dhiti" className="dh-logo-img" />
+            <img decoding="async" src={logoDhiti} alt="Dhiti" className="dh-logo-img" />
             
           </div>
           <div className="dh-links">
             {NAV.map(([t, id]) => (
-              <a key={id} href={"#" + id} className="dh-link" onClick={go(id)}>{t}</a>
+              <a key={id} href={"#" + id} className={"dh-link" + (current === id ? " active" : "")} onClick={go(id)} aria-current={current === id ? "true" : undefined}>{t}</a>
             ))}
           </div>
           <div className="dh-nav-cta">
@@ -356,7 +402,7 @@ export default function DhitiSite() {
           <div className="dh-track">
             {[...DHITI_LOGOS, ...DHITI_LOGOS].map((g, i) => (
               <div className={"dh-logo-tile" + (g.dark ? " dark" : "")} key={i}>
-                <img src={g.src} alt={g.name} />
+                <img loading="lazy" decoding="async" src={g.src} alt={g.name} />
               </div>
             ))}
           </div>
@@ -372,7 +418,7 @@ export default function DhitiSite() {
           </h2>
           <div className="dh-prob-grid">
             <div className="dh-prob-media" data-reveal>
-              <div className="dh-ph dh-ph-prob"><img src={DHITI_IMAGES.prob} alt="A capable young person in the village" /></div>
+              <div className="dh-ph dh-ph-prob"><img loading="lazy" decoding="async" src={DHITI_IMAGES.prob} alt="A capable young person in the village" /></div>
             </div>
             <div className="dh-prob-body">
               <p data-reveal style={{ "--d": 1 }}>In villages across the country, there are people who are sharp, reliable and willing to work hard. What they do not have is a way in. The good jobs sit in cities, hours away from home, and reaching them means leaving everything familiar behind.</p>
@@ -391,7 +437,7 @@ export default function DhitiSite() {
               <div className="dh-eyebrow" data-reveal>Our story</div>
               <div className="dh-story-media" data-reveal style={{ "--d": 1, marginTop: "1.6rem" }}>
                 <div className="dh-ph dh-ph-story">
-                  <img src={DHITI_IMAGES.story} alt="Inside the Dhiti Services office" />
+                  <img loading="lazy" decoding="async" src={DHITI_IMAGES.story} alt="Inside the Dhiti Services office" />
                 </div>
                 <div className="dh-quote-card">
                   <p>Welfare that runs out is charity. Welfare that pays wages, every month, for years, is <span className="dh-grad" style={{ fontStyle: "normal" }}>kalyan</span>.</p>
@@ -420,7 +466,7 @@ export default function DhitiSite() {
             {SERVICES.map((s, i) => (
               <div className="dh-svc" key={s.idx} data-reveal style={{ "--d": i % 2 }}>
                 <div className="dh-svc-img">
-                  {s.img ? <img src={s.img} alt={s.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{s.shot}</span></div>}
+                  {s.img ? <img loading="lazy" decoding="async" src={s.img} alt={s.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{s.shot}</span></div>}
                 </div>
                 <div className="dh-svc-body">
                   <div className="dh-svc-top">
@@ -450,7 +496,7 @@ export default function DhitiSite() {
             {STEPS.map((s, i) => (
               <div className="dh-step" key={s.t} data-reveal style={{ "--d": i }}>
                 <div className="dh-step-img">
-                  {s.img ? <img src={s.img} alt={s.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{s.shot}</span></div>}
+                  {s.img ? <img loading="lazy" decoding="async" src={s.img} alt={s.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{s.shot}</span></div>}
                 </div>
                 <div className="dh-step-body">
                   <div className="dh-step-ic"><s.Icon size={22} /></div>
@@ -476,7 +522,7 @@ export default function DhitiSite() {
                 <p>We are not the cheapest option, and we never pretend to be.</p>
               </div>
               <div className="dh-ph dh-ph-why" data-reveal style={{ "--d": 3 }}>
-                <img src={DHITI_IMAGES.why} alt="Quality work at Dhiti" />
+                <img loading="lazy" decoding="async" src={DHITI_IMAGES.why} alt="Quality work at Dhiti" />
               </div>
             </div>
             <div className="dh-why-list">
@@ -494,7 +540,7 @@ export default function DhitiSite() {
       {/* TEAM BAND (full-width photo slot) */}
       <section className="dh-band">
         <div className="dh-band-media" data-reveal>
-          <div className="dh-ph"><img src={DHITI_IMAGES.band} alt="The Dhiti team" /></div>
+          <div className="dh-ph"><img loading="lazy" decoding="async" src={DHITI_IMAGES.band} alt="The Dhiti team" /></div>
           <div className="dh-band-ov">
             <div className="dh-eyebrow center" style={{ justifyContent: "center" }}>Built in the village</div>
             <h2>No one should have to leave home to do work that matters.</h2>
@@ -513,7 +559,7 @@ export default function DhitiSite() {
             {IMPACT.map((m, i) => (
               <div className="dh-imp" key={m.t} data-reveal style={{ "--d": i }}>
                 <div className="dh-imp-img">
-                  {m.img ? <img src={m.img} alt={m.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{m.shot}</span></div>}
+                  {m.img ? <img loading="lazy" decoding="async" src={m.img} alt={m.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{m.shot}</span></div>}
                 </div>
                 <div className="dh-imp-body">
                   <span className="dh-imp-ic"><m.Icon size={22} /></span>
@@ -539,7 +585,7 @@ export default function DhitiSite() {
               <div className="dh-person" key={p.name} data-reveal style={{ "--d": i }}>
                 <div className="dh-person-ph">
                   {p.img ? (
-                    <img src={p.img} alt={p.name} />
+                    <img loading="lazy" decoding="async" src={p.img} alt={p.name} />
                   ) : (
                     <>
                       <span className="dh-person-ini">{p.name.split(" ").map((x) => x[0]).join("")}</span>
@@ -565,7 +611,7 @@ export default function DhitiSite() {
           <div className="dh-doors">
             <div className="dh-door biz" data-reveal>
               <div className="dh-ph dh-door-ph">
-                <img src={DHITI_IMAGES.doorBiz} alt="A trained Dhiti team at work" />
+                <img loading="lazy" decoding="async" src={DHITI_IMAGES.doorBiz} alt="A trained Dhiti team at work" />
               </div>
               <span className="tag">For businesses</span>
               <h3>Hand your work to a team that is trained for it.</h3>
@@ -580,7 +626,7 @@ export default function DhitiSite() {
             </div>
             <div className="dh-door ppl" id="careers">
               <div className="dh-ph dh-door-ph">
-                <img src={DHITI_IMAGES.doorPpl} alt="Someone starting their career at Dhiti" />
+                <img loading="lazy" decoding="async" src={DHITI_IMAGES.doorPpl} alt="Someone starting their career at Dhiti" />
               </div>
               <span className="tag">For people starting out</span>
               <h3>We train you. You do not need experience.</h3>
@@ -640,7 +686,7 @@ export default function DhitiSite() {
           <div className="dh-foot-grid">
             <div>
               <div className="dh-logo">
-                <img src={logoDhiti} alt="Dhiti" className="dh-logo-img" />
+                <img decoding="async" src={logoDhiti} alt="Dhiti" className="dh-logo-img" />
                 
               </div>
               <p className="dh-foot-tag">Building operational work and skilled jobs, from the village outward.</p>
