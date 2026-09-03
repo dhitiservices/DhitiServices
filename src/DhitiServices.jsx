@@ -106,7 +106,7 @@ const IMPACT = [
 ];
 
 const LEADERS = [
-  { name: "Vidya Kolekar", role: "Leader, People & Culture", img: leaderVidya },
+  { name: "Vidya Kolekar", role: "Director", img: leaderVidya },
   { name: "Prajakta Hundare", role: "Leader, Travel Operations", img: leaderPrajakta },
 ];
 
