@@ -538,3 +538,5 @@
   .dh *,.dh *::before,.dh *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
   .dh-track{animation:none!important;transform:none!important}
 }
+.dh-form-err{flex-basis:100%;margin:.2rem 0 0;color:var(--deep);font-size:.85rem;font-weight:500}
+.dh .dh-btn-primary:disabled{opacity:.72;cursor:not-allowed;transform:none}

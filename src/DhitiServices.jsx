@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Database, Headphones, ShieldCheck, Building2, UserPlus, GraduationCap,
   Users, CheckCircle2, BadgeCheck, ArrowUpRight, ArrowRight, MoveRight,
@@ -7,6 +7,17 @@ import {
 } from "lucide-react";
 
 import { motion } from "framer-motion";
+
+// ─────────────────────────────────────────────────────────────
+//  WHERE THE TWO FORMS SEND TO
+//
+//  Submissions are delivered by Web3Forms to the inbox that the
+//  form was registered under: info@dhitiservices.com
+//  The access key below is a public form id, safe in client code.
+//  Manage or change it at https://web3forms.com (log in as that inbox).
+// ─────────────────────────────────────────────────────────────
+const FORM_ENDPOINT = "https://api.web3forms.com/submit";
+const FORM_ACCESS_KEY = "c15fe376-906a-46c2-baab-8662c6a6dfde";
 import logoAhotel from "./assets/logos/ahotel.webp";
 import logoVillageTokri from "./assets/logos/villagetokri.webp";
 import logoDhiti from "./assets/logos/dhiti-logo.webp";
@@ -158,9 +169,15 @@ function InquiryModal({ mode, onClose }) {
   const isWork = mode === "work";
   const [f, setF] = useState({ name: "", org: "", email: "", phone: "", msg: "" });
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   const boxRef = useRef(null);
+
+  // keep the latest onClose without re-running the effect on every parent render
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     const opener = document.activeElement;
@@ -173,7 +190,7 @@ function InquiryModal({ mode, onClose }) {
     if (first) first.focus();
 
     const onKey = (e) => {
-      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Escape") { closeRef.current(); return; }
       if (e.key !== "Tab") return;
       const list = focusables();
       if (!list.length) return;
@@ -192,16 +209,51 @@ function InquiryModal({ mode, onClose }) {
       document.body.style.paddingRight = "";
       if (opener && opener.focus) opener.focus();
     };
-  }, [onClose]);
+    // runs once per open: re-running it is what used to steal focus mid-typing
+  }, []);
 
-  const submit = () => {
-    if (!f.name.trim() || !f.email.trim()) return;
-    const subject = isWork ? ("New work inquiry - " + f.name) : ("Training application - " + f.name);
-    const lines = isWork
-      ? ["Name: " + f.name, "Company: " + f.org, "Email: " + f.email, "Phone: " + f.phone, "", "What work can we help with:", f.msg]
-      : ["Name: " + f.name, "Email: " + f.email, "Phone: " + f.phone, "Village / location: " + f.org, "", "Why I want to join:", f.msg];
-    window.location.href = "mailto:info@dhitiservices.in?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(lines.join("\n"));
-    setSent(true);
+  const submit = async () => {
+    if (busy) return;
+    if (!f.name.trim()) { setErr("Please add your name."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) { setErr("Please add a valid email address."); return; }
+    setErr("");
+    setBusy(true);
+
+    const payload = {
+      ...(FORM_ACCESS_KEY ? { access_key: FORM_ACCESS_KEY } : {}),
+      subject: isWork ? ("New work inquiry - " + f.name) : ("Training application - " + f.name),
+      from_name: "Dhiti Services website",
+      name: f.name,
+      email: f.email,
+      phone: f.phone,
+      [isWork ? "company" : "village_or_location"]: f.org,
+      [isWork ? "what_work" : "why_join"]: f.msg,
+      enquiry_type: isWork ? "Bring your work to us" : "Apply for training",
+    };
+
+    if (!FORM_ENDPOINT || FORM_ENDPOINT.startsWith("PASTE_")) {
+      setErr("This form is not connected yet. Please email info@dhitiservices.com.");
+      setBusy(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(FORM_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success !== false) {
+        setSent(true);
+      } else {
+        setErr("Something went wrong sending that. Please email info@dhitiservices.com directly.");
+      }
+    } catch {
+      setErr("Could not reach the server. Please check your connection, or email info@dhitiservices.com.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -214,7 +266,7 @@ function InquiryModal({ mode, onClose }) {
         {sent ? (
           <div className="dh-modal-done">
             <div className="dh-modal-done-ic"><CheckCircle2 size={26} /></div>
-            <p>Your email is ready in your mail app. Just press send, and we will get back to you soon.</p>
+            <p>Thank you. We have your details and our team will get back to you shortly.</p>
             <button className="dh-btn dh-btn-primary" onClick={onClose}>Done</button>
           </div>
         ) : (
@@ -225,8 +277,11 @@ function InquiryModal({ mode, onClose }) {
             <div className="dh-field"><label>Phone</label><input value={f.phone} onChange={set("phone")} placeholder="Phone number" /></div>
             <div className="dh-field dh-field-full"><label>{isWork ? "What work can we help with?" : "Why do you want to join?"}</label><textarea rows={4} value={f.msg} onChange={set("msg")} placeholder={isWork ? "Briefly describe the work or process you would like us to run." : "Tell us a little about yourself and why you want to join."} /></div>
             <div className="dh-form-foot">
-              <button className="dh-btn dh-btn-primary" onClick={submit}>Send {isWork ? "inquiry" : "application"} <ArrowRight size={16} /></button>
-              <span className="dh-form-note">Goes to info@dhitiservices.in</span>
+              <button className="dh-btn dh-btn-primary" onClick={submit} disabled={busy}>
+                {busy ? "Sending..." : <>Send {isWork ? "inquiry" : "application"} <ArrowRight size={16} /></>}
+              </button>
+              <span className="dh-form-note">Goes to info@dhitiservices.com</span>
+              {err && <p className="dh-form-err" role="alert">{err}</p>}
             </div>
           </div>
         )}
@@ -245,6 +300,7 @@ export default function DhitiSite() {
   const [current, setCurrent] = useState("");
   const openWork = (e) => { if (e) e.preventDefault(); setModal("work"); };
   const openTraining = (e) => { if (e) e.preventDefault(); setModal("training"); };
+  const closeModal = useCallback(() => setModal(null), []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -272,9 +328,10 @@ export default function DhitiSite() {
   useEffect(() => {
     const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) return;
+    if (modal) return;            // hold the cycle while a form is open
     const id = setInterval(() => setActive((a) => (a + 1) % 4), 2200);
     return () => clearInterval(id);
-  }, []);
+  }, [modal]);
 
 
   // highlight the nav link whose section is currently in view
@@ -701,7 +758,7 @@ export default function DhitiSite() {
               <h4>Get in touch</h4>
               <ul>
                 <li><MapPin size={16} /> Dawadi, Pune District, Maharashtra, India</li>
-                <li><a href="mailto:info@dhitiservices.in"><Mail size={16} /> info@dhitiservices.in</a></li>
+                <li><a href="mailto:info@dhitiservices.com"><Mail size={16} /> info@dhitiservices.com</a></li>
               </ul>
             </div>
           </div>
@@ -711,7 +768,7 @@ export default function DhitiSite() {
           </div>
         </div>
       </footer>
-      {modal && <InquiryModal mode={modal} onClose={() => setModal(null)} />}
+      {modal && <InquiryModal mode={modal} onClose={closeModal} />}
     </div>
   );
 }
