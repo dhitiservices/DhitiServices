@@ -3,10 +3,9 @@ import {
   Database, Headphones, ShieldCheck, Building2, UserPlus, GraduationCap,
   Users, CheckCircle2, BadgeCheck, ArrowUpRight, ArrowRight, MoveRight,
   MapPin, Mail, Phone, Plus, Minus, Menu, X, Sprout, Home, HeartHandshake,
-  Coins, Scale, Sparkles, Camera, ChevronDown
+  Coins, Scale, Sparkles, ChevronDown
 } from "lucide-react";
 
-import { motion } from "framer-motion";
 
 // ─────────────────────────────────────────────────────────────
 //  WHERE THE TWO FORMS SEND TO
@@ -61,10 +60,10 @@ const DHITI_LOGOS = [{"name": "Vervotech", "src": logoVervotech, "dark": false},
 
 /* ---------- data ---------- */
 const STATS = [
-  { v: 50, suf: "+", l: "people trained and working" },
+  { v: 200, suf: "+", l: "people trained and working" },
   { v: 4, suf: "", l: "service lines run end to end" },
   { v: 100, suf: "%", l: "of work passes a quality check" },
-  { v: 7, suf: "", l: "brands that trust us" },
+  { v: 25, suf: "+", l: "brands that trust us" },
 ];
 
 const DHITI_IMAGES = {
@@ -89,17 +88,17 @@ const DHITI_IMAGES = {
 };
 
 const SERVICES = [
-  { idx: "01", Icon: Database, img: DHITI_IMAGES.svc1, tag: "Entry, cataloguing and reconciliation, verified.", shot: "Close-up of hands typing data on a laptop", t: "Data & Back Office Operations", b: "Data entry, cataloguing, document processing and reconciliation, each with a verification step built in. You hand us the volume; we return work that is checked before it ever reaches you. Accuracy is the product, not an afterthought." },
-  { idx: "02", Icon: Headphones, img: DHITI_IMAGES.svc2, tag: "A calm, trained front line for customers.", shot: "A team member on a headset, mid-call", t: "Customer & Process Support", b: "Phone and written support, query handling and follow ups for businesses that need a dependable front line. Calm, trained and consistent, so your customers get the same quality of answer every time, no matter who picks up." },
-  { idx: "03", Icon: ShieldCheck, img: DHITI_IMAGES.svc3, tag: "An independent second pass on every output.", shot: "Two people checking work on one screen", t: "Quality & Audit", b: "Checking, verification and compliance passes on operational work, where accuracy matters more than speed. A second set of eyes that catches what a busy team misses, before a small error becomes an expensive one." },
-  { idx: "04", Icon: Building2, img: DHITI_IMAGES.svc4, tag: "A dedicated, embedded extension of your team.", shot: "A small team working together at desks", t: "Group & Internal Operations", b: "Ongoing operational support run as a dedicated, embedded extension of your team. The same standards and accountability on every process, proven on real operations and held to the last detail." },
+  { idx: "01", Icon: Database, img: DHITI_IMAGES.svc1, tag: "Entry, cataloguing and reconciliation, verified.", t: "Data & Back Office Operations", b: "Data entry, cataloguing, document processing and reconciliation, each with a verification step built in. You hand us the volume; we return work that is checked before it ever reaches you. Accuracy is the product, not an afterthought." },
+  { idx: "02", Icon: Headphones, img: DHITI_IMAGES.svc2, tag: "A calm, trained front line for customers.", t: "Customer & Process Support", b: "Phone and written support, query handling and follow ups for businesses that need a dependable front line. Calm, trained and consistent, so your customers get the same quality of answer every time, no matter who picks up." },
+  { idx: "03", Icon: ShieldCheck, img: DHITI_IMAGES.svc3, tag: "An independent second pass on every output.", t: "Quality & Audit", b: "Checking, verification and compliance passes on operational work, where accuracy matters more than speed. A second set of eyes that catches what a busy team misses, before a small error becomes an expensive one." },
+  { idx: "04", Icon: Building2, img: DHITI_IMAGES.svc4, tag: "A dedicated, embedded extension of your team.", t: "Group & Internal Operations", b: "Ongoing operational support run as a dedicated, embedded extension of your team. The same standards and accountability on every process, proven on real operations and held to the last detail." },
 ];
 
 const STEPS = [
-  { Icon: UserPlus, img: DHITI_IMAGES.step1, shot: "A new joinee welcomed at the reception desk", t: "Recruit", b: "We hire locally. No prior office experience required. We look for willingness to learn, not a polished resume, because everything else can be taught to someone who genuinely wants to grow." },
-  { Icon: GraduationCap, img: DHITI_IMAGES.step2, shot: "A trainer teaching in front of a screen or board", t: "Train", b: "We teach communication, computer literacy and the specific skills each role needs, before anyone is put in front of real work. Structured and deliberate, never improvised on the job." },
-  { Icon: Users, img: DHITI_IMAGES.step3, shot: "A senior and a junior looking at one laptop", t: "Mentor", b: "New hires shadow experienced team members on practice work, with direct feedback at every step, until they are genuinely ready to go live. No one is thrown in unprepared." },
-  { Icon: BadgeCheck, img: DHITI_IMAGES.step4, shot: "A focused person owning live work at their desk", t: "Deliver", b: "Trained teams take full ownership of live work, for group companies first and then external clients, with quality checks built into every stage. Ownership, not just attendance." },
+  { Icon: UserPlus, img: DHITI_IMAGES.step1, t: "Recruit", b: "We hire locally. No prior office experience required. We look for willingness to learn, not a polished resume, because everything else can be taught to someone who genuinely wants to grow." },
+  { Icon: GraduationCap, img: DHITI_IMAGES.step2, t: "Train", b: "We teach communication, computer literacy and the specific skills each role needs, before anyone is put in front of real work. Structured and deliberate, never improvised on the job." },
+  { Icon: Users, img: DHITI_IMAGES.step3, t: "Mentor", b: "New hires shadow experienced team members on practice work, with direct feedback at every step, until they are genuinely ready to go live. No one is thrown in unprepared." },
+  { Icon: BadgeCheck, img: DHITI_IMAGES.step4, t: "Deliver", b: "Trained teams take full ownership of live work, for group companies first and then external clients, with quality checks built into every stage. Ownership, not just attendance." },
 ];
 
 const REASONS = [
@@ -110,10 +109,10 @@ const REASONS = [
 ];
 
 const IMPACT = [
-  { Icon: Coins, img: DHITI_IMAGES.imp1, shot: "A team member smiling at their workstation", t: "Income that stays local", b: "Wages earned here are spent here, at the same shops, schools and homes the Foundation already works with. The money circulates instead of leaving with the worker." },
-  { Icon: Sprout, img: DHITI_IMAGES.imp2, shot: "Someone confidently using the computer", t: "Skills that travel", b: "Process discipline, computer fluency and client facing communication hold their value well beyond this one job. What people learn here stays with them for life." },
-  { Icon: Home, img: DHITI_IMAGES.imp3, shot: "Wide shot of the office or building in the village", t: "Work without relocation", b: "No one has to choose between staying close to family and doing work that is taken seriously. Both are possible in the same place, for the first time." },
-  { Icon: HeartHandshake, img: DHITI_IMAGES.imp4, shot: "A proud portrait of a team member at work", t: "Dignity, not dependence", b: "A wage earned is different from aid received. It builds confidence, standing and a sense of ownership that no handout ever can." },
+  { Icon: Coins, img: DHITI_IMAGES.imp1, t: "Income that stays local", b: "Wages earned here are spent here, at the same shops, schools and homes the Foundation already works with. The money circulates instead of leaving with the worker." },
+  { Icon: Sprout, img: DHITI_IMAGES.imp2, t: "Skills that travel", b: "Process discipline, computer fluency and client facing communication hold their value well beyond this one job. What people learn here stays with them for life." },
+  { Icon: Home, img: DHITI_IMAGES.imp3, t: "Work without relocation", b: "No one has to choose between staying close to family and doing work that is taken seriously. Both are possible in the same place, for the first time." },
+  { Icon: HeartHandshake, img: DHITI_IMAGES.imp4, t: "Dignity, not dependence", b: "A wage earned is different from aid received. It builds confidence, standing and a sense of ownership that no handout ever can." },
 ];
 
 const LEADERS = [
@@ -417,15 +416,15 @@ export default function DhitiSite() {
               Dhiti Services trains people who have never had a desk job and turns them into operational teams businesses rely on. Data, support, quality and back office work, run with discipline and delivered with care.
             </p>
             <div className="dh-hero-cta" data-reveal style={{ "--d": 3 }}>
-              <motion.a href="#business" className="dh-btn dh-btn-primary" onClick={openWork} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Bring your work to us <ArrowUpRight size={18} /></motion.a>
-              <motion.a href="#careers" className="dh-btn dh-btn-glass" onClick={openTraining} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Apply for training <ArrowRight size={17} /></motion.a>
+              <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>Bring your work to us <ArrowUpRight size={18} /></a>
+              <a href="#careers" className="dh-btn dh-btn-glass" onClick={openTraining}>Apply for training <ArrowRight size={17} /></a>
             </div>
           </div>
           <div className="dh-hero-visual" data-reveal style={{ "--d": 2 }}>
             <div className="dh-hv-blob" />
-            <motion.div className="dh-hsv-grid" initial="hidden" whileInView="show" viewport={{ once: true, margin: "-40px" }} variants={{ show: { transition: { staggerChildren: 0.1, delayChildren: 0.15 } } }}>
+            <div className="dh-hsv-grid">
               {SERVICES.map((s, i) => (
-                <motion.div className={"dh-hsv-card" + (active === i ? " active" : "")} key={s.idx} variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }} transition={{ duration: 0.5 }}>
+                <div className={"dh-hsv-card" + (active === i ? " active" : "")} key={s.idx} data-reveal style={{ "--d": i + 1 }}>
                   <div className="dh-hsv-top">
                     <span className="dh-hsv-ic"><s.Icon size={22} /></span>
                     <span className="dh-hsv-idx">{s.idx}</span>
@@ -433,9 +432,9 @@ export default function DhitiSite() {
                   <h4>{s.t}</h4>
                   <p>{s.tag}</p>
                   <span className="dh-hsv-prog" />
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
+            </div>
           </div>
         </div>
       </header>
@@ -446,9 +445,6 @@ export default function DhitiSite() {
           <div className="dh-stats" data-reveal>
             {STATS.map((s, i) => <Stat key={i} {...s} />)}
           </div>
-          <p style={{ textAlign: "center", marginTop: "1rem", fontSize: ".82rem", color: "var(--ink-3)" }} data-reveal>
-            Figures are moderate estimates from day one. Confirm before publishing.
-          </p>
         </div>
       </section>
 
@@ -523,7 +519,7 @@ export default function DhitiSite() {
             {SERVICES.map((s, i) => (
               <div className="dh-svc" key={s.idx} data-reveal style={{ "--d": i % 2 }}>
                 <div className="dh-svc-img">
-                  {s.img ? <img loading="lazy" decoding="async" src={s.img} alt={s.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{s.shot}</span></div>}
+                  <img loading="lazy" decoding="async" src={s.img} alt={s.t} />
                 </div>
                 <div className="dh-svc-body">
                   <div className="dh-svc-top">
@@ -553,7 +549,7 @@ export default function DhitiSite() {
             {STEPS.map((s, i) => (
               <div className="dh-step" key={s.t} data-reveal style={{ "--d": i }}>
                 <div className="dh-step-img">
-                  {s.img ? <img loading="lazy" decoding="async" src={s.img} alt={s.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{s.shot}</span></div>}
+                  <img loading="lazy" decoding="async" src={s.img} alt={s.t} />
                 </div>
                 <div className="dh-step-body">
                   <div className="dh-step-ic"><s.Icon size={22} /></div>
@@ -616,7 +612,7 @@ export default function DhitiSite() {
             {IMPACT.map((m, i) => (
               <div className="dh-imp" key={m.t} data-reveal style={{ "--d": i }}>
                 <div className="dh-imp-img">
-                  {m.img ? <img loading="lazy" decoding="async" src={m.img} alt={m.t} /> : <div className="dh-ph-mini"><Camera size={20} /><span>{m.shot}</span></div>}
+                  <img loading="lazy" decoding="async" src={m.img} alt={m.t} />
                 </div>
                 <div className="dh-imp-body">
                   <span className="dh-imp-ic"><m.Icon size={22} /></span>
@@ -641,14 +637,7 @@ export default function DhitiSite() {
             {LEADERS.map((p, i) => (
               <div className="dh-person" key={p.name} data-reveal style={{ "--d": i }}>
                 <div className="dh-person-ph">
-                  {p.img ? (
-                    <img loading="lazy" decoding="async" src={p.img} alt={p.name} />
-                  ) : (
-                    <>
-                      <span className="dh-person-ini">{p.name.split(" ").map((x) => x[0]).join("")}</span>
-                      <span className="dh-person-cam"><Camera size={13} /></span>
-                    </>
-                  )}
+                  <img loading="lazy" decoding="async" src={p.img} alt={p.name} />
                 </div>
                 <h3>{p.name}</h3>
                 <span>{p.role}</span>
