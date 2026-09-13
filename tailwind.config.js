@@ -8,7 +8,7 @@ export default {
         ink: { DEFAULT: "#15161A", soft: "#3a3d45", mute: "#6b6f7a" },
       },
       fontFamily: {
-        display: ["Poppins", "sans-serif"],
+        display: ["Fraunces", "serif"],
         sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
         mono: ['"Space Grotesk"', "monospace"],
       },

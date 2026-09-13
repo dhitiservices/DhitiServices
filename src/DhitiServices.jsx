@@ -6,6 +6,7 @@ import {
   Coins, Scale, Sparkles, ChevronDown
 } from "lucide-react";
 
+import { motion } from "framer-motion";
 
 // ─────────────────────────────────────────────────────────────
 //  WHERE THE TWO FORMS SEND TO
@@ -416,15 +417,15 @@ export default function DhitiSite() {
               Dhiti Services trains people who have never had a desk job and turns them into operational teams businesses rely on. Data, support, quality and back office work, run with discipline and delivered with care.
             </p>
             <div className="dh-hero-cta" data-reveal style={{ "--d": 3 }}>
-              <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>Bring your work to us <ArrowUpRight size={18} /></a>
-              <a href="#careers" className="dh-btn dh-btn-glass" onClick={openTraining}>Apply for training <ArrowRight size={17} /></a>
+              <motion.a href="#business" className="dh-btn dh-btn-primary" onClick={openWork} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Bring your work to us <ArrowUpRight size={18} /></motion.a>
+              <motion.a href="#careers" className="dh-btn dh-btn-glass" onClick={openTraining} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>Apply for training <ArrowRight size={17} /></motion.a>
             </div>
           </div>
           <div className="dh-hero-visual" data-reveal style={{ "--d": 2 }}>
             <div className="dh-hv-blob" />
-            <div className="dh-hsv-grid">
+            <motion.div className="dh-hsv-grid" initial="hidden" whileInView="show" viewport={{ once: true, margin: "-40px" }} variants={{ show: { transition: { staggerChildren: 0.1, delayChildren: 0.15 } } }}>
               {SERVICES.map((s, i) => (
-                <div className={"dh-hsv-card" + (active === i ? " active" : "")} key={s.idx} data-reveal style={{ "--d": i + 1 }}>
+                <motion.div className={"dh-hsv-card" + (active === i ? " active" : "")} key={s.idx} variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }} transition={{ duration: 0.5 }}>
                   <div className="dh-hsv-top">
                     <span className="dh-hsv-ic"><s.Icon size={22} /></span>
                     <span className="dh-hsv-idx">{s.idx}</span>
@@ -432,9 +433,9 @@ export default function DhitiSite() {
                   <h4>{s.t}</h4>
                   <p>{s.tag}</p>
                   <span className="dh-hsv-prog" />
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </div>
       </header>
