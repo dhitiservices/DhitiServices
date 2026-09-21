@@ -8,6 +8,12 @@ Tailwind CSS + Framer Motion**.
 
 ## Quick start
 
+### Blog
+
+The site now includes a static, Markdown-managed blog at `/blog/`, with ten long-form launch articles. See [BLOG-OPERATIONS.md](BLOG-OPERATIONS.md) for editing, preview mode, publication settings and Render deployment checks. Run `npm run build` followed by `npm run test:blog` to build and validate the blog.
+
+The blog is prepared for editorial review. Default builds are not intended for production indexing until the publication setting is explicitly enabled.
+
 You need **Node.js 18 or newer** installed (https://nodejs.org).
 
 ```bash

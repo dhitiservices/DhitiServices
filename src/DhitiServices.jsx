@@ -384,18 +384,20 @@ export default function DhitiSite() {
             {NAV.map(([t, id]) => (
               <a key={id} href={"#" + id} className={"dh-link" + (current === id ? " active" : "")} onClick={go(id)} aria-current={current === id ? "true" : undefined}>{t}</a>
             ))}
+            <a href="./blog/" className="dh-link">Blog</a>
           </div>
           <div className="dh-nav-cta">
             <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>
               Bring your work to us <ArrowUpRight size={17} />
             </a>
-            <button className="dh-burger" aria-label={menu ? "Close menu" : "Open menu"} onClick={() => setMenu(!menu)}>{menu ? <X size={22} /> : <Menu size={22} />}</button>
+            <button className="dh-burger" aria-label={menu ? "Close menu" : "Open menu"} aria-expanded={menu} aria-controls="dh-mobile-menu" onClick={() => setMenu(!menu)}>{menu ? <X size={22} /> : <Menu size={22} />}</button>
           </div>
         </div>
       </nav>
 
-      <div className={"dh-mobile" + (menu ? " open" : "")}>
+      <div id="dh-mobile-menu" className={"dh-mobile" + (menu ? " open" : "")} inert={menu ? undefined : ""} aria-hidden={!menu}>
         {NAV.map(([t, id]) => <a key={id} href={"#" + id} onClick={go(id)}>{t}</a>)}
+        <a href="./blog/">Blog</a>
         <a href="#business" className="dh-btn dh-btn-primary" onClick={openWork}>Bring your work to us <ArrowUpRight size={17} /></a>
       </div>
 
@@ -742,6 +744,7 @@ export default function DhitiSite() {
               <h4>Explore</h4>
               <ul>
                 {NAV.map(([t, id]) => <li key={id}><a href={"#" + id} onClick={go(id)}>{t}</a></li>)}
+                <li><a href="./blog/">Blog</a></li>
               </ul>
             </div>
             <div>
