@@ -4,15 +4,15 @@ The blog is generated as complete static HTML, not an empty JavaScript shell. Th
 
 ## Local preview
 
-Run `npm ci`, `npm run check:blog`, then `npm run build`. Serve `dist` using a static server and open `/blog/`.
+Run `npm ci`, `npm run check:blog`, then `npm run build:preview`. Serve `dist` using a static server and open `/blog/`.
 
 After building, `npm run test:blog` validates article lengths, local links, images, metadata, structured data, RSS and sitemap structure.
 
-Builds default to editorial preview mode: blog pages are noindex and robots.txt disallows indexing. This prevents accidental publication of the launch drafts.
+The launch was approved on 21 September 2026. Standard `npm run build` builds are now public and indexable. Use `npm run build:preview` (or `BLOG_PUBLISH=0 npm run build`) for editorial previews with noindex and a robots.txt that disallows indexing. Never deploy an editorial preview build to the live domain.
 
 ## Publishing after approval
 
-On the existing Render static site, use `BLOG_PUBLISH=1 npm run build` as the build command and `dist` as the publish directory. Set `SITE_URL` to the confirmed canonical domain if different from `https://dhitiservices.com`. Do not create a second Render service or replace existing settings without checking them first.
+On the existing Render static site, use `npm run build` as the build command and `dist` as the publish directory. `BLOG_PUBLISH=1 npm run build` also explicitly selects public mode. Set `SITE_URL` to the confirmed canonical domain if different from `https://dhitiservices.com`. Do not create a second Render service or replace existing settings without checking them first.
 
 No Render API key is required by this website. Do not add a Render key to GitHub, environment files, frontend code or build output.
 

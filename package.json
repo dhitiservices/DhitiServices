@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/build-blog.mjs",
+    "build:preview": "BLOG_PUBLISH=0 npm run build",
     "check:blog": "node scripts/check-blog.mjs",
     "test:blog": "node scripts/check-blog.mjs && node scripts/verify-built-blog.mjs",
     "preview": "vite preview"
