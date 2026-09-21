@@ -12,7 +12,7 @@ The launch was approved on 21 September 2026. Standard `npm run build` builds ar
 
 ## Publishing after approval
 
-On the existing Render static site, use `npm run build` as the build command and `dist` as the publish directory. `BLOG_PUBLISH=1 npm run build` also explicitly selects public mode. Set `SITE_URL` to the confirmed canonical domain if different from `https://dhitiservices.com`. Do not create a second Render service or replace existing settings without checking them first.
+On the existing Render static site, use `npm run build` as the build command and `dist` as the publish directory. `BLOG_PUBLISH=1 npm run build` also explicitly selects public mode. The confirmed working canonical domain is `https://www.dhitiservices.com`. Set `SITE_URL` only if intentionally changing that domain. Do not create a second Render service or replace existing settings without checking them first.
 
 No Render API key is required by this website. Do not add a Render key to GitHub, environment files, frontend code or build output.
 

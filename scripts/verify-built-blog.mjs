@@ -10,7 +10,7 @@ for(const filename of pages) {
   const file=path.join(dist,filename);
   const html=fs.readFileSync(file,'utf8');
   assert.equal((html.match(/<h1[ >]/g)||[]).length,1,`${filename}: one H1`);
-  assert.match(html,/<link rel="canonical" href="https:\/\/dhitiservices.com\/blog\//);
+  assert.match(html,/<link rel="canonical" href="https:\/\/www\.dhitiservices\.com\/blog\//);
   assert.match(html,/<meta name="description" content="[^"]+"/);
   assert.match(html,/<meta property="og:image"/);
   JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);

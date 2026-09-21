@@ -4,7 +4,7 @@ import { root, esc, loadPosts } from './blog-data.mjs';
 
 const posts = loadPosts();
 const out = path.join(root,'dist');
-const origin = (process.env.SITE_URL || 'https://dhitiservices.com').replace(/\/$/, '');
+const origin = (process.env.SITE_URL || 'https://www.dhitiservices.com').replace(/\/$/, '');
 const preview = process.env.BLOG_PUBLISH === '0';
 const categories = [...new Set(posts.map(p=>p.category))];
 if (posts.length < 10 || posts.some(p=>p.words<1000)) throw new Error('Every one of the ten launch articles must contain at least 1,000 words.');
