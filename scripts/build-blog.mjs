@@ -24,7 +24,7 @@ function header(home,blog) {
 }
 function footer(home,blog) {
   return `<section class="db-bottom-cta"><div class="db-wrap"><div><span class="db-label">From reading to doing</span><h2>Good work starts with<br>a clear conversation.</h2><p>Tell us which part of your operations needs a steadier pair of hands.</p></div><a class="db-button" href="${home}#business">Talk to Dhiti ${arrow}</a></div></section>
-  <footer class="db-footer"><div class="db-wrap"><a href="${home}"><img class="db-logo" src="${blog}images/logo.webp" alt="Dhiti Services" width="103" height="38"></a><p>Operations & talent. Built in the village.</p><nav aria-label="Footer navigation"><a href="${blog}">All articles</a><a href="${home}#careers">Careers</a><a href="mailto:info@dhitiservices.com">Contact</a><a href="${blog}feed.xml">RSS feed</a></nav><small>© ${new Date().getFullYear()} Dhiti Services</small></div></footer>`;
+  <footer class="db-footer"><div class="db-wrap"><a href="${home}"><img class="db-logo" src="${blog}images/logo.webp" alt="Dhiti Services" width="103" height="38"></a><p>Operations & talent. Built in the village.</p><nav aria-label="Footer navigation"><a href="${blog}">All articles</a><a href="${home}#careers">Careers</a><a href="mailto:info@dhitiservices.com">Contact</a><a href="/privacy/">Privacy</a><button type="button" data-cookie-settings>Cookie settings</button><a href="${blog}feed.xml">RSS feed</a></nav><small>© ${new Date().getFullYear()} Dhiti Services</small></div></footer>`;
 }
 function meta(p,home,blog) {
   const url = `${origin}/blog/${p ? `${p.slug}/` : ''}`;
@@ -39,6 +39,8 @@ function meta(p,home,blog) {
   } : {'@context':'https://schema.org','@type':'Blog',name:'Dhiti Blog',url,description,
     blogPost:posts.map(x=>({'@type':'BlogPosting',headline:x.title,url:`${origin}/blog/${x.slug}/`}))};
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};(function(){var c=null;try{c=localStorage.getItem('dhiti_analytics_consent')}catch(e){}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:c==='granted'?'granted':'denied',functionality_storage:'granted',security_storage:'granted',wait_for_update:500})})();</script>
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f)})(window,document,'script','dataLayer','GTM-MN4H87CM');</script>
     <title>${esc(title)}</title><meta name="description" content="${esc(description)}">
     <meta name="robots" content="${preview?'noindex, nofollow':'index, follow'}"><link rel="canonical" href="${esc(url)}">
     <meta property="og:type" content="${p?'article':'website'}"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${esc(url)}"><meta property="og:image" content="${image}">
@@ -46,8 +48,8 @@ function meta(p,home,blog) {
     <link rel="icon" href="${home}favicon.ico"><link rel="alternate" type="application/rss+xml" title="Dhiti Blog" href="${blog}feed.xml">
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${home}blog.css"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script>
-    <script src="${home}blog.js" defer></script></head><body class="db">${header(home,blog)}`;
+    <link rel="stylesheet" href="${home}blog.css"><link rel="stylesheet" href="/consent.css"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script>
+    <script src="${home}blog.js" defer></script><script src="/consent.js" defer></script></head><body class="db"><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MN4H87CM" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>${header(home,blog)}`;
 }
 function card(p,blog,index) {
   return `<article class="db-card" data-category="${esc(p.category)}" data-search="${esc(`${p.title} ${p.description} ${p.category}`.toLowerCase())}">

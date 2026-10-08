@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import { motion } from "framer-motion";
+import { pushAnalyticsEvent } from "./analytics.js";
 
 // ─────────────────────────────────────────────────────────────
 //  WHERE THE TWO FORMS SEND TO
@@ -245,6 +246,10 @@ function InquiryModal({ mode, onClose }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success !== false) {
+        pushAnalyticsEvent(isWork ? "generate_lead" : "training_application_submit", {
+          form_name: isWork ? "business_inquiry" : "training_application",
+          lead_type: isWork ? "business_inquiry" : "career_application",
+        });
         setSent(true);
       } else {
         setErr("Something went wrong sending that. Please email info@dhitiservices.com directly.");
@@ -298,8 +303,22 @@ export default function DhitiSite() {
   const [active, setActive] = useState(0);
   const [modal, setModal] = useState(null);
   const [current, setCurrent] = useState("");
-  const openWork = (e) => { if (e) e.preventDefault(); setModal("work"); };
-  const openTraining = (e) => { if (e) e.preventDefault(); setModal("training"); };
+  const openWork = (e) => {
+    if (e) e.preventDefault();
+    pushAnalyticsEvent("lead_form_open", {
+      form_name: "business_inquiry",
+      cta_text: e?.currentTarget?.textContent?.trim().slice(0, 100) || "business inquiry",
+    });
+    setModal("work");
+  };
+  const openTraining = (e) => {
+    if (e) e.preventDefault();
+    pushAnalyticsEvent("training_form_open", {
+      form_name: "training_application",
+      cta_text: e?.currentTarget?.textContent?.trim().slice(0, 100) || "training application",
+    });
+    setModal("training");
+  };
   const closeModal = useCallback(() => setModal(null), []);
 
   useEffect(() => {
@@ -757,7 +776,7 @@ export default function DhitiSite() {
           </div>
           <div className="dh-foot-bot">
             <span>© {new Date().getFullYear()} Dhiti Services. Steadfastness and resolve.</span>
-            <span>Operations & Talent · built in the village</span>
+            <span><a href="/privacy/">Privacy</a> · <button type="button" data-cookie-settings>Cookie settings</button></span>
           </div>
         </div>
       </footer>
