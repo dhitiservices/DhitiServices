@@ -776,7 +776,7 @@ export default function DhitiSite() {
           </div>
           <div className="dh-foot-bot">
             <span>© {new Date().getFullYear()} Dhiti Services. Steadfastness and resolve.</span>
-            <span><a href="/privacy/">Privacy</a> · <button type="button" data-cookie-settings>Cookie settings</button></span>
+            <span><a href="/privacy/">Privacy</a> · <a href="/privacy/#analytics-choices">Analytics settings</a></span>
           </div>
         </div>
       </footer>
