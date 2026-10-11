@@ -14,7 +14,7 @@
         try { savedConsent = localStorage.getItem("dhiti_analytics_consent"); } catch (e) {}
         gtag("consent", "default", {
           ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied",
-          analytics_storage: savedConsent === "granted" ? "granted" : "denied",
+          analytics_storage: savedConsent === "denied" ? "denied" : "granted",
           functionality_storage: "granted", security_storage: "granted", wait_for_update: 500
         });
       })();
@@ -27,7 +27,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/consent.css" />
     <script src="/consent.js" defer></script>
     <style>
       :root{font-family:"Plus Jakarta Sans",sans-serif;color:#181313;background:#fffaf9}*{box-sizing:border-box}body{margin:0}.wrap{width:min(820px,calc(100% - 40px));margin:auto}header{padding:28px 0;border-bottom:1px solid #eadfdd;background:#fff}header a{color:#181313;font-weight:800;text-decoration:none}main{padding:72px 0 90px}h1,h2{font-family:Fraunces,serif}h1{font-size:clamp(2.4rem,7vw,4.3rem);line-height:1;margin:0 0 14px}h2{font-size:1.5rem;margin:38px 0 10px}p,li{color:#5d514f;line-height:1.75}a{color:#b30600}.intro{font-size:1.05rem;max-width:65ch}.updated{font-size:.82rem;color:#877875;margin-bottom:34px}.notice{background:#fff;border:1px solid #eadfdd;border-radius:18px;padding:18px 20px;margin:30px 0}footer{border-top:1px solid #eadfdd;padding:28px 0 42px;color:#877875;font-size:.85rem}button{font:inherit;color:#b30600;background:none;border:0;padding:0;text-decoration:underline;cursor:pointer}
@@ -45,20 +44,20 @@
       <p>When you submit a business enquiry or training application, we receive the details entered in the form, which may include your name, organisation or location, email address, phone number and message. We use this information to respond to the request, assess the relevant opportunity and keep necessary business records.</p>
 
       <h2>Website analytics</h2>
-      <p>With your permission, we use Google Analytics through Google Tag Manager to understand visits, traffic sources, pages viewed and important interactions such as successful enquiries. Analytics is optional. Advertising storage and ad personalisation are disabled in our current setup.</p>
+      <p>We use Google Analytics through Google Tag Manager to understand visits, traffic sources, pages viewed and important interactions such as successful enquiries. Analytics storage is enabled by default unless you disable it below. Advertising storage and ad personalisation are disabled in our current setup.</p>
 
       <h2>Cookies and local storage</h2>
-      <p>We store your analytics choice in your browser so the website can remember it. Essential storage may be used for security and basic website functionality. You can change your choice at any time using the button below.</p>
-      <div class="notice"><button type="button" data-cookie-settings>Review cookie settings</button></div>
+      <p>If you change your analytics preference, we store it in your browser so the website can remember it. Essential storage may be used for security and basic website functionality. You can change your choice here at any time.</p>
+      <div class="notice" id="analytics-choices"><p>Website analytics: <span data-consent-status>Enabled on this browser.</span></p><button type="button" data-analytics-choice="denied">Disable analytics</button> · <button type="button" data-analytics-choice="granted">Enable analytics</button></div>
 
       <h2>Service providers</h2>
-      <p>Website forms are delivered using Web3Forms. Website measurement is provided by Google Analytics and Google Tag Manager only when permitted by your analytics choice. These providers process information under their own terms and privacy practices.</p>
+      <p>Website forms are delivered using Web3Forms. Google Tag Manager and Google Analytics are used for website measurement. When you disable analytics storage, Google may still receive limited cookieless signals. These providers process information under their own terms and privacy practices.</p>
 
       <h2>Retention and protection</h2>
       <p>We keep enquiry and application information only for as long as it is reasonably needed for the purpose for which it was submitted, operational follow-up, security and applicable record-keeping obligations. We take reasonable steps to limit access and protect the information we hold.</p>
 
       <h2>Your choices</h2>
-      <p>You may ask us to review, correct or delete information you submitted, subject to applicable requirements. You may also reject or withdraw optional analytics through the cookie settings on this website.</p>
+      <p>You may ask us to review, correct or delete information you submitted, subject to applicable requirements. You may disable website analytics storage at any time using the controls above.</p>
 
       <h2>Contact</h2>
       <p>For privacy questions or requests, email <a href="mailto:info@dhitiservices.com">info@dhitiservices.com</a>.</p>
