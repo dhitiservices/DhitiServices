@@ -2,7 +2,6 @@
   "use strict";
 
   var STORAGE_KEY = "dhiti_analytics_consent";
-  var banner;
 
   function readChoice() {
     try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
@@ -29,29 +28,13 @@
       event: "analytics_consent_update",
       analytics_consent: granted ? "granted" : "denied"
     });
-    if (banner) banner.remove();
-    banner = null;
+    updateStatus();
   }
 
-  function showBanner() {
-    if (banner) return;
-    banner = document.createElement("section");
-    banner.className = "dh-consent";
-    banner.setAttribute("role", "dialog");
-    banner.setAttribute("aria-label", "Analytics cookie preferences");
-    banner.innerHTML =
-      '<div class="dh-consent-copy">' +
-        '<strong>Your privacy, your choice.</strong>' +
-        '<p>We use optional analytics cookies to understand how this website is used and improve it. We do not use advertising cookies.</p>' +
-        '<a href="/privacy/">Read our privacy notice</a>' +
-      '</div>' +
-      '<div class="dh-consent-actions">' +
-        '<button type="button" class="dh-consent-reject">Reject optional cookies</button>' +
-        '<button type="button" class="dh-consent-accept">Accept analytics</button>' +
-      '</div>';
-    document.body.appendChild(banner);
-    banner.querySelector(".dh-consent-reject").addEventListener("click", function () { updateConsent("denied"); });
-    banner.querySelector(".dh-consent-accept").addEventListener("click", function () { updateConsent("granted"); });
+  function updateStatus() {
+    var status = document.querySelector("[data-consent-status]");
+    if (!status) return;
+    status.textContent = readChoice() === "denied" ? "Disabled on this browser." : "Enabled on this browser.";
   }
 
   function trackLinkClick(anchor) {
@@ -72,21 +55,15 @@
   }
 
   document.addEventListener("click", function (event) {
-    var settings = event.target.closest("[data-cookie-settings]");
-    if (settings) {
-      event.preventDefault();
-      showBanner();
+    var choice = event.target.closest("[data-analytics-choice]");
+    if (choice) {
+      updateConsent(choice.getAttribute("data-analytics-choice"));
       return;
     }
     var anchor = event.target.closest("a[href]");
     if (anchor) trackLinkClick(anchor);
   });
 
-  function init() {
-    var queryRequestsSettings = /(?:\?|&)cookie-settings=1(?:&|$)/.test(window.location.search);
-    if (!readChoice() || queryRequestsSettings) showBanner();
-  }
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", updateStatus);
+  else updateStatus();
 })();
