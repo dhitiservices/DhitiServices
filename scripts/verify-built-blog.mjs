@@ -34,8 +34,8 @@ for(const filename of pages) {
   }
 }
 const sitemap=fs.readFileSync(path.join(dist,'sitemap.xml'),'utf8');
-assert.equal((sitemap.match(/<url>/g)||[]).length,12);
+assert.equal((sitemap.match(/<url>/g)||[]).length,22);
 const rss=fs.readFileSync(path.join(dist,'blog/feed.xml'),'utf8');
 assert.equal((rss.match(/<item>/g)||[]).length,10);
 assert(fs.existsSync(path.join(dist,'404.html')));
-console.log(`PASS: ${pages.length} blog pages, ${checked} local resources and links, 10 RSS entries, 12 sitemap URLs.`);
+console.log(`PASS: ${pages.length} blog pages, ${checked} local resources and links, 10 RSS entries, 22 sitemap URLs.`);
