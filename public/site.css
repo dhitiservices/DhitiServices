@@ -79,8 +79,20 @@
  .ds-story>img,.ds-innerhero>img,.ds-travel>img{
   height:auto;min-height:0;max-height:none;aspect-ratio:auto;
  }
- .ds-heroimage{min-height:0;aspect-ratio:4/5}
- .ds-heroimage>img{object-position:center}
+}
+/* Keep the mobile hero in normal document flow, including on rotation.
+   The caption must never cover the photo or depend on percentage heights. */
+@media(max-width:900px){
+ .ds-homehero{grid-template-columns:minmax(0,1fr);gap:var(--space-8);padding-block:var(--space-8)}
+ .ds-homehero>div{min-width:0}
+ .ds-homehero h1{max-width:none}
+ .ds-heroimage{width:100%;max-width:520px;min-height:0;aspect-ratio:auto;justify-self:center;align-self:start}
+ .ds-heroimage>img{position:static;width:100%;height:auto;object-position:center}
+ .ds-image-note{position:static;max-width:none;margin:0;padding:var(--space-5);border-top:0}
+}
+@media(max-width:640px){
+ .ds-homehero{gap:var(--space-6)}
+ .ds-homehero .ds-actions{gap:var(--space-2) var(--space-4)}
 }
 @media(max-width:760px){
  .db-feature-photo{height:auto;aspect-ratio:8/5}

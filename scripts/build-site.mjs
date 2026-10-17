@@ -234,10 +234,10 @@ fs.writeFileSync(path.join(out,'sitemap.xml'),`<?xml version="1.0" encoding="UTF
 // Version the navigation assets so returning visitors receive the paired markup, CSS and JS.
 for(const r of [...allRoutes,'privacy']) {
   const f=path.join(out,r,'index.html');
-  fs.writeFileSync(f,fs.readFileSync(f,'utf8').replaceAll('site.css"','site.css?v=images1"').replaceAll('site.js"','site.js?v=nav2"'));
+  fs.writeFileSync(f,fs.readFileSync(f,'utf8').replaceAll('site.css"','site.css?v=mobile2"').replaceAll('site.js"','site.js?v=nav2"'));
 }
 const notFoundFile=path.join(out,'404.html');
-fs.writeFileSync(notFoundFile,fs.readFileSync(notFoundFile,'utf8').replaceAll('site.css"','site.css?v=images1"').replaceAll('site.js"','site.js?v=nav2"'));
+fs.writeFileSync(notFoundFile,fs.readFileSync(notFoundFile,'utf8').replaceAll('site.css"','site.css?v=mobile2"').replaceAll('site.js"','site.js?v=nav2"'));
 if(preview) fs.writeFileSync(path.join(out,'consent.js'),'/* Analytics intentionally disabled in the private review preview. */');
 // The static pages do not need the former React homepage bundle.
 fs.rmSync(path.join(out,'assets'),{recursive:true,force:true});
