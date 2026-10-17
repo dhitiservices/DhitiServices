@@ -25,20 +25,25 @@ const textLink = (base, text, route) => `<a class="ds-link" href="${url(base,rou
 function header(base, active='', blog=false) {
   const links = [['Services','services'],['Travel operations','travel-operations'],['How we work','how-we-work'],['About','about'],['Resources','blog']];
   const dropdowns = {
-    services: [['All services','services'],...services.map(s=>[s.full,'services/'+s.slug])],
+    services: services.map(s=>[s.full,'services/'+s.slug]),
     about: [['Our story','about'],['Our impact','about','impact'],['Leadership','about','leadership'],['Careers & training','careers']],
     blog: [['Blog','blog'],['Operations playbooks','blog/operations-pilot-first-30-days'],['Customer support guides','blog/customer-support-playbook'],['Data quality guides','blog/data-entry-quality-checks']]
+  };
+  const descriptions={
+    services:services.map(s=>s.summary),
+    about:['Why we bring skilled work closer to home.','The difference a career makes in a community.','Meet the people behind the work.','Find your path into training and working life.'],
+    blog:['Ideas and practical advice for better everyday work.','Plan and evaluate your first operations pilot.','Build a playbook that leaves room to listen.','Put reliable checks around your everyday data.']
   };
   const navItems = links.map(([name,route])=>{
     const link=`<a class="ds-navlink" href="${url(base,route)}"${active===route?' aria-current="page"':''}>${name}</a>`;
     if(!dropdowns[route])return link;
-    return `<div class="ds-navgroup"><div class="ds-navrow">${link}<button class="ds-submenu-toggle" aria-label="Toggle ${name} submenu" aria-expanded="false" aria-controls="nav-${route}"><span class="ds-chevron" aria-hidden="true"></span></button></div><div class="ds-submenu" id="nav-${route}" hidden><span class="ds-submenu-label">Explore ${name.toLowerCase()}</span>${dropdowns[route].map(([t,r,hash])=>`<a href="${url(base,r)}${hash?'#'+hash:''}">${t}<span aria-hidden="true">↗</span></a>`).join('')}</div></div>`;
+    return `<div class="ds-navgroup"><div class="ds-navrow">${link}<button class="ds-submenu-toggle" aria-label="Toggle ${name} submenu" aria-expanded="false" aria-controls="nav-${route}"><span class="ds-chevron" aria-hidden="true"></span></button></div><div class="ds-submenu ds-mega-panel" id="nav-${route}" hidden><div class="ds-mega-inner"><span class="ds-submenu-label">Explore ${name.toLowerCase()}</span><div class="ds-mega-links">${dropdowns[route].map(([t,r,hash],i)=>`<a href="${url(base,r)}${hash?'#'+hash:''}"><strong>${t}</strong><span class="ds-mega-description">${descriptions[route][i]}</span><span class="ds-mega-arrow" aria-hidden="true">↗</span></a>`).join('')}</div></div></div></div>`;
   }).join('');
   return `<a class="ds-skip" href="#main">Skip to content</a><header class="ds-header"><div class="ds-wrap ds-nav">
     <a class="ds-brand" href="${url(base)}" aria-label="Dhiti Services home"><img src="${base}media/logos/dhiti-logo.webp" alt="Dhiti Services" width="108" height="44"></a>
     <nav class="ds-navlinks" id="main-navigation" aria-label="Main navigation">${navItems}</nav>
     <div class="ds-nav-actions">${blog?'<button class="db-theme" aria-label="Switch to dark theme" title="Change reading theme">◐</button>':''}${button(base,"Let’s talk")}<button class="ds-menu" aria-label="Open navigation" aria-controls="main-navigation" aria-expanded="false">☰</button></div>
-  </div></header>`;
+  </div></header><div class="ds-nav-shade" hidden aria-hidden="true"></div>`;
 }
 function footer(base) {
   return `<footer class="ds-footer"><div class="ds-wrap"><div class="ds-footergrid">
@@ -215,10 +220,10 @@ fs.writeFileSync(path.join(out,'sitemap.xml'),`<?xml version="1.0" encoding="UTF
 // Version the navigation assets so returning visitors receive the paired markup, CSS and JS.
 for(const r of [...allRoutes,'privacy']) {
   const f=path.join(out,r,'index.html');
-  fs.writeFileSync(f,fs.readFileSync(f,'utf8').replaceAll('site.css"','site.css?v=nav1"').replaceAll('site.js"','site.js?v=nav1"'));
+  fs.writeFileSync(f,fs.readFileSync(f,'utf8').replaceAll('site.css"','site.css?v=nav2"').replaceAll('site.js"','site.js?v=nav2"'));
 }
 const notFoundFile=path.join(out,'404.html');
-fs.writeFileSync(notFoundFile,fs.readFileSync(notFoundFile,'utf8').replaceAll('site.css"','site.css?v=nav1"').replaceAll('site.js"','site.js?v=nav1"'));
+fs.writeFileSync(notFoundFile,fs.readFileSync(notFoundFile,'utf8').replaceAll('site.css"','site.css?v=nav2"').replaceAll('site.js"','site.js?v=nav2"'));
 if(preview) fs.writeFileSync(path.join(out,'consent.js'),'/* Analytics intentionally disabled in the private review preview. */');
 // The static pages do not need the former React homepage bundle.
 fs.rmSync(path.join(out,'assets'),{recursive:true,force:true});

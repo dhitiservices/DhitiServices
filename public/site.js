@@ -4,12 +4,16 @@
   const desktopNav = window.matchMedia('(min-width: 1101px)');
   const groups = [...document.querySelectorAll('.ds-navgroup')];
   const hoverTimers = new Map();
+  const closeTimers = new Map();
+  const shade = document.querySelector('.ds-nav-shade');
   function setDropdown(group, open) {
     clearTimeout(hoverTimers.get(group));
+    clearTimeout(closeTimers.get(group));
     if(open) groups.filter(g=>g!==group).forEach(g=>setDropdown(g,false));
     group.querySelector('.ds-submenu-toggle').setAttribute('aria-expanded',String(open));
     group.querySelector('.ds-submenu').hidden=!open;
     group.classList.toggle('is-expanded',open);
+    if(shade)shade.hidden=!desktopNav.matches||!groups.some(g=>g.classList.contains('is-expanded'));
   }
   function closeDropdowns(){groups.forEach(g=>setDropdown(g,false));}
   function closeMenu() {
@@ -32,11 +36,12 @@
     const panel=group.querySelector('.ds-submenu');
     toggle.addEventListener('click',()=>setDropdown(group,toggle.getAttribute('aria-expanded')!=='true'));
     group.addEventListener('pointerenter',e=>{
+      clearTimeout(closeTimers.get(group));
       if(desktopNav.matches&&e.pointerType!=='touch')hoverTimers.set(group,setTimeout(()=>setDropdown(group,true),120));
     });
     group.addEventListener('pointerleave',()=>{
       clearTimeout(hoverTimers.get(group));
-      if(desktopNav.matches&&!panel.contains(document.activeElement))setDropdown(group,false);
+      if(desktopNav.matches&&!panel.contains(document.activeElement))closeTimers.set(group,setTimeout(()=>setDropdown(group,false),200));
     });
     group.addEventListener('focusout',e=>{
       if(!group.contains(e.relatedTarget))setDropdown(group,false);
