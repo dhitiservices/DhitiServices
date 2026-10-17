@@ -68,3 +68,21 @@
  .ds-mega-arrow{position:absolute;right:0;top:var(--space-4);padding:0}.ds-mega-links>a:hover{background:white}
  .ds-nav-shade{display:none}
 }
+
+/* Let card aspect ratios control height instead of the HTML height attribute.
+   Fixed-fill hero and logo treatments deliberately retain their own rules. */
+.ds-servicecard img,.ds-article img,.ds-value img,.ds-leader img,.ds-story>img{
+ height:auto;
+}
+@media(max-width:640px){
+ .ds-servicecard img,.ds-value img{aspect-ratio:8/5}
+ .ds-story>img,.ds-innerhero>img,.ds-travel>img{
+  height:auto;min-height:0;max-height:none;aspect-ratio:auto;
+ }
+ .ds-heroimage{min-height:0;aspect-ratio:4/5}
+ .ds-heroimage>img{object-position:center}
+}
+@media(max-width:760px){
+ .db-feature-photo{height:auto;aspect-ratio:8/5}
+ .db-article-cover{height:auto;aspect-ratio:8/5}
+}

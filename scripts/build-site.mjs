@@ -17,7 +17,21 @@ const tracking = [...sourceHead.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)]
   .map(m=>m[0]).filter(s=>!s.includes('/src/')&&!s.includes('src="/consent.js"')).join('\n');
 const prefix = route => route ? '../'.repeat(route.split('/').length) : './';
 const url = (base, route='') => `${base}${route?route+'/':''}index.html`;
-const image = (base, name, alt, eager=false, cls='') => `<img class="${cls}" src="${base}media/photos/${name}" alt="${esc(alt)}" width="940" height="700" ${eager?'fetchpriority="high"':'loading="lazy"'} decoding="async">`;
+// Real source dimensions reserve the right space before images decode.
+const photoDimensions = {
+  'band-team.webp':[1600,620], 'door-business.webp':[1140,641],
+  'door-careers.webp':[1000,563], 'problem.webp':[720,900],
+  'story.webp':[900,1125], 'why-choose.webp':[1040,780],
+  ...Object.fromEntries(['dignity','income','norelocation','skills'].map(n=>[`impact-${n}.webp`,[800,500]])),
+  ...Object.fromEntries(['prajakta','vidya'].map(n=>[`leader-${n}.webp`,[560,560]])),
+  ...Object.fromEntries(['data','group','quality','support'].map(n=>[`service-${n}.webp`,[940,588]])),
+  ...Object.fromEntries(['deliver','mentor','recruit','train'].map(n=>[`train-${n}.webp`,[800,500]]))
+};
+const image = (base, name, alt, eager=false, cls='') => {
+  const dimensions = photoDimensions[name];
+  if (!dimensions) throw new Error(`Missing image dimensions: ${name}`);
+  return `<img class="${cls}" src="${base}media/photos/${name}" alt="${esc(alt)}" width="${dimensions[0]}" height="${dimensions[1]}" ${eager?'fetchpriority="high"':'loading="lazy"'} decoding="async">`;
+};
 const label = text => `<span class="ds-label">${text}</span>`;
 const button = (base, text='Discuss your process', route='contact') => `<a class="ds-btn" href="${url(base,route)}">${text} ${arrow}</a>`;
 const textLink = (base, text, route) => `<a class="ds-link" href="${url(base,route)}">${text} ${arrow}</a>`;
@@ -220,10 +234,10 @@ fs.writeFileSync(path.join(out,'sitemap.xml'),`<?xml version="1.0" encoding="UTF
 // Version the navigation assets so returning visitors receive the paired markup, CSS and JS.
 for(const r of [...allRoutes,'privacy']) {
   const f=path.join(out,r,'index.html');
-  fs.writeFileSync(f,fs.readFileSync(f,'utf8').replaceAll('site.css"','site.css?v=nav2"').replaceAll('site.js"','site.js?v=nav2"'));
+  fs.writeFileSync(f,fs.readFileSync(f,'utf8').replaceAll('site.css"','site.css?v=images1"').replaceAll('site.js"','site.js?v=nav2"'));
 }
 const notFoundFile=path.join(out,'404.html');
-fs.writeFileSync(notFoundFile,fs.readFileSync(notFoundFile,'utf8').replaceAll('site.css"','site.css?v=nav2"').replaceAll('site.js"','site.js?v=nav2"'));
+fs.writeFileSync(notFoundFile,fs.readFileSync(notFoundFile,'utf8').replaceAll('site.css"','site.css?v=images1"').replaceAll('site.js"','site.js?v=nav2"'));
 if(preview) fs.writeFileSync(path.join(out,'consent.js'),'/* Analytics intentionally disabled in the private review preview. */');
 // The static pages do not need the former React homepage bundle.
 fs.rmSync(path.join(out,'assets'),{recursive:true,force:true});
