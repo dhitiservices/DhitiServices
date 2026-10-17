@@ -23,10 +23,20 @@ const button = (base, text='Discuss your process', route='contact') => `<a class
 const textLink = (base, text, route) => `<a class="ds-link" href="${url(base,route)}">${text} ${arrow}</a>`;
 
 function header(base, active='', blog=false) {
-  const links = [['Services','services'],['Travel operations','travel-operations'],['How we work','how-we-work'],['About','about'],['Blog','blog']];
+  const links = [['Services','services'],['Travel operations','travel-operations'],['How we work','how-we-work'],['About','about'],['Resources','blog']];
+  const dropdowns = {
+    services: [['All services','services'],...services.map(s=>[s.full,'services/'+s.slug])],
+    about: [['Our story','about'],['Our impact','about','impact'],['Leadership','about','leadership'],['Careers & training','careers']],
+    blog: [['Blog','blog'],['Operations playbooks','blog/operations-pilot-first-30-days'],['Customer support guides','blog/customer-support-playbook'],['Data quality guides','blog/data-entry-quality-checks']]
+  };
+  const navItems = links.map(([name,route])=>{
+    const link=`<a class="ds-navlink" href="${url(base,route)}"${active===route?' aria-current="page"':''}>${name}</a>`;
+    if(!dropdowns[route])return link;
+    return `<div class="ds-navgroup"><div class="ds-navrow">${link}<button class="ds-submenu-toggle" aria-label="Toggle ${name} submenu" aria-expanded="false" aria-controls="nav-${route}"><span class="ds-chevron" aria-hidden="true"></span></button></div><div class="ds-submenu" id="nav-${route}" hidden><span class="ds-submenu-label">Explore ${name.toLowerCase()}</span>${dropdowns[route].map(([t,r,hash])=>`<a href="${url(base,r)}${hash?'#'+hash:''}">${t}<span aria-hidden="true">↗</span></a>`).join('')}</div></div>`;
+  }).join('');
   return `<a class="ds-skip" href="#main">Skip to content</a><header class="ds-header"><div class="ds-wrap ds-nav">
     <a class="ds-brand" href="${url(base)}" aria-label="Dhiti Services home"><img src="${base}media/logos/dhiti-logo.webp" alt="Dhiti Services" width="108" height="44"></a>
-    <nav class="ds-navlinks" id="main-navigation" aria-label="Main navigation">${links.map(([name,route])=>`<a href="${url(base,route)}"${active===route?' aria-current="page"':''}>${name}</a>`).join('')}</nav>
+    <nav class="ds-navlinks" id="main-navigation" aria-label="Main navigation">${navItems}</nav>
     <div class="ds-nav-actions">${blog?'<button class="db-theme" aria-label="Switch to dark theme" title="Change reading theme">◐</button>':''}${button(base,"Let’s talk")}<button class="ds-menu" aria-label="Open navigation" aria-controls="main-navigation" aria-expanded="false">☰</button></div>
   </div></header>`;
 }
@@ -141,13 +151,13 @@ function form(base,career=false) {
  hero(b,'The idea behind Dhiti','Talent is everywhere.<br>Opportunity should be, too.','We bring the work to the people. We train properly. And we build careers that do not begin with leaving home.','problem.webp','Dhiti’s existing village imagery','Explore our services','services')+
  `<section class="ds-section ds-wrap ds-story">${image(b,'story.webp','Dhiti’s existing workplace imagery')}<div>${label('Our story')}<h2>Work that keeps<br>giving back.</h2><p>Dhiti began with a question: what does welfare look like years from now, not just on the day it is handed over?</p><p>Our answer is skilled work. Instead of asking people to move to a city, we build operational teams close to where they already live. Businesses get dependable execution. People get a path into a career.</p><p>The name Dhiti means steadfastness and resolve. That is the standard we want to bring to every process we take on.</p></div></section>
  <section class="ds-quote"><div class="ds-wrap"><h2>No one should have to leave home to do work that matters.</h2><p>The work comes to the village. The wages stay local. The skills grow at home.</p></div></section>
- <section class="ds-section ds-wrap"><div class="ds-sectionhead"><div>${label('Beyond the work')}<h2>A career changes<br>more than a working day.</h2></div></div><div class="ds-values">${[
+ <section class="ds-section ds-wrap" id="impact"><div class="ds-sectionhead"><div>${label('Beyond the work')}<h2>A career changes<br>more than a working day.</h2></div></div><div class="ds-values">${[
  ['impact-income.webp','Income that stays local','Wages earned nearby support the same shops, schools and households that make up the community.'],
  ['impact-skills.webp','Skills that stay with people','Computer fluency, process discipline and communication build a foundation people can carry throughout their careers.'],
  ['impact-norelocation.webp','Work without relocation','A professional path should not require choosing between opportunity and staying close to family.'],
  ['impact-dignity.webp','Dignity through skilled work','Responsibility, earned income and progression build confidence and a sense of ownership.']
  ].map(([im,t,p])=>`<div class="ds-value">${image(b,im,t)}<h3>${t}</h3><p>${p}</p></div>`).join('')}</div></section>
- <section class="ds-soft"><div class="ds-section ds-wrap">${label('Leadership')}<h2>The people behind the work.</h2><div class="ds-leaders">${[['leader-vidya.webp','Vidya Kolekar','Director'],['leader-prajakta.webp','Prajakta Hundare','Leader, Travel Operations']].map(([im,n,r])=>`<article class="ds-leader">${image(b,im,n)}<h3>${n}</h3><p>${r}</p></article>`).join('')}</div></div></section>
+ <section class="ds-soft" id="leadership"><div class="ds-section ds-wrap">${label('Leadership')}<h2>The people behind the work.</h2><div class="ds-leaders">${[['leader-vidya.webp','Vidya Kolekar','Director'],['leader-prajakta.webp','Prajakta Hundare','Leader, Travel Operations']].map(([im,n,r])=>`<article class="ds-leader">${image(b,im,n)}<h3>${n}</h3><p>${r}</p></article>`).join('')}</div></div></section>
  <section class="ds-section ds-wrap ds-process"><div>${label('Two ways to be part of it')}<h2>Good work.<br>Good careers.</h2></div><div class="ds-steps"><div class="ds-step"><span>01</span><div><h3>Bring your process to Dhiti.</h3><p>Explore a trained team for your operational work.</p>${textLink(b,'Talk about your requirements','contact')}</div></div><div class="ds-step"><span>02</span><div><h3>Build a career closer to home.</h3><p>Explore the training path and tell us about yourself.</p>${textLink(b,'Explore careers & training','careers')}</div></div></div></section>`,'about');
 }
 {
@@ -202,6 +212,13 @@ const notFound = `${head('','Page not found','Find your way back to Dhiti Servic
 fs.writeFileSync(path.join(out,'404.html'),notFound.replaceAll('href="./','href="/').replaceAll('src="./','src="/'));
 const allRoutes=[...pagePaths,'blog',...posts.map(p=>'blog/'+p.slug)];
 fs.writeFileSync(path.join(out,'sitemap.xml'),`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${allRoutes.map(r=>`<url><loc>${origin}/${r?r+'/':''}</loc></url>`).join('')}</urlset>`);
+// Version the navigation assets so returning visitors receive the paired markup, CSS and JS.
+for(const r of [...allRoutes,'privacy']) {
+  const f=path.join(out,r,'index.html');
+  fs.writeFileSync(f,fs.readFileSync(f,'utf8').replaceAll('site.css"','site.css?v=nav1"').replaceAll('site.js"','site.js?v=nav1"'));
+}
+const notFoundFile=path.join(out,'404.html');
+fs.writeFileSync(notFoundFile,fs.readFileSync(notFoundFile,'utf8').replaceAll('site.css"','site.css?v=nav1"').replaceAll('site.js"','site.js?v=nav1"'));
 if(preview) fs.writeFileSync(path.join(out,'consent.js'),'/* Analytics intentionally disabled in the private review preview. */');
 // The static pages do not need the former React homepage bundle.
 fs.rmSync(path.join(out,'assets'),{recursive:true,force:true});
