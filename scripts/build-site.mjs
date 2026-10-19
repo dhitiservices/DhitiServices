@@ -23,7 +23,7 @@ const photoDimensions = {
   'door-careers.webp':[1000,563], 'problem.webp':[720,900],
   'story.webp':[900,1125], 'why-choose.webp':[1040,780],
   ...Object.fromEntries(['dignity','income','norelocation','skills'].map(n=>[`impact-${n}.webp`,[800,500]])),
-  ...Object.fromEntries(['prajakta','vidya'].map(n=>[`leader-${n}.webp`,[560,560]])),
+  ...Object.fromEntries(['komal','sanjay','prajakta','vidya'].map(n=>[`leader-${n}.webp`,[560,560]])),
   ...Object.fromEntries(['data','group','quality','support'].map(n=>[`service-${n}.webp`,[940,588]])),
   ...Object.fromEntries(['deliver','mentor','recruit','train'].map(n=>[`train-${n}.webp`,[800,500]]))
 };
@@ -176,7 +176,7 @@ function form(base,career=false) {
  ['impact-norelocation.webp','Work without relocation','A professional path should not require choosing between opportunity and staying close to family.'],
  ['impact-dignity.webp','Dignity through skilled work','Responsibility, earned income and progression build confidence and a sense of ownership.']
  ].map(([im,t,p])=>`<div class="ds-value">${image(b,im,t)}<h3>${t}</h3><p>${p}</p></div>`).join('')}</div></section>
- <section class="ds-soft" id="leadership"><div class="ds-section ds-wrap">${label('Leadership')}<h2>The people behind the work.</h2><div class="ds-leaders">${[['leader-vidya.webp','Vidya Kolekar','Director'],['leader-prajakta.webp','Prajakta Hundare','Leader, Travel Operations']].map(([im,n,r])=>`<article class="ds-leader">${image(b,im,n)}<h3>${n}</h3><p>${r}</p></article>`).join('')}</div></div></section>
+ <section class="ds-soft" id="leadership"><div class="ds-section ds-wrap">${label('Leadership')}<h2>The people behind the work.</h2><div class="ds-leaders">${[['leader-komal.webp','Komal Ghare','Co-Founder &amp; President'],['leader-sanjay.webp','Sanjay Ghare','Co-Founder'],['leader-vidya.webp','Vidya Kolekar','Director'],['leader-prajakta.webp','Prajakta Hundare','Leader, Travel Operations']].map(([im,n,r])=>`<article class="ds-leader">${image(b,im,n)}<h3>${n}</h3><p>${r}</p></article>`).join('')}</div></div></section>
  <section class="ds-section ds-wrap ds-process"><div>${label('Two ways to be part of it')}<h2>Good work.<br>Good careers.</h2></div><div class="ds-steps"><div class="ds-step"><span>01</span><div><h3>Bring your process to Dhiti.</h3><p>Explore a trained team for your operational work.</p>${textLink(b,'Talk about your requirements','contact')}</div></div><div class="ds-step"><span>02</span><div><h3>Build a career closer to home.</h3><p>Explore the training path and tell us about yourself.</p>${textLink(b,'Explore careers & training','careers')}</div></div></div></section>`,'about');
 }
 {
