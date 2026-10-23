@@ -24,7 +24,15 @@ The admin behind each trip has not become any lighter. An agency settling throug
 
 The instinct is to hand over whatever hurts most. Resist it. The most painful process is often painful because nobody has ever written down how it works.
 
-Before a process goes anywhere, ask four plain questions about it. Does it arrive regularly and follow roughly the same path each time? Could you explain what a correct result looks like, including the usual exceptions? If something goes wrong, will you catch it before it reaches a client or a payment run? And at the end of the week, can you tell whether it was done well?
+Before a process goes anywhere, ask four plain questions about it:
+
+> **1. Is it regular?** Does it arrive often and follow roughly the same path each time?
+>
+> **2. Is it written down?** Could you explain what a correct result looks like, including the usual exceptions?
+>
+> **3. Is it catchable?** If something goes wrong, will you spot it before it reaches a client or a payment run?
+>
+> **4. Is it measurable?** At the end of the week, can you tell whether it was done well?
 
 Four yeses make a good first candidate. Two or more noes mean the process should wait until someone on your side has documented it properly. Our guide to [writing an SOP someone can actually work from](../write-standard-operating-procedures/) helps with that step.
 

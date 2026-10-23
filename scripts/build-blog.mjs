@@ -24,7 +24,7 @@ function header(home,blog) {
 }
 function footer(home,blog) {
   return `<section class="db-bottom-cta"><div class="db-wrap"><div><span class="db-label">From reading to doing</span><h2>Good work starts with<br>a clear conversation.</h2><p>Tell us which part of your operations needs a steadier pair of hands.</p></div><a class="db-button" href="${home}#business">Talk to Dhiti ${arrow}</a></div></section>
-  <footer class="db-footer"><div class="db-wrap"><a href="${home}"><img class="db-logo" src="${blog}images/logo.webp" alt="Dhiti Services" width="103" height="38"></a><p>Operations & talent. Built in the village.</p><nav aria-label="Footer navigation"><a href="${blog}">All articles</a><a href="${home}#careers">Careers</a><a href="mailto:info@dhitiservices.com">Contact</a><a href="/privacy/">Privacy</a><a href="/privacy/#analytics-choices">Analytics settings</a><a href="${blog}feed.xml">RSS feed</a></nav><small>© ${new Date().getFullYear()} Dhiti Services</small></div></footer>`;
+  <footer class="db-footer"><div class="db-wrap"><a href="${home}"><img class="db-logo" src="${blog}images/logo.webp" alt="Dhiti Services" width="103" height="38"></a><p>Your business operations partner for the travel industry.</p><nav aria-label="Footer navigation"><a href="${blog}">All articles</a><a href="${home}#careers">Careers</a><a href="mailto:info@dhitiservices.com">Contact</a><a href="/privacy/">Privacy</a><a href="/privacy/#analytics-choices">Analytics settings</a><a href="${blog}feed.xml">RSS feed</a></nav><small>© ${new Date().getFullYear()} Dhiti Services</small></div></footer>`;
 }
 function meta(p,home,blog) {
   const url = `${origin}/blog/${p ? `${p.slug}/` : ''}`;
