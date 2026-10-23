@@ -1,6 +1,6 @@
 ---
 title: "Travel back-office outsourcing: what to hand over first, and what to keep"
-description: "A practical guide for travel companies and hotels on which back-office processes to outsource first, which to keep in-house and how to start safely."
+description: "Which travel back-office work to outsource first, what to keep in-house, and how to start without losing control of quality or money."
 category: "Travel operations"
 image: "impact-skills.webp"
 imageAlt: "An operations professional working at a computer in a modern office"
@@ -8,107 +8,70 @@ order: 11
 date: "2026-10-24"
 ---
 
-Most travel businesses do not decide to outsource their back office in one meeting. It usually starts with a queue that never quite clears: supplier invoices waiting to be matched, refunds that need chasing, a client report that someone builds by hand every month-end. The work is important, but it pulls experienced people away from clients, suppliers and growth.
+It's the 28th of the month. Supplier statements have just arrived, three corporate clients want their spend reports by Monday, and a stack of refunds is still waiting to be matched against what the airlines actually paid back. The two people who understand all of this are also the two people your biggest client calls first.
 
-The harder question is not whether to get help. It is which work to hand over first. Choose well and the first process becomes a template for the next one. Choose badly and the partnership starts with confusion, rework and a team that no longer trusts the output.
+That week, repeated every month, is usually what starts the outsourcing conversation in a travel business. Once it starts, the useful question is a narrow one: which piece of work goes first?
 
-This guide is written for travel management companies, agencies, hotel groups and travel technology businesses. It gives you a simple way to sort your processes, shows where travel companies usually start and explains what should stay with your own team.
+Pick well and the first process becomes the pattern for everything after it. Pick badly and you spend three months fixing a handover instead of growing the business.
 
-## Why the travel back office is under pressure
+## The pressure is real, and it is growing
 
-Travel volume is not the only thing that is growing. Complexity is growing with it. The Global Business Travel Association expects worldwide business travel spending to reach a record [$1.71 trillion in 2026](https://gbta.org/research/2026-business-travel-index-bti/), while the number of trips grows far more slowly. GBTA links that gap mainly to higher transport and travel costs. For a travel company, that means more value moving through every booking, more pressure on margins and less tolerance for billing mistakes.
+GBTA expects business travel spending to reach a record [$1.71 trillion in 2026](https://gbta.org/research/2026-business-travel-index-bti/), while the number of trips grows far more slowly. Most of that gap comes from higher fares and travel costs. Put simply, every booking now carries more money, and every billing mistake costs more to fix.
 
-Behind each trip sits a chain of administrative work. A ticket sale becomes an entry in a settlement report. Agencies working through the [IATA Billing and Settlement Plan](https://en.wikipedia.org/wiki/Billing_and_settlement_plan) report sales and refunds in one process and settle a single net amount for each billing period, so every exchange, refund and adjustment has to be accounted for before the remittance date. Hotels face a similar pattern on their side: commissions, payables, statements and the reports owners expect to receive on time.
+The admin behind each trip has not become any lighter. An agency settling through the [IATA Billing and Settlement Plan](https://en.wikipedia.org/wiki/Billing_and_settlement_plan) has to account for every sale, refund and adjustment before each remittance date. Hotels have their own version of the same pile: payables, commissions and the reports owners expect on time. None of it is glamorous, and all of it has to be right.
 
-Industry research points in the same direction. An [Inn-Flow survey of hotel finance and operations professionals](https://www.traveldailynews.com/statistics-trends/inn-flow-survey-highlights-ai-priorities-in-hotel-back-offices/) found that hoteliers see the biggest opportunity in reducing manual, repetitive work such as bill handling and transaction checks. The work is not disappearing. It needs a more reliable way to get done.
+## Start with the work that is ready
 
-## Four tests before you outsource any process
+The instinct is to hand over whatever hurts most. Resist it. The most painful process is often painful because nobody has ever written down how it works.
 
-Before you list processes for a partner, run each one through four simple tests. A process that passes all four is a strong first candidate. A process that fails two or more should usually wait.
+Before a process goes anywhere, ask four plain questions about it. Does it arrive regularly and follow roughly the same path each time? Could you explain what a correct result looks like, including the usual exceptions? If something goes wrong, will you catch it before it reaches a client or a payment run? And at the end of the week, can you tell whether it was done well?
 
-1. **Volume and repetition.** Does the work arrive regularly and follow a similar path each time? A daily queue of supplier invoices is a better starting point than a quarterly negotiation file.
-2. **Clear rules.** Could you write down how a correct outcome looks, including the common exceptions? If the answer currently lives only in one senior person's head, document it first.
-3. **Recoverable mistakes.** If an item is processed incorrectly, can it be caught and corrected before it reaches a client or a payment run? Early processes should have a review point between the work and its consequence.
-4. **Measurable output.** Can you see whether the work was done on time and done correctly? If you cannot measure it, you cannot hold anyone accountable for it, including your own team.
+Four yeses make a good first candidate. Two or more noes mean the process should wait until someone on your side has documented it properly. Our guide to [writing an SOP someone can actually work from](../write-standard-operating-procedures/) helps with that step.
 
-These tests are deliberately simple. They help you avoid the most common mistake in travel outsourcing: handing over the most painful process instead of the most ready one.
+## Good first candidates in a travel business
 
-## Where travel businesses usually start
+Every company is different, so treat these as examples rather than a menu.
 
-Every business is different, but the processes below tend to pass the four tests well. Treat the list as illustrative, not as a fixed package.
+Accounts work is usually the easiest place to begin. Supplier invoice matching, payables preparation, refund tracking, collections follow-up and reconciliation all run on rules and arrive in steady volume. When a booking, a supplier statement and a payment refuse to agree, you want someone who will investigate patiently and leave a clear note of what they found. Our piece on [building a better exception queue](../reconciliation-exception-management/) shows how to keep those mismatches visible instead of buried in a spreadsheet.
 
-### Accounts and finance support
+Records and data come next. Client profiles, supplier details, rates and contract terms all feed into invoices and reports later, so a small error here travels a long way. Clear field rules matter more than speed.
 
-Finance work in travel is high volume and rule-based, which makes it a natural starting point. Typical candidates include supplier invoice matching, accounts payable preparation, customer invoicing support, collections follow-up, refund tracking and settlement reconciliation. The value comes from consistency: every item checked against the same rules, every exception logged instead of forgotten.
+Then there is reporting. Corporate clients expect monthly spend reports, and hotel owners expect their performance packs on time. Once the definitions are agreed, a trained team can build these reliably every cycle. Your account manager still owns the conversation about what the numbers mean.
 
-Reconciliation deserves special attention. When a booking record, a supplier statement and a payment do not agree, someone needs to investigate calmly and leave an audit trail. Our guide to [building a better exception queue](../reconciliation-exception-management/) explains how to set this up so unresolved items stay visible.
+Sales and marketing support is the one people forget. Prospect research, CRM clean-up, proposals from approved templates and follow-up tracking quietly eat hours your sales team should be spending with buyers.
 
-### Back-office records and data
+Hotels feel this too. In an [Inn-Flow survey of hotel finance and operations professionals](https://www.traveldailynews.com/statistics-trends/inn-flow-survey-highlights-ai-priorities-in-hotel-back-offices/), respondents saw the biggest opportunity in cutting repetitive manual work such as bill handling and transaction checks.
 
-Travel runs on records: client and traveller profiles, supplier details, rate and contract information, booking data that must be complete before it flows into accounting and reporting. Keeping this data accurate is steady, detailed work. It is also the foundation for everything downstream, which is why it is worth defining field rules carefully. The principles in [data entry quality checks](../data-entry-quality-checks/) apply directly.
+## What your own team should keep
 
-### Reporting and MIS
+Some work should stay close to the people who carry the relationship and the risk. Pricing and supplier negotiations. The difficult call with a key account. Any decision that sets a precedent, like waiving a fee for a large client. And the final click that releases money from your bank account.
 
-Corporate clients expect regular spend and activity reports. Hotel owners expect performance packs. Internal managers need dashboards they can trust. Much of this work is collecting, cleaning and formatting data on a schedule, which a trained team can run reliably once the definitions are agreed. Your team keeps the analysis and the client conversation. The partner keeps the reports accurate and on time.
+A good partner can prepare all of this, check it and flag anything that looks odd. The decision stays with you. Drawing that line early makes the whole handover calmer, because nobody has to guess who decides.
 
-### Sales and marketing support
+## Access, money and a paper trail
 
-Commercial teams in travel often spend hours on tasks that support selling rather than selling itself: researching prospects, keeping the CRM clean, preparing proposals from approved templates, updating listings and content, and tracking follow-ups. Moving this work to a dedicated team gives your sales people more time with buyers.
+Travel data includes passenger details, payment information and commercial terms, so be strict from the first day. Give the delivery team access only to what the process needs. Write down what never happens without your approval, such as changing a supplier's bank details. And make sure every completed item leaves a trace of what was done, by whom and when.
 
-## What should stay with your own team
+The same thinking applies to automation. Deloitte's [Global Outsourcing Survey](https://www.deloitte.com/us/en/services/consulting/articles/global-outsourcing-survey.html) found that most executives already use AI inside their outsourced services, yet weak governance has held back the gains. Tools can make the work faster. A named person should still answer for the result.
 
-Outsourcing works best when the boundary is clear. Some work belongs with the people who carry the commercial relationship and the final accountability.
+## Run one small pilot first
 
-- **Pricing and commercial decisions.** Supplier negotiations, client pricing, credit terms and contract changes should remain with your leadership.
-- **Key account relationships.** Your partner can prepare the report. Your account manager should present it and handle the difficult conversation.
-- **Final approval on money leaving the business.** A partner can prepare a payment run and flag anomalies. Releasing funds should require an approval from your side.
-- **Policy and exceptions with real consequence.** Decisions that set precedent, such as waiving a fee for a major client, need an owner inside your business.
+Choose one process for one region or one client, and hand it over properly: the documentation, a few examples of right and wrong outcomes, and who to ask when something does not fit. Our [process handover checklist](../business-process-handover-checklist/) covers what the new team needs on day one.
 
-Keeping these elements in-house does not slow the work down. It makes the handover safer, because everyone knows where a decision is made.
+Then run real work through it at a small volume for a few weeks. Look at the output, the questions that came back and how much of your own team's time it took. The [30-day pilot plan](../operations-pilot-first-30-days/) gives you a week-by-week structure to follow.
 
-## Set boundaries for data, money and access
+As an illustration, a travel company might start with supplier invoice matching for a single market. Once accuracy settles, refund tracking follows, and after that the monthly client reports. Each step builds on rules that are already working.
 
-Travel data includes personal information, payment details and commercial terms. Before any process moves, agree three things in writing.
+## Know what working looks like
 
-First, decide access. Give the delivery team only the systems and permissions the process actually needs, and review that access when the scope changes. Second, decide what is never done without approval, such as changing bank details for a supplier or issuing a credit above an agreed limit. Third, decide how work is evidenced. Every completed item should leave a trace showing what was done, by whom and when.
+Agree a short scorecard before the first item moves. For most back-office work, five things tell you enough: how much was accepted without correction, how long it took, how many items are stuck waiting for information, how many hours your team spent reviewing, and whether anything reached a client or a payment that should not have.
 
-Technology is part of this picture too. Deloitte's [Global Outsourcing Survey](https://www.deloitte.com/us/en/services/consulting/articles/global-outsourcing-survey.html) reports that most executives now use AI within their outsourced services, while noting that governance and contracting have limited the gains. The lesson for travel companies is practical: automation can speed up a process, but a named person should still be accountable for the result. We cover this in more detail in [keeping a person accountable for AI-assisted work](../human-review-ai-operations/).
+Watch the trend rather than one bad day, and always ask why a number moved. Our guide to [operations metrics that matter](../operations-metrics-that-matter/) explains how to keep this light.
 
-## Start with one process, not a department
+When you speak to a potential partner, ask how they will learn your process, what happens when an item does not fit the rules, who checks quality, and how you would scale back if you needed to. Specific answers are a good sign. Big promises about speed and savings, made before anyone has seen your work, are not.
 
-The safest first step is a single, well-defined process with a clear owner on both sides. Hand over the process with its documentation, examples of correct and incorrect outcomes, and the rules for escalation. Our [process handover checklist](../business-process-handover-checklist/) walks through what the receiving team needs on day one.
+## Where to go from here
 
-Then run it as a pilot. A short, controlled period with a small batch of real work will show you more than any presentation. Review the output, the questions raised and the effort your own team had to put in. The [30-day pilot plan](../operations-pilot-first-30-days/) gives a week-by-week structure you can adapt.
+Done well, outsourcing gives your most experienced people their month-end back while you keep the decisions that matter. Start with one ready process, keep the money and the relationships in your own hands, measure honestly and grow from there.
 
-An illustrative example: a travel company might begin with supplier invoice matching for one region. Once the accuracy is steady and the exceptions are well understood, the same team can take on refund tracking, then monthly client reporting. Each step builds on rules and trust that already exist.
-
-### Questions to ask a potential partner
-
-When you speak to a potential partner, these questions will tell you a great deal:
-
-- How do you learn our process, and how do you prove you have understood it?
-- What happens when an item does not fit the rules?
-- How is quality checked, and who checks it?
-- How do you control access to our systems and data?
-- What does the first month look like, and what will you need from us?
-- How do we scale up, scale down or pause?
-
-Good answers are specific and calm. Vague promises about speed or savings are a warning sign.
-
-## How to tell whether it is working
-
-Agree a small scorecard before the work starts, so that success is defined by evidence rather than impressions. For most travel back-office processes, five measures are enough:
-
-- **Accuracy:** items accepted without correction.
-- **Turnaround:** time from the work arriving to accepted completion.
-- **Open exceptions:** items waiting for information or a decision, and how long they have waited.
-- **Your team's effort:** hours spent explaining, reviewing and correcting.
-- **Escalations:** issues that reached a client, a supplier or a payment.
-
-Review these regularly and talk about the causes behind the numbers. Our guide to [operations metrics that matter](../operations-metrics-that-matter/) explains how to keep reporting useful without turning it into another job.
-
-## The right first step
-
-Travel back-office outsourcing is not about giving away control. It is about deciding which work needs your judgement and which work needs a reliable, well-trained team. Start with one ready process, protect the decisions that matter, measure the result and expand only when the evidence supports it.
-
-Dhiti works with corporate travel and hotel businesses as an operations partner, with more than 200 trained specialists supporting back-office operations, accounts and finance, reporting, and sales and marketing support. If one part of your operations needs a steadier pair of hands, we would be glad to talk it through.
+Dhiti works with corporate travel and hotel businesses on back-office operations, accounts and finance, reporting and sales support, with more than 200 trained specialists. If your 28th of the month looks like the one above, we would be glad to talk.
