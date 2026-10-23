@@ -2,8 +2,8 @@
 title: "Travel back-office outsourcing: what to hand over first, and what to keep"
 description: "Which travel back-office work to outsource first, what to keep in-house, and how to start without losing control of quality or money."
 category: "Travel operations"
-image: "impact-skills.webp"
-imageAlt: "An operations professional working at a computer in a modern office"
+image: "travel-back-office.webp"
+imageAlt: "A finance professional reviewing invoices and spreadsheets at a desk in a busy office"
 order: 11
 date: "2026-10-24"
 ---

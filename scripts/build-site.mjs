@@ -27,8 +27,19 @@ const photoDimensions = {
   ...Object.fromEntries(['data','group','quality','support'].map(n=>[`service-${n}.webp`,[940,588]])),
   ...Object.fromEntries(['deliver','mentor','recruit','train'].map(n=>[`train-${n}.webp`,[800,500]]))
 };
+// Reads width and height from a WebP header, so newly added blog photos need no manual table entry.
+const webpSize = name => {
+  const file = path.join(root, 'src/assets/photos', name);
+  if (!name.endsWith('.webp') || !fs.existsSync(file)) return null;
+  const b = fs.readFileSync(file);
+  const chunk = b.toString('ascii', 12, 16);
+  if (chunk === 'VP8X') return [1 + b.readUIntLE(24, 3), 1 + b.readUIntLE(27, 3)];
+  if (chunk === 'VP8 ') return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+  if (chunk === 'VP8L') { const v = b.readUInt32LE(21); return [1 + (v & 0x3fff), 1 + ((v >> 14) & 0x3fff)]; }
+  return null;
+};
 const image = (base, name, alt, eager=false, cls='') => {
-  const dimensions = photoDimensions[name];
+  const dimensions = photoDimensions[name] || webpSize(name);
   if (!dimensions) throw new Error(`Missing image dimensions: ${name}`);
   return `<img class="${cls}" src="${base}media/photos/${name}" alt="${esc(alt)}" width="${dimensions[0]}" height="${dimensions[1]}" ${eager?'fetchpriority="high"':'loading="lazy"'} decoding="async">`;
 };
