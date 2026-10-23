@@ -27,5 +27,5 @@ export function loadPosts() {
       return `<h2 id="${id}">${text}</h2>`;
     }).replace(/<a href="(https?:[^"]+)"/g, '<a target="_blank" rel="noopener noreferrer" href="$1"');
     return {...data, slug, content, html, toc, words, minutes: Math.ceil(words / 220)};
-  }).sort((a,b) => a.order-b.order);
+  }).sort((a,b) => b.date.localeCompare(a.date) || a.order-b.order);
 }

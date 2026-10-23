@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { root, loadPosts } from './blog-data.mjs';
 const dist=path.join(root,'dist');
 const posts=loadPosts();
+const postCount=posts.length;
 const pages=['blog/index.html',...posts.map(p=>`blog/${p.slug}/index.html`)];
 let checked=0;
 for(const filename of pages) {
@@ -34,8 +35,8 @@ for(const filename of pages) {
   }
 }
 const sitemap=fs.readFileSync(path.join(dist,'sitemap.xml'),'utf8');
-assert.equal((sitemap.match(/<url>/g)||[]).length,22);
+assert.equal((sitemap.match(/<url>/g)||[]).length,12+postCount,'sitemap lists every page and article');
 const rss=fs.readFileSync(path.join(dist,'blog/feed.xml'),'utf8');
-assert.equal((rss.match(/<item>/g)||[]).length,10);
+assert.equal((rss.match(/<item>/g)||[]).length,postCount,'RSS lists every article');
 assert(fs.existsSync(path.join(dist,'404.html')));
-console.log(`PASS: ${pages.length} blog pages, ${checked} local resources and links, 10 RSS entries, 22 sitemap URLs.`);
+console.log(`PASS: ${pages.length} blog pages, ${checked} local resources and links, ${postCount} RSS entries, ${12+postCount} sitemap URLs.`);
