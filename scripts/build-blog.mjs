@@ -11,6 +11,7 @@ if (posts.length < 10 || posts.some(p=>p.words<1000)) throw new Error('Every one
 fs.mkdirSync(path.join(out,'blog/images'), {recursive:true});
 for (const p of posts) fs.copyFileSync(path.join(root,'src/assets/photos',p.image),path.join(out,'blog/images',p.image));
 fs.copyFileSync(path.join(root,'src/assets/logos/dhiti-logo.webp'),path.join(out,'blog/images/logo.webp'));
+fs.copyFileSync(path.join(root,'src/assets/logos/dhiti-mark.webp'),path.join(out,'blog/images/dhiti-mark.webp'));
 
 const arrow = '<span aria-hidden="true">↗</span>';
 const readableDate = date => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
@@ -73,7 +74,7 @@ fs.writeFileSync(path.join(out,'blog/index.html'),landing);
 for (const p of posts) {
   const related = posts.filter(x=>x.slug!==p.slug).sort((a,b)=>(b.category===p.category)-(a.category===p.category)).slice(0,3);
   const html = `${meta(p,'../../','../')}<div class="db-reading-progress" aria-hidden="true"></div><main id="main">
-    <header class="db-article-head db-wrap"><a class="db-back" href="../">← All articles</a><div class="db-meta"><span>${esc(p.category)}</span><span>${p.minutes} min read</span></div><h1>${esc(p.title)}</h1><p class="db-deck">${esc(p.description)}</p><div class="db-byline"><span class="db-author-mark">d.</span><div><strong>Dhiti Editorial</strong><span>${preview?'Prepared':'Published'} <time datetime="${p.date}">${readableDate(p.date)}</time> · ${p.words.toLocaleString('en-IN')} words</span></div><button class="db-share">Copy article link</button><span class="db-share-status sr-only" role="status"></span></div></header>
+    <header class="db-article-head db-wrap"><a class="db-back" href="../">← All articles</a><div class="db-meta"><span>${esc(p.category)}</span><span>${p.minutes} min read</span></div><h1>${esc(p.title)}</h1><p class="db-deck">${esc(p.description)}</p><div class="db-byline"><img class="db-author-mark" src="../images/dhiti-mark.webp" alt="" width="44" height="44"><div><strong>Dhiti Editorial</strong><span>${preview?'Prepared':'Published'} <time datetime="${p.date}">${readableDate(p.date)}</time> · ${p.words.toLocaleString('en-IN')} words</span></div><button class="db-share">Copy article link</button><span class="db-share-status sr-only" role="status"></span></div></header>
     <figure class="db-article-cover db-wrap"><img src="../images/${p.image}" alt="${esc(p.imageAlt)}" width="1180" height="650" fetchpriority="high"></figure>
     <div class="db-reading-layout db-wrap"><aside class="db-toc"><p class="db-label">In this guide</p><nav aria-label="Article contents">${p.toc.map(t=>`<a href="#${t.id}">${t.text}</a>`).join('')}</nav><a class="db-back" href="../">Browse all guides ${arrow}</a></aside><article class="db-prose">${p.html}<div class="db-article-end"><span class="db-label">A note on this guide</span><p>Examples and suggested targets are illustrative, not Dhiti client results or contractual commitments. Adapt the approach to your process, risk and team.</p></div></article></div>
     <section class="db-related db-wrap"><div class="db-section-title"><h2>Keep the good work going.</h2><a class="db-read" href="../">All articles ${arrow}</a></div><div class="db-grid">${related.map((x,i)=>card(x,'../',posts.indexOf(x))).join('')}</div></section>
