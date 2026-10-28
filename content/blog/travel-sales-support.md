@@ -88,6 +88,6 @@ You do not need a big project to begin. For one week, ask your sales team to not
 
 As an illustration, a corporate travel sales team of four might find that proposals take around six hours each per week, CRM updates another four, and supplier rate checks three more. That is more than a full working day per person, every week, spent away from clients. Even moving half of it would give each salesperson several more conversations a week.
 
-Most teams are surprised by what they find. The same five or six tasks usually take up most of the time, and almost all of them pass the tests above. That list is your starting point.
+Most teams are surprised by what they find. The same five or six tasks usually take up most of the time, and almost all of them pass the tests above. That list is your starting point, and it usually makes the first handover decision for you.
 
 Dhiti supports corporate travel and hotel businesses with sales and marketing support, back-office operations, accounts and finance, and reporting, with more than 200 trained specialists. If your sales team spends more time on admin than with clients, we would be glad to talk.
