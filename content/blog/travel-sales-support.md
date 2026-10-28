@@ -2,8 +2,8 @@
 title: "Your travel sales team is doing admin. Move it off their desk."
 description: "How travel companies free their sales teams from proposals, CRM updates and follow-up admin, so more of the week goes into real selling."
 category: "Travel operations"
-image: "service-group.webp"
-imageAlt: "A travel sales manager speaking with a client while a colleague updates records"
+image: "travel-sales-support.webp"
+imageAlt: "A travel sales manager on a client call while a colleague prepares a travel proposal"
 order: 13
 date: "2026-10-28"
 ---
