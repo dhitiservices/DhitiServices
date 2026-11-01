@@ -83,6 +83,6 @@ Not every closing task needs your most senior finance person. Recording invoices
 
 For your next close, note every task that was waiting on something else, and what it was waiting for. The list will usually point to two or three bottlenecks, often supplier statements and open refunds.
 
-Fix those first. Move them into a weekly routine, give them an owner, and measure the close again next month. Most teams see the first days come off without any new software at all.
+Fix those first. Move them into a weekly routine, give them an owner, and measure the close again next month. Most teams see the first days come off without any new software at all. The bigger change is cultural: once the team sees a calm close, nobody wants to go back to the old fire drill.
 
 Dhiti supports corporate travel and hotel businesses with accounts and finance, back-office operations, reporting and sales support, with more than 200 trained specialists. If your month-end feels like a fire drill, we would be glad to help.
