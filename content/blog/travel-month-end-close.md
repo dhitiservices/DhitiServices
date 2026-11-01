@@ -2,8 +2,8 @@
 title: "Why month-end drags in travel and hotels, and how to shorten it"
 description: "A practical guide for travel companies and hotels to speed up the month-end close with steady daily work, clear owners and fewer surprises."
 category: "Travel operations"
-image: "service-quality.webp"
-imageAlt: "A finance team working through month-end reconciliations in a bright office"
+image: "travel-month-end-close.webp"
+imageAlt: "A calm finance manager reviewing a reconciliation spreadsheet with ticked invoices on her desk"
 order: 14
 date: "2026-11-01"
 ---
