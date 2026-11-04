@@ -2,8 +2,8 @@
 title: "Peak season without the panic: how travel companies scale operations"
 description: "How travel companies and hotels plan for peak season, handle the surge in bookings and changes, and protect quality without hiring in a rush."
 category: "Travel operations"
-image: "band-team.webp"
-imageAlt: "A travel operations team working calmly through a busy peak-season day"
+image: "travel-peak-season-operations.webp"
+imageAlt: "An operations manager walks colleagues through a rising booking-volume chart while a large team works calmly"
 order: 15
 date: "2026-11-04"
 ---
