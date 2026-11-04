@@ -88,6 +88,6 @@ These numbers tell you early when the plan is slipping, while there is still tim
 
 The peak does not end on the last busy day. Refunds, credits and supplier reconciliations continue for weeks. Plan capacity for this tail, or it will quietly eat into the first quarter.
 
-Then hold a short review. What arrived earlier or larger than expected? Which tasks caused the most delay? What should be written down before next year? Ten honest answers now make next year's peak far calmer.
+Then hold a short review. What arrived earlier or larger than expected? Which tasks caused the most delay? What should be written down before next year? Ten honest answers now make next year's peak far calmer. Write them into your plan for next September, while the details are still fresh in everyone's mind.
 
 Dhiti supports corporate travel and hotel businesses with back-office operations, accounts and finance, reporting and sales support, with more than 200 trained specialists who can step in when volume rises. If your next peak season is already worrying you, we would be glad to help you plan it.
