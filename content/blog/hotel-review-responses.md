@@ -2,8 +2,8 @@
 title: "Every unanswered hotel review is a sales message you didn't send"
 description: "How hotels can respond to every guest review with care and consistency, turn reviews into bookings and build a simple daily process that lasts."
 category: "Travel operations"
-image: "story.webp"
-imageAlt: "A hotel team member reading guest reviews on a laptop at the front office"
+image: "hotel-review-responses.webp"
+imageAlt: "A hotel guest relations manager replying to guest reviews on a laptop beside the lobby"
 order: 16
 date: "2026-11-06"
 ---
