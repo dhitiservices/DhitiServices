@@ -74,7 +74,7 @@ The hotels that respond well do not rely on someone finding a free hour. They ru
 >
 > **Every week:** share the recurring themes with operations, such as slow check-in or Wi-Fi complaints.
 
-That last step is where reviews start paying for themselves. If six guests mention the same slow check-in, the reply is only half the job. The other half is fixing the check-in.
+That last step is where reviews start paying for themselves. If six guests mention the same slow check-in, the reply is only half the job. The other half is fixing the check-in. Over a few months, those small fixes show up in your ratings too.
 
 Write the house style and escalation rules down once, so anyone on the team can follow them. Our guide to [writing an SOP someone can actually work from](../write-standard-operating-procedures/) shows how to keep it to a page.
 
