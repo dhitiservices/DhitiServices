@@ -2,8 +2,8 @@
 title: "The refund queue: where travel companies quietly lose trust"
 description: "How travel companies can track every refund from request to payout, keep clients informed and stop money and goodwill leaking out of the refund queue."
 category: "Travel operations"
-image: "service-quality.webp"
-imageAlt: "A travel operations specialist tracking refunds on a dashboard"
+image: "travel-refund-management.webp"
+imageAlt: "A travel operations specialist tracking refunds on a status dashboard and ticking off a checklist"
 order: 17
 date: "2026-11-07"
 ---
