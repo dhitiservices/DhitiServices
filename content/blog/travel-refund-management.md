@@ -14,6 +14,8 @@ Inside the travel company, nobody is sure where it stands. Was the airline refun
 
 **Clients rarely remember how a booking went. They always remember how a refund went.**
 
+The good news is that a calm, reliable refund process is not complicated to build.
+
 ## Why refunds matter more than ever
 
 Expectations have shifted. Travellers and corporate clients now expect refunds to move as quickly as bookings do.
