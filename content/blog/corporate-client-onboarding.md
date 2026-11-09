@@ -2,8 +2,8 @@
 title: "The first 60 days with a new corporate client decide the next three years"
 description: "How travel management companies can onboard a new corporate client smoothly, with clean traveller data, correct policies and billing that works from day one."
 category: "Travel operations"
-image: "service-group.webp"
-imageAlt: "A travel management team preparing to onboard a new corporate client"
+image: "corporate-client-onboarding.webp"
+imageAlt: "An account director walks a new corporate client through a four-phase onboarding plan"
 order: 18
 date: "2026-11-09"
 ---
