@@ -72,7 +72,7 @@ A clear plan keeps both teams calm. A simple structure works for most clients:
 >
 > **Weeks 7–8:** hold a joint review, fix recurring issues and send the first monthly report.
 
-Starting with a pilot group is the key step. Problems show up in twenty bookings instead of two thousand. It also gives you a group of early travellers who can tell their colleagues that the new service works. Our [30-day pilot plan](../operations-pilot-first-30-days/) offers a similar structure for any new process.
+Starting with a pilot group is the key step. Problems show up in twenty careful bookings instead of two thousand rushed ones. It also gives you a group of early travellers who can tell their colleagues that the new service works. Our [30-day pilot plan](../operations-pilot-first-30-days/) offers a similar structure for any new process.
 
 ## Talk to the travellers, not just the travel manager
 
