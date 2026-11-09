@@ -95,6 +95,6 @@ Sharing these numbers openly builds trust, especially when they improve week by 
 
 ## Who should do the onboarding work?
 
-Your account manager should own the relationship, the kick-off meeting and the joint reviews. The work behind it is different: cleaning and loading hundreds or thousands of profiles, setting up policies, checking samples, running test bookings and preparing reports. That work is detailed, time-bound and often arrives just when your team is busiest.
+Your account manager should own the relationship, the kick-off meeting and the joint reviews. The work behind it is different: cleaning and loading hundreds or thousands of profiles, setting up policies, checking samples, running test bookings and preparing reports. That work is detailed, time-bound and often arrives exactly when your existing team is busiest.
 
 Dhiti supports corporate travel and hotel businesses with back-office operations, data and profile management, accounts and finance, reporting and sales support, with more than 200 trained specialists. If your next client launch needs extra hands, we would be glad to help you get the first 60 days right.
