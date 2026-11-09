@@ -78,7 +78,7 @@ Starting with a pilot group is the key step. Problems show up in twenty careful 
 
 The travel manager signed the contract. The travellers decide how it feels.
 
-Send a short, friendly welcome note before go-live: how to book, who to call, what changes and what stays the same. Keep it to one screen. Follow up after their first trip with a short two-question survey, and act quickly on anything it reveals.
+Send a short, friendly welcome note before go-live: how to book, who to call, what changes and what stays the same. Keep it short enough to read on one phone screen. Follow up after their first trip with a short two-question survey, and act quickly on anything it reveals.
 
 Make the first interaction easy, and make sure the team answering it already knows the client's policy and key travellers. A traveller who gets a fast, correct answer on their first call becomes a supporter. Our [customer support playbook](../customer-support-playbook/) covers how to set response standards that hold up, even during a busy launch.
 
