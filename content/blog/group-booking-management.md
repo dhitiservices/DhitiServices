@@ -75,7 +75,7 @@ Set reminders a week before each date, not on the day. **Most group penalties ar
 
 In the final two weeks before an event, check the master list against the airline bookings, the hotel's list and the transfer schedule every day. Look for anyone with a flight but no room, a room but no flight, or a transfer that doesn't match an arrival time.
 
-As an illustration, a 150-person conference might see thirty changes in its final fortnight. Checking daily keeps each day's list short and manageable. Checking once a week turns it into a crisis, usually on the day before arrival, when there is no time left to fix anything calmly. Our article on [a better exception queue](../reconciliation-exception-management/) explains how to keep every mismatch visible until it is fixed.
+In practice, a 150-person conference might see thirty changes in its final fortnight. Checking daily keeps each day's list short and manageable. Checking once a week turns it into a crisis, usually on the day before arrival, when there is no time left to fix anything calmly. Our article on [a better exception queue](../reconciliation-exception-management/) explains how to keep every mismatch visible until it is fixed.
 
 ## Keep attendees and the hotel in the loop
 
