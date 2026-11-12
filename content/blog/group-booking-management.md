@@ -2,8 +2,8 @@
 title: "Group bookings without the chaos: rooming lists, name changes and deadlines"
 description: "A practical guide for travel companies and hotels to manage group bookings, from one master list and key deadlines to clean invoices after the event."
 category: "Travel operations"
-image: "service-group.webp"
-imageAlt: "A travel team reviewing a group rooming list before an event"
+image: "group-booking-management.webp"
+imageAlt: "A group travel coordinator checking a rooming list against a calendar of contract deadlines"
 order: 19
 date: "2026-11-12"
 ---
