@@ -2,8 +2,8 @@
 title: "Unpaid hotel commissions: the money travel companies forget to collect"
 description: "Why hotel commissions go unpaid, and how travel companies can track, reconcile and recover the commission they have already earned."
 category: "Travel operations"
-image: "service-data.webp"
-imageAlt: "A finance specialist comparing expected and received hotel commissions"
+image: "unpaid-hotel-commissions.webp"
+imageAlt: "A finance specialist checking printed statements against an expected-versus-received commission report"
 order: 20
 date: "2026-11-16"
 ---
