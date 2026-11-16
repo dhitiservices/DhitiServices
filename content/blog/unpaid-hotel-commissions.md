@@ -12,7 +12,7 @@ A finance manager at a travel company runs a simple check one afternoon. She lis
 
 The two lists do not match. Two hundred bookings show a stay, a rate and a commission percentage, but no payment. Some are six months old. A few are from hotels that have since changed owners.
 
-Nobody stole anything. Nobody made one big mistake. **The money was simply never collected.**
+Nobody stole anything, and nobody made one big mistake. **The money was simply never collected, because nobody was watching for it.**
 
 ## A problem big enough to need a watch list
 
