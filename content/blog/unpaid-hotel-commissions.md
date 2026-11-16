@@ -69,7 +69,7 @@ Then sort unpaid commissions by age:
 >
 > **Over 180 days:** a formal claim, or an industry dispute route where one exists.
 
-As an illustration, a travel company with 2,000 commissionable stays a year might find 150 unpaid at the 90-day mark. Chasing them early, while records are fresh, often turns a stubborn backlog into a list of quick fixes. At an average commission of a few thousand rupees per stay, even recovering half of them adds up to a meaningful sum, from money that was already earned.
+As an illustration, a travel company with 2,000 commissionable stays a year might find 150 unpaid at the 90-day mark. Chasing them early, while records are fresh, often turns a stubborn backlog into a list of quick fixes. Even at a modest average commission per stay, recovering half of them adds up to a meaningful sum, and all of it is money the company had already earned.
 
 ## Make it easy for hotels to pay you
 
