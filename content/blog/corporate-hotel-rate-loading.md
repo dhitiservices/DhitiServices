@@ -2,8 +2,8 @@
 title: "Negotiated hotel rates that never get used: the rate loading problem"
 description: "Why negotiated corporate hotel rates often go missing in booking systems, and how travel companies can load, audit and protect them every season."
 category: "Travel operations"
-image: "service-data.webp"
-imageAlt: "A travel operations specialist auditing negotiated hotel rates"
+image: "corporate-hotel-rate-loading.webp"
+imageAlt: "A travel operations specialist checking hotel rates on screen against a printed rate contract"
 order: 21
 date: "2026-11-18"
 ---
