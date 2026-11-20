@@ -2,8 +2,8 @@
 title: "The year-end back-office checklist for travel companies"
 description: "A year-end checklist for travel companies and hotels: refunds, commissions, next year's hotel rates, the year-end close, client reports and peak season."
 category: "Travel operations"
-image: "door-business.webp"
-imageAlt: "The Dhiti Services team together in their office"
+image: "year-end-back-office-checklist.webp"
+imageAlt: "An operations lead planning year-end tasks on a glass wall board, with a December calendar behind her"
 order: 22
 date: "2026-11-20"
 ---
