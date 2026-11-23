@@ -2,7 +2,7 @@
 title: "Agency debit memos: how travel agencies stop paying for avoidable mistakes"
 description: "Why airline ADMs keep costing travel agencies money, which errors cause most of them, and a simple process to prevent, review and dispute them on time."
 category: "Travel operations"
-image: "service-quality.webp"
+image: "agency-debit-memos.webp"
 imageAlt: "A travel accounts specialist reviewing an airline debit memo against the original ticket record"
 order: 23
 date: "2026-11-23"
