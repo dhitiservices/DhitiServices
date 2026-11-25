@@ -28,7 +28,7 @@ When a travel company looks closely at its overdue list, the reasons are rarely 
 
 The invoice is missing something the client needs: a purchase order number, a cost centre, an approver's name or the traveller's employee ID. The client's system rejects it, or someone parks it to ask a question, and nobody tells the travel company.
 
-The invoice is correct but hard to check. One monthly statement with two hundred lines, no booking references and no split by department forces the client's finance team to do detective work before they approve anything. Busy teams put that kind of work off.
+The invoice is correct but hard to check. One monthly statement with two hundred lines, no booking references and no split by department forces the client's finance team to do detective work before they approve anything.
 
 There is a small dispute. A hotel night was cancelled but still billed, or a change fee was never agreed in writing. Instead of paying everything except the disputed line, the client holds the whole invoice.
 
@@ -42,9 +42,7 @@ The fastest collections start before the invoice is sent. When a new client come
 
 > **The invoice-ready check:** the client's PO or cost centre is included, every line shows a booking reference and traveller name, taxes appear the way the client needs them, supporting documents are attached, and the invoice goes to the AP inbox, not only the travel manager.
 
-Small details make a big difference here. An invoice sent only to the travel manager can sit in their inbox for a week before it reaches finance. An invoice that uses the client's own cost-centre codes can often be approved without a single question.
-
-Timing matters too. If bookings are billed weekly instead of in one large batch at month-end, each invoice is smaller, easier to check and less likely to be held up by one problem line.
+Small details matter. An invoice sent only to the travel manager can sit in their inbox for a week before finance ever sees it.
 
 ## Run collections as a weekly routine
 
@@ -57,7 +55,7 @@ Start each week with an ageing report, sorted by client and by days outstanding.
 3. **Seven days late:** a phone call, not another email, to find out what is holding it.
 4. **Thirty days late:** escalation to the account manager, and an agreed date for payment.
 
-The call at day seven is the step most teams skip, and it is often the one that works. A two-minute conversation usually reveals the real reason: a missing PO, an approver on leave, a question about one line. Once you know the reason, you can usually fix it the same day.
+The call at day seven is the step most teams skip, and it is often the one that works. A two-minute conversation usually reveals the real reason: a missing PO, an approver on leave, a question about one line.
 
 > **The collections log:** client, invoice number, amount, due date, last contact, reason for delay, promised payment date and next action.
 
@@ -75,17 +73,17 @@ If payments are not matched to invoices quickly, the ageing report stops being t
 
 ## Show the numbers to the people who own the account
 
-Account managers often have no idea a client is 70 days late. They are busy keeping the client happy, finance is busy chasing, and the two rarely compare notes.
+Account managers often have no idea a client is 70 days late, because sales and finance rarely compare notes.
 
 A short weekly summary changes that: total outstanding, the amount overdue, the five largest overdue accounts and the reason each one is stuck. When an account manager sees that a big client's invoices are held because of a missing PO, they can usually solve it with one call to their contact.
 
-Over a few months, the same data shows which clients pay well and which need tighter terms, deposits or a different billing setup. That belongs in your regular reporting too. Our guide to [the monthly travel report your corporate clients will actually read](../corporate-travel-reporting/) shows how to keep reports short and useful.
+Over time, the same data shows which clients need tighter terms or a different billing setup. Our guide to [the monthly travel report your corporate clients will actually read](../corporate-travel-reporting/) shows how to keep reports short and useful.
 
 ## Who should own collections
 
 Collections fall between sales, operations and finance, so they often belong to nobody. Sales does not want to upset the client. Finance sees the overdue amount but not the booking history. Operations has the booking history but no reason to chase payment.
 
-The travel companies that collect well give this work one clear owner, with a weekly routine, a log and the authority to bring in the account manager when needed. It is steady, rule-based work, which also makes it a natural process to hand to a trained back-office team, so your finance lead can focus on cash planning and your sales team on clients. Our guide on [what to hand over first, and what to keep](../travel-back-office-outsourcing/) explains how to decide. The same discipline works for money that suppliers owe you, as our guide to [unpaid hotel commissions](../unpaid-hotel-commissions/) shows.
+The travel companies that collect well give this work one clear owner, with a weekly routine, a log and the authority to bring in the account manager when needed. It is steady, rule-based work, which also makes it a natural process to hand to a trained back-office team, so your finance lead can focus on cash planning and your sales team on clients. Our guide on [what to hand over first, and what to keep](../travel-back-office-outsourcing/) explains how to decide.
 
 Friday's airline settlement will keep arriving on schedule. With a routine like this, your clients' payments can start arriving on schedule too.
 
