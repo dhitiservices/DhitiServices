@@ -2,7 +2,7 @@
 title: "Corporate clients who pay late: how travel companies get paid faster"
 description: "Why corporate travel invoices get paid late, what the wait really costs, and a simple collections routine that brings the cash in sooner."
 category: "Travel operations"
-image: "service-data.webp"
+image: "corporate-client-collections.webp"
 imageAlt: "A travel accounts specialist checking overdue corporate invoices against payment records"
 order: 24
 date: "2026-11-25"
