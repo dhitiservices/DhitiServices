@@ -2,7 +2,7 @@
 title: "Why your hotel is cheaper on someone else's website than on your own"
 description: "Why hotel rates drift out of parity across OTAs and resellers, what it costs in direct bookings, and a simple daily check that catches gaps early."
 category: "Hotel operations"
-image: "service-data.webp"
+image: "hotel-rate-parity.webp"
 imageAlt: "A hotel revenue specialist comparing room prices across booking websites on a laptop"
 order: 25
 date: "2026-11-27"
