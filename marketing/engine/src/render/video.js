@@ -19,7 +19,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import sharp from 'sharp';
 import ffmpegStatic from 'ffmpeg-static';
-import { withPage, resolveBrand, htmlDocument, richText, cleanText, plainText, escapeHtml } from './browser.js';
+import { withPage, resolveBrand, htmlDocument, richText, cleanText, plainText, escapeHtml, loadPhoto, parseFocus } from './browser.js';
 import { log } from '../log.js';
 
 export const VIDEO_SIZE = Object.freeze({ width: 1080, height: 1920 });
@@ -110,6 +110,7 @@ function planScenes(body) {
       clip,
       clipStart: Number.isFinite(Number(s.clip_start)) ? Math.max(0, Number(s.clip_start)) : null,
       photo: clip ? null : photo,
+      focus: s.focus ?? null,
     };
   });
   // Clamp the total (content + outro) to 20-40 s by scaling scene durations proportionally.
@@ -183,12 +184,9 @@ const MOTIONS = [
 ];
 
 /** 2x still for zoompan (cover-cropped with attention so faces/subjects stay in frame). */
-async function prepareStill(src, out) {
-  await sharp(src, { failOn: 'none', limitInputPixels: false })
-    .rotate()
-    .resize({ width: W * 2, height: H * 2, fit: 'cover', position: sharp.strategy.attention })
-    .jpeg({ quality: 92, chromaSubsampling: '4:4:4' })
-    .toFile(out);
+async function prepareStill(src, out, focus) {
+  const img = await loadPhoto(src, { width: W * 2, height: H * 2, focus });
+  await img.jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toFile(out);
   return out;
 }
 
@@ -218,9 +216,12 @@ async function encodeScene(scene, len, { overlays, dir, clipCursor, fadeOutEnd, 
     }
     if (loop) args.push('-stream_loop', '-1');
     args.push('-ss', String(r3(start)), '-t', String(r3(len + 0.5)), '-i', scene.clip);
-    bgChain = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H},setsar=1,fps=${FPS},format=gbrp,trim=end_frame=${n},setpts=PTS-STARTPTS[bg]`;
+    const f = parseFocus(scene.focus);
+    const fx = typeof f === 'object' ? f.x : 0.5;
+    const fy = typeof f === 'object' ? f.y : 0.5;
+    bgChain = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}:(iw-${W})*${fx}:(ih-${H})*${fy},setsar=1,fps=${FPS},format=gbrp,trim=end_frame=${n},setpts=PTS-STARTPTS[bg]`;
   } else {
-    const still = await prepareStill(scene.photo || overlays.fallback, path.join(dir, `still-${scene.index}.jpg`));
+    const still = await prepareStill(scene.photo || overlays.fallback, path.join(dir, `still-${scene.index}.jpg`), scene.photo ? scene.focus : 'center');
     const m = MOTIONS[scene.index % MOTIONS.length];
     const p = `(on/${Math.max(1, n - 1)})`;
     const z = `${m.z0}+(${r3(m.z1 - m.z0)})*${p}`;
@@ -320,7 +321,7 @@ async function joinConcat(parts, lens, out, dir) {
 /**
  * renderVideo(body, {brand, workDir, keepWork}) ->
  *   { mp4: Buffer, poster: Buffer (JPEG 1080x1920), posterMime: 'image/jpeg', duration: seconds, width, height, fps, timeline }
- * body = { scenes: [{ duration, on_screen_text, clip|null, photo|null, eyebrow?, clip_start? }], transition?: 'fade'|'cut'|xfade name,
+ * body = { scenes: [{ duration, on_screen_text, clip|null, photo|null, eyebrow?, clip_start?, focus? }], transition?: 'fade'|'cut'|xfade name,
  *          outro_text?: tagline on the end card (default "Operations teams for the travel industry") }
  * workDir: scratch directory (a unique subfolder is created inside and removed afterwards unless keepWork).
  */

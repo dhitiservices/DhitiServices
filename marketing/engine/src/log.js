@@ -1,16 +1,18 @@
-// Tiny logger: prints to stdout/stderr and keeps a buffer that is saved into runs.log.
+// Tiny logger. Everything goes to stderr (stdout is reserved for the CLI's single JSON result) and is kept in a
+// bounded buffer that `run finish` saves into runs.log. LOG_QUIET=1 silences stderr (the buffer is still kept).
 import { inspect } from 'node:util';
 
 const MAX_BUFFER = 400_000; // characters kept for runs.log (tail wins)
 let buffer = [];
 let size = 0;
+const quiet = /^(1|true|yes|on)$/i.test(String(process.env.LOG_QUIET ?? ''));
 
 const fmt = (args) =>
   args.map((a) => (typeof a === 'string' ? a : a instanceof Error ? a.stack || a.message : inspect(a, { depth: 4, breakLength: 120 }))).join(' ');
 
 function push(level, args) {
   const line = `${new Date().toISOString()} ${level === 'info' ? '' : `[${level}] `}${fmt(args)}`;
-  (level === 'error' || level === 'warn' ? console.error : console.log)(line);
+  if (!quiet) process.stderr.write(`${line}\n`);
   buffer.push(line);
   size += line.length + 1;
   while (size > MAX_BUFFER && buffer.length > 1) size -= buffer.shift().length + 1;

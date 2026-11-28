@@ -50,7 +50,7 @@ const env = (name, fallback = '') => {
 const flag = (name) => /^(1|true|yes|on)$/i.test(env(name));
 
 /** True when the JSON-file backend is active (read at call time so tests and CLIs can toggle it). */
-export const isDryRun = () => flag('DRY_RUN');
+const isDryRun = () => flag('DRY_RUN');
 export const backendName = () => (isDryRun() ? 'dry-run' : 'edge');
 
 const engineUrl = () => env('ENGINE_URL', DEFAULT_ENGINE_URL);
@@ -319,7 +319,7 @@ const FIELDS = {
   asset: ['content_item_id', 'kind', 'storage_path', 'mime', 'width', 'height', 'position', 'meta'],
 };
 const SESSION_ITEM_STATUSES = ['generating', 'pending_review', 'failed'];
-const PUBLISHER_ITEM_STATUSES = ['published', 'failed', 'approved'];
+const PUBLISHER_ITEM_STATUSES = ['published', 'failed'];
 const LOCKED_FOR_SESSION = ['approved', 'published'];
 const PUBLISHER_ACTIONS = new Set(['get_settings', 'list_items', 'get_item', 'list_assets', 'sign_download', 'update_item', 'create_run', 'finish_run', 'claim_jobs', 'finish_job']);
 
@@ -535,6 +535,7 @@ const localActions = {
     if (patch.version !== undefined && (!Number.isInteger(patch.version) || patch.version < 1)) bad('version must be a positive integer');
     const row = findRow(data, 'content_items', id) || fail(404, `item ${id} not found`);
     if (kind === 'session' && LOCKED_FOR_SESSION.includes(row.status)) fail(409, `item ${id} is ${row.status}; session tokens cannot modify approved or published items`);
+    if (kind === 'publisher' && !LOCKED_FOR_SESSION.includes(row.status)) fail(409, `item ${id} is ${row.status}; publisher tokens may only update approved or published items`);
     return Object.assign(row, patch, { updated_at: nowISO() });
   },
 
@@ -855,6 +856,8 @@ export const signUpload = (storagePath) => engineCall('sign_upload', { path: sto
 /** `{ signedUrl, path, expiresIn }` (default 600 s). */
 export const signDownload = (storagePath, expiresIn) => engineCall('sign_download', expiresIn ? { path: storagePath, expiresIn } : { path: storagePath });
 
+// Outer retry for transfers: engine calls inside already retry on their own, so only the PUT/GET is retried here.
+const outerRetry = (e) => e.retryable === true && e.name !== 'EngineError';
 const toBuffer = (b) => (Buffer.isBuffer(b) ? b : b instanceof Uint8Array ? Buffer.from(b.buffer, b.byteOffset, b.byteLength) : null);
 
 /** Uploads a Buffer to `marketing/<storagePath>` (sign_upload, then PUT to the signed URL). Returns the path. */
@@ -886,7 +889,7 @@ export async function uploadFile(storagePath, buffer, mime = 'application/octet-
       throw err;
     }
     return p;
-  }, { retries: 3, shouldRetry: (e) => e.retryable === true });
+  }, { retries: 3, shouldRetry: outerRetry });
 }
 
 /** Returns the file at `marketing/<storagePath>` as a Buffer (sign_download, then GET). */
@@ -913,7 +916,7 @@ export async function downloadFile(storagePath) {
       throw err;
     }
     return res.body;
-  }, { retries: 3, shouldRetry: (e) => e.retryable === true });
+  }, { retries: 3, shouldRetry: outerRetry });
 }
 
 /**

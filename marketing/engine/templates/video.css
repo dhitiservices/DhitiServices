@@ -107,3 +107,6 @@
     radial-gradient(1000px 1000px at 0% 100%, rgba(255, 51, 34, 0.14), transparent 60%),
     linear-gradient(180deg, #1c1d22 0%, var(--ink) 100%);
 }
+
+/* Highlights on red cards stay white (underlined) instead of disappearing into the red. */
+.v-outro .hl { color: #fff; text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.14em; }

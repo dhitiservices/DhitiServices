@@ -7,7 +7,10 @@ import { log } from './log.js';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Same rule the website uses (scripts/blog-data.mjs), so slugs always match URLs. */
+/**
+ * Kebab-case slug for new posts and files (ASCII, "&" -> "and", cut at a word boundary).
+ * Heading ids for the TOC use the website's own rule in blogcheck.js, not this function.
+ */
 export function slugify(value = '', maxLength = 80) {
   const s = String(value)
     .normalize('NFKD')
@@ -135,8 +138,8 @@ export function weekStart(date = new Date()) {
  * Upcoming publish dates for a week: the given weekday names on/after `fromYmd`
  * (defaults to today IST), returning `count` dates, cycling into later weeks if needed.
  */
-export function nextPublishDates(count, days = ['Tuesday', 'Thursday'], fromYmd = todayIST()) {
-  const wanted = new Set((days?.length ? days : ['Tuesday', 'Thursday']).map((d) => String(d).toLowerCase()));
+export function nextPublishDates(count, days = ['Monday', 'Wednesday', 'Friday'], fromYmd = todayIST()) {
+  const wanted = new Set((days?.length ? days : ['Monday', 'Wednesday', 'Friday']).map((d) => String(d).toLowerCase()));
   const out = [];
   for (let i = 0; out.length < count && i < 400; i++) {
     const d = addDays(fromYmd, i);
@@ -145,9 +148,20 @@ export function nextPublishDates(count, days = ['Tuesday', 'Thursday'], fromYmd 
   return out;
 }
 
+/**
+ * UTC ISO timestamp of a wall-clock time in Asia/Kolkata (UTC+05:30, no DST).
+ * istToUTC('2026-12-02', '10:00') === '2026-12-02T04:30:00.000Z'
+ */
+export function istToUTC(ymd, hhmm = '10:00') {
+  const d = ymdToUTC(ymd);
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm));
+  if (!m) throw new Error(`Expected HH:MM, got ${hhmm}`);
+  return new Date(d.getTime() + ((+m[1] * 60 + +m[2]) - 330) * 60_000).toISOString();
+}
+
 // ---------- Text ----------
 
-/** Word count using the same rule as scripts/blog-data.mjs. */
+/** Approximate word count (blogcheck.js holds the website's exact rule). */
 export function wordCount(markdown = '') {
   const plain = String(markdown).replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[#*`>|]/g, '');
   const t = plain.trim();
@@ -220,6 +234,21 @@ export async function imageSize(input) {
   const m = await sharp(input).metadata();
   return { width: m.width, height: m.height, format: m.format };
 }
+
+const MIME = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif',
+  '.tif': 'image/tiff', '.tiff': 'image/tiff', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.m4v': 'video/x-m4v',
+  '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg',
+  '.pdf': 'application/pdf', '.json': 'application/json', '.md': 'text/markdown', '.txt': 'text/plain',
+};
+/** MIME type from a file name's extension (application/octet-stream when unknown). */
+export const mimeFromPath = (file = '') => MIME[path.extname(String(file)).toLowerCase()] || 'application/octet-stream';
+/** File extension (with dot) for a MIME type, or ''. */
+export const extFromMime = (mime = '') => {
+  const m = String(mime).split(';')[0].trim().toLowerCase();
+  if (m === 'image/jpeg') return '.jpg';
+  return Object.entries(MIME).find(([, v]) => v === m)?.[0] || '';
+};
 
 /** Escapes text for safe inclusion in HTML/SVG templates. */
 export const escapeHtml = (value = '') =>

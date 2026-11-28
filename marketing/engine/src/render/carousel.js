@@ -7,6 +7,7 @@
 //   quote : off-white, giant red quote mark, headline = the quote, body = attribution/context.
 //   cta   : brand red, white wordmark, headline, body, www.dhitiservices.com button.
 // Text supports **highlight** for a red accent. Em dashes are removed (brand rule).
+// Optional slide.focus steers the photo crop: 0..1 (horizontal), {x,y}, "left"/"right"/..., default smart crop.
 import { withPage, imagesToPdf, resolveBrand, htmlDocument, photoDataUri, richText, cleanText, splitStat, escapeHtml } from './browser.js';
 import { log } from '../log.js';
 
@@ -34,6 +35,7 @@ function normalizeSlides(body) {
       body: cleanText(s?.body),
       stat: cleanText(s?.stat),
       photo: typeof s?.photo === 'string' && s.photo.trim() ? s.photo.trim() : null,
+      focus: s?.focus ?? null,
     };
   });
 }
@@ -62,7 +64,7 @@ async function slideHtml(slide, ctx) {
 
   switch (slide.kind) {
     case 'cover': {
-      const photo = await photoDataUri(slide.photo, CAROUSEL_SIZE);
+      const photo = await photoDataUri(slide.photo, { ...CAROUSEL_SIZE, focus: slide.focus });
       return `
 <div class="frame slide slide--cover on-dark ${photo ? 'has-photo' : 'no-photo bg-ink'}">
   ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-bottom"></div>` : ''}
@@ -128,7 +130,7 @@ async function slideHtml(slide, ctx) {
 
     default: {
       // point
-      const photo = slide.photo ? await photoDataUri(slide.photo, { width: 904, height: 470 }) : '';
+      const photo = slide.photo ? await photoDataUri(slide.photo, { width: 904, height: 470, focus: slide.focus }) : '';
       const num = pad2(pointNo);
       if (photo) {
         return `

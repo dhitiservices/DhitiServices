@@ -187,13 +187,68 @@ ${css.map(templateCss).join('\n')}
 ${extraCss}</style></head><body>${body}</body></html>`;
 }
 
+const FOCUS_WORDS = {
+  center: { x: 0.5, y: 0.5 }, centre: { x: 0.5, y: 0.5 },
+  left: { x: 0.2, y: 0.5 }, right: { x: 0.8, y: 0.5 },
+  top: { x: 0.5, y: 0.25 }, bottom: { x: 0.5, y: 0.75 },
+  'top-left': { x: 0.2, y: 0.25 }, 'top-right': { x: 0.8, y: 0.25 },
+  'bottom-left': { x: 0.2, y: 0.75 }, 'bottom-right': { x: 0.8, y: 0.75 },
+};
+
+/**
+ * Normalises a crop focus: a number 0..1 (horizontal centre of interest), "0.7,0.4", {x, y}, a word
+ * (center, left, right, top, bottom, top-left, ...), or "attention" / "entropy" / empty for sharp's smart crop.
+ * Returns {x, y} (fractions) or a sharp strategy name.
+ */
+export function parseFocus(focus) {
+  if (focus === undefined || focus === null || focus === '') return 'attention';
+  const clamp = (n) => Math.min(1, Math.max(0, n));
+  if (typeof focus === 'number' && Number.isFinite(focus)) return { x: clamp(focus), y: 0.5 };
+  if (typeof focus === 'object' && focus) {
+    const x = Number(focus.x), y = Number(focus.y);
+    return { x: Number.isFinite(x) ? clamp(x) : 0.5, y: Number.isFinite(y) ? clamp(y) : 0.5 };
+  }
+  const s = String(focus).trim().toLowerCase();
+  if (s === 'entropy' || s === 'attention') return s;
+  if (FOCUS_WORDS[s]) return FOCUS_WORDS[s];
+  const m = /^(-?[\d.]+)\s*[, ]\s*(-?[\d.]+)$/.exec(s);
+  if (m) return { x: clamp(+m[1]), y: clamp(+m[2]) };
+  if (Number.isFinite(Number(s))) return { x: clamp(Number(s)), y: 0.5 };
+  return 'attention';
+}
+
+/**
+ * Loads a local photo (EXIF-rotated) and returns a sharp pipeline: cover-cropped to width x height around `focus`
+ * (see parseFocus), or downscaled to `maxEdge` on the long edge when no size is given. Large stock JPEGs are first
+ * reduced to a working size so cropping stays fast.
+ */
+export async function loadPhoto(file, { width, height, focus, maxEdge = 2160 } = {}) {
+  // Working size: enough pixels that a portrait crop of a landscape photo is not upscaled.
+  const work = Math.max(4000, Math.ceil(Math.max(width || 0, height || 0, maxEdge) * 1.9));
+  const base = await sharp(file, { failOn: 'none', limitInputPixels: false })
+    .rotate()
+    .resize({ width: work, height: work, fit: 'inside', withoutEnlargement: true })
+    .toBuffer({ resolveWithObject: true });
+  const img = sharp(base.data, { failOn: 'none' });
+  if (!(width && height)) return img.resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true });
+  const f = parseFocus(focus);
+  if (typeof f === 'string') return img.resize({ width, height, fit: 'cover', position: sharp.strategy[f] });
+  const { width: iw, height: ih } = base.info;
+  const scale = Math.max(width / iw, height / ih);
+  const cw = Math.min(iw, Math.round(width / scale));
+  const ch = Math.min(ih, Math.round(height / scale));
+  const left = Math.round(Math.min(iw - cw, Math.max(0, f.x * iw - cw / 2)));
+  const top = Math.round(Math.min(ih - ch, Math.max(0, f.y * ih - ch / 2)));
+  return img.extract({ left, top, width: cw, height: ch }).resize({ width, height, fit: 'fill' });
+}
+
 const photoCache = new Map();
 /**
  * Local photo file -> JPEG data URI, downscaled to `maxEdge` px on the long edge (default 2160) or cover-cropped
- * to {width,height} (attention crop) when both are given. Returns '' when the file is missing (callers degrade
+ * to {width,height} around `focus` (default: attention crop). Returns '' when the file is missing (callers degrade
  * to a photo-less layout).
  */
-export async function photoDataUri(file, { maxEdge = 2160, width, height, quality = 86 } = {}) {
+export async function photoDataUri(file, { maxEdge = 2160, width, height, focus, quality = 86 } = {}) {
   if (!file) return '';
   const abs = path.resolve(String(file));
   let stat;
@@ -203,13 +258,10 @@ export async function photoDataUri(file, { maxEdge = 2160, width, height, qualit
     log.warn(`render: photo not found: ${abs}`);
     return '';
   }
-  const key = `${abs}|${stat.mtimeMs}|${maxEdge}|${width}|${height}|${quality}`;
+  const key = `${abs}|${stat.mtimeMs}|${maxEdge}|${width}|${height}|${JSON.stringify(focus ?? null)}|${quality}`;
   if (!photoCache.has(key)) {
     const job = (async () => {
-      let img = sharp(abs, { failOn: 'none', limitInputPixels: false }).rotate();
-      img = width && height
-        ? img.resize({ width, height, fit: 'cover', position: sharp.strategy.attention })
-        : img.resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true });
+      const img = await loadPhoto(abs, { width, height, focus, maxEdge });
       const buf = await img.jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
       return `data:image/jpeg;base64,${buf.toString('base64')}`;
     })();
@@ -268,7 +320,7 @@ let browserPromise = null;
 async function launch() {
   const { chromium } = await import('playwright');
   const executablePath = config.chromiumPath || process.env.CHROMIUM_PATH || undefined;
-  const args = ['--font-render-hinting=none', '--disable-lcd-text', '--force-color-profile=srgb', '--disable-dev-shm-usage', '--no-sandbox'];
+  const args = ['--font-render-hinting=none', '--disable-lcd-text', '--force-color-profile=srgb', '--disable-dev-shm-usage', '--no-sandbox', '--disable-background-networking', '--disable-component-update', '--no-first-run'];
   try {
     return await chromium.launch({ executablePath, args, headless: true });
   } catch (err) {

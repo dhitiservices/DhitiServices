@@ -8,7 +8,7 @@
 //           (photo, if given, sits behind a heavy scrim). Landscape: number left, red divider, text right.
 //   tip   : headline = the tip, body = how/why. Off-white with "Operations tip" label (body.eyebrow overrides).
 //           Photo -> square: photo band on top; landscape: photo panel right.
-// Text supports **highlight**. Em dashes are removed (brand rule).
+// Text supports **highlight**. Em dashes are removed (brand rule). body.focus steers the photo crop (see parseFocus).
 import { withPage, resolveBrand, htmlDocument, photoDataUri, richText, cleanText, splitStat, escapeHtml } from './browser.js';
 import { QUOTE_SVG } from './carousel.js';
 
@@ -33,6 +33,7 @@ function normalize(body) {
     stat: cleanText(body.stat),
     attribution: cleanText(body.attribution),
     photo: typeof body.photo === 'string' && body.photo.trim() ? body.photo.trim() : null,
+    focus: body.focus ?? null,
   };
   if (kind === 'quote' && !g.headline) [g.headline, g.body] = [g.body, ''];
   if (!g.headline && kind !== 'stat') throw new Error('renderGraphic: headline is required');
@@ -62,7 +63,7 @@ async function squareHtml(g, brand) {
   const { logo, mark } = brand;
   const { width, height } = GRAPHIC_SIZES.square;
   if (g.kind === 'quote') {
-    const photo = g.photo ? await photoDataUri(g.photo, { width, height }) : '';
+    const photo = g.photo ? await photoDataUri(g.photo, { width, height, focus: g.focus }) : '';
     return `
 <div class="frame g g-square g-quote ${photo ? 'has-photo on-dark bg-ink' : 'bg-paper'}">
   ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full"></div>` : ''}
@@ -75,7 +76,7 @@ async function squareHtml(g, brand) {
 </div>`;
   }
   if (g.kind === 'stat') {
-    const photo = g.photo ? await photoDataUri(g.photo, { width, height }) : '';
+    const photo = g.photo ? await photoDataUri(g.photo, { width, height, focus: g.focus }) : '';
     return `
 <div class="frame g g-square g-stat bg-ink on-dark ${photo ? 'has-photo-bg' : ''}">
   ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full" style="background:rgba(16,17,20,0.84)"></div>` : ''}
@@ -91,7 +92,7 @@ async function squareHtml(g, brand) {
   // tip
   const label = `<div class="label">${TIP_ICON}${escapeHtml(g.eyebrow || 'Operations tip')}</div>`;
   const text = `<h1 class="headline">${richText(g.headline)}</h1>${g.body ? `<div class="rule"></div><p class="body">${richText(g.body)}</p>` : ''}`;
-  const photo = g.photo ? await photoDataUri(g.photo, { width, height: 430 }) : '';
+  const photo = g.photo ? await photoDataUri(g.photo, { width, height: 430, focus: g.focus }) : '';
   if (photo) {
     return `
 <div class="frame g g-square g-tip has-photo bg-paper">
@@ -114,7 +115,7 @@ async function landscapeHtml(g, brand) {
   const { logo, mark } = brand;
   const { height } = GRAPHIC_SIZES.landscape;
   if (g.kind === 'quote') {
-    const photo = g.photo ? await photoDataUri(g.photo, { width: 470, height }) : '';
+    const photo = g.photo ? await photoDataUri(g.photo, { width: 470, height, focus: g.focus }) : '';
     if (photo) {
       return `
 <div class="frame g-land g-quote has-photo bg-paper">
@@ -142,7 +143,7 @@ async function landscapeHtml(g, brand) {
 </div>`;
   }
   if (g.kind === 'stat') {
-    const photo = g.photo ? await photoDataUri(g.photo, GRAPHIC_SIZES.landscape) : '';
+    const photo = g.photo ? await photoDataUri(g.photo, { ...GRAPHIC_SIZES.landscape, focus: g.focus }) : '';
     return `
 <div class="frame g g-land g-stat bg-ink on-dark ${photo ? 'has-photo-bg' : ''}">
   ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full" style="background:rgba(16,17,20,0.84)"></div>` : ''}
@@ -161,7 +162,7 @@ async function landscapeHtml(g, brand) {
   }
   const label = `<div class="label">${TIP_ICON}${escapeHtml(g.eyebrow || 'Operations tip')}</div>`;
   const text = `${label}<h1 class="headline">${richText(g.headline)}</h1>${g.body ? `<div class="rule"></div><p class="body">${richText(g.body)}</p>` : ''}`;
-  const photo = g.photo ? await photoDataUri(g.photo, { width: 440, height }) : '';
+  const photo = g.photo ? await photoDataUri(g.photo, { width: 440, height, focus: g.focus }) : '';
   if (photo) {
     return `
 <div class="frame g-land g-tip has-photo bg-paper">

@@ -4,17 +4,19 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Autonomous research, blog and creative pipeline for Dhiti Services.",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "weekly": "node src/cli.js weekly",
     "jobs": "node src/cli.js jobs",
     "demo": "DRY_RUN=1 MOCK_AI=1 node src/cli.js produce-demo"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.14.0",
     "@supabase/supabase-js": "^2.45.0",
     "ffmpeg-static": "^5.2.0",
     "gray-matter": "^4.0.3",
+    "marked": "15.0.12",
     "playwright": "1.56.0",
     "sharp": "^0.33.5"
   }

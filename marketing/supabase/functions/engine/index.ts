@@ -16,7 +16,7 @@
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 const BUCKET = "marketing";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -44,16 +44,20 @@ function json(status: number, body: unknown): Response {
 }
 
 /** Maps a PostgREST / Postgres / Storage error to an ApiError with a sensible HTTP status. */
-function dbError(label: string, err: { code?: string; message?: string; details?: string; hint?: string; statusCode?: string | number } | null) {
+type DbErr = { code?: string; message?: string; details?: string; hint?: string; status?: number; statusCode?: string | number };
+function dbError(label: string, err: DbErr | null) {
   const code = String(err?.code ?? "");
   const msg = [err?.message, err?.details, err?.hint].filter(Boolean).join(" | ") || "database error";
   let status = 500;
   if (code === "PGRST116") status = 404;
   else if (code === "23505") status = 409; // unique violation
   else if (/^(22|23)/.test(code) || code === "PGRST204" || code === "42703") status = 400; // data / constraint / unknown column
-  else {
-    const sc = Number(err?.statusCode);
-    if (sc >= 400 && sc < 500) status = sc === 404 ? 404 : 400;
+  else if (!code) {
+    // Storage errors carry an HTTP status (storage-js StorageApiError.status), not a SQLSTATE.
+    const sc = Number(err?.statusCode ?? err?.status);
+    if (sc === 404 || /not.?found/i.test(msg)) status = 404;
+    else if (sc === 413 || /exceeded the maximum allowed size/i.test(msg)) status = 413;
+    else if (sc >= 400 && sc < 500) status = 400;
   }
   return new ApiError(status, `${label}: ${msg}`);
 }
@@ -166,7 +170,8 @@ const ASSET_FIELDS = ["content_item_id", "kind", "storage_path", "mime", "width"
 
 /** Statuses an engine session may set. approved / rejected / changes_requested / published are human or publisher only. */
 const SESSION_ITEM_STATUSES = ["generating", "pending_review", "failed"] as const;
-const PUBLISHER_ITEM_STATUSES = ["published", "failed", "approved"] as const;
+const PUBLISHER_ITEM_STATUSES = ["published", "failed"] as const;
+/** Items a session may no longer touch, and the only items a publisher may touch. */
 const LOCKED_FOR_SESSION = ["approved", "published"];
 
 const PUBLISHER_ACTIONS = new Set([
@@ -381,13 +386,17 @@ const actions: Record<string, Handler> = {
     if (patch.body !== undefined && !isObj(patch.body)) throw bad("update_item: body must be an object");
     if (patch.version !== undefined && (!Number.isInteger(patch.version) || (patch.version as number) < 1)) throw bad("version must be a positive integer");
     let q = db().from("content_items").update(patch).eq("id", id);
-    // Human approval is the gate: a session may not change an item once a person approved it (or it is live).
+    // Human approval is the gate: a session may not change an item once a person approved it (or it is live),
+    // and the publisher may only touch items a person approved.
     if (caller.kind === "session") q = q.not("status", "in", `(${LOCKED_FOR_SESSION.join(",")})`);
+    else q = q.in("status", LOCKED_FOR_SESSION);
     const row = await run("update_item", q.select().maybeSingle());
     if (row) return row;
     const exists = await run("update_item.check", db().from("content_items").select("id, status").eq("id", id).maybeSingle());
     if (!exists) throw new ApiError(404, `item ${id} not found`);
-    throw new ApiError(409, `item ${id} is ${exists.status}; session tokens cannot modify approved or published items`);
+    throw new ApiError(409, caller.kind === "session"
+      ? `item ${id} is ${exists.status}; session tokens cannot modify approved or published items`
+      : `item ${id} is ${exists.status}; publisher tokens may only update approved or published items`);
   },
 
   async get_item(p) {
