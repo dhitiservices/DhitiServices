@@ -13,14 +13,14 @@ import { cx, Kbd, Avatar, Logo, AppMark, Segmented } from "./ui.jsx";
 import { Sheet } from "./Sheet.jsx";
 
 export const NAV = [
-  { to: "/", label: "Overview", icon: LayoutGrid, group: "Workflow" },
-  { to: "/review", label: "Review", icon: Inbox, group: "Workflow", badge: "reviewCount" },
-  { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "Workflow" },
-  { to: "/ready", label: "Ready to post", short: "Ready", icon: Send, group: "Workflow", badge: "readyCount" },
-  { to: "/published", label: "Published", icon: Globe2, group: "Workflow" },
-  { to: "/research", label: "Research", icon: Telescope, group: "Inputs" },
-  { to: "/library", label: "Library", icon: FolderOpen, group: "Inputs" },
-  { to: "/settings", label: "Settings", icon: Settings2, group: "Inputs" },
+  { to: "/", label: "Home", icon: LayoutGrid, group: "Work" },
+  { to: "/review", label: "Review", icon: Inbox, group: "Work", badge: "reviewCount" },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "Work" },
+  { to: "/ready", label: "Ready to post", short: "Ready", icon: Send, group: "Work", badge: "readyCount" },
+  { to: "/published", label: "Live", icon: Globe2, group: "Work" },
+  { to: "/research", label: "Research", icon: Telescope, group: "Your input" },
+  { to: "/library", label: "Library", icon: FolderOpen, group: "Your input" },
+  { to: "/settings", label: "Settings", icon: Settings2, group: "Your input" },
 ];
 
 export const isActive = (to, pathname) => (to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(`${to}/`));
@@ -70,19 +70,19 @@ function SyncBadge() {
     return (
       <span
         className="inline-flex items-center gap-1.5 rounded-full bg-warn/[0.12] px-2 py-0.5 text-[11.5px] font-medium text-warn"
-        title={syncError?.message || "The last refresh failed. Retrying every 30 seconds."}
+        title="We couldn't get the newest data. Trying again every 30 seconds."
         role="status"
         data-testid="sync-offline"
       >
         <span className="h-1.5 w-1.5 rounded-full bg-warn" />
-        {lastSync ? `Offline · synced ${ago(lastSync)}` : "Offline"}
+        {lastSync ? `Offline · updated ${ago(lastSync)}` : "Offline"}
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-mute" title={live ? "Live updates on" : "Refreshing every 30 seconds"}>
+    <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-mute" title={live ? "Updates show up by themselves" : "Checking for updates every 30 seconds"}>
       <span className={cx("h-1.5 w-1.5 rounded-full", live ? "bg-ok shadow-[0_0_0_3px_rgb(var(--ok)/0.18)]" : "bg-ink-faint")} />
-      {live ? "Live" : lastSync ? `Synced ${relative(lastSync)}` : "Syncing"}
+      {live ? "Up to date" : lastSync ? `Updated ${relative(lastSync)}` : "Updating"}
     </span>
   );
 }
@@ -108,7 +108,7 @@ export function Sidebar({ onSearch, onSignOut, demo }) {
           className="flex h-9 w-full items-center gap-2 rounded-xl bg-ink/[0.045] px-3 text-callout text-ink-mute transition-colors hover:bg-ink/[0.07]"
         >
           <Search className="h-4 w-4" strokeWidth={2} />
-          <span className="flex-1 text-left">Search or jump to…</span>
+          <span className="flex-1 text-left">Search</span>
           <Kbd>{MOD === "⌘" ? "⌘K" : "Ctrl K"}</Kbd>
         </button>
       </div>

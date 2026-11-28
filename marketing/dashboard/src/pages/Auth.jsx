@@ -9,9 +9,9 @@ import {
 } from "../lib/session.js";
 
 const FEATURES = [
-  { icon: FileText, title: "Three researched blogs every week", body: "Written for travel operators, checked against the site's SEO rules." },
-  { icon: ImagePlay, title: "Your media, licensed stock", body: "Your own photos and voice, plus Magnific stock with a licence trail. Never AI-generated." },
-  { icon: ShieldCheck, title: "Nothing goes live without you", body: "Approve, edit or send back. Blogs publish on the days you choose." },
+  { icon: FileText, title: "Three researched blogs every week", body: "Written for travel and hotel teams. Every fact checked against its source." },
+  { icon: ImagePlay, title: "Your photos, real stock photos", body: "Your own photos and voice, plus paid-for Magnific stock. Never made by AI." },
+  { icon: ShieldCheck, title: "Nothing goes live without you", body: "Approve, edit or send back. Blogs go live on the days you choose." },
 ];
 
 /** Animated Dhiti aurora behind the login (transform-only drift; still under prefers-reduced-motion). */
@@ -313,7 +313,7 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
                     {busy ? "Sending…" : "Email me a code"}
                   </Button>
                   {DEMO_AVAILABLE && !demo && (
-                    <Button type="button" variant="ghost" size="md" className="w-full" icon={FlaskConical} onClick={onDemo}>Explore with sample data</Button>
+                    <Button type="button" variant="ghost" size="md" className="w-full" icon={FlaskConical} onClick={onDemo}>Try it with sample data</Button>
                   )}
                   {demo && (
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-ink/[0.045] px-3.5 py-2.5 text-[12.5px] font-medium text-ink-soft">

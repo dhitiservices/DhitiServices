@@ -17,8 +17,8 @@ import { spring } from "../lib/motion.js";
 
 const KINDS = {
   photo: { label: "Photos", one: "Photo", icon: ImageIcon },
-  video: { label: "Footage", one: "Footage", icon: Film },
-  voiceover: { label: "Voiceovers", one: "Voiceover", icon: Mic },
+  video: { label: "Videos", one: "Video", icon: Film },
+  voiceover: { label: "Voice recordings", one: "Voice recording", icon: Mic },
   music: { label: "Music", one: "Music", icon: Music },
   logo: { label: "Logos", one: "Logo", icon: Shapes },
   other: { label: "Other", one: "Other", icon: FolderOpen },
@@ -92,12 +92,12 @@ function QueueRow({ q, onChange, onRemove, onRetry }) {
       {q.group === "audio" && q.status !== "rejected" && <WavePlayer file={q.file} className="mt-3" label={q.file.name} />}
       {editable && (
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_150px]">
-          <input className="input h-9 text-callout" value={q.title} maxLength={200} onChange={(e) => onChange({ title: e.target.value })} placeholder="Title" aria-label={`Title for ${q.file.name}`} />
-          <select aria-label={`Kind of ${q.file.name}`} className="input h-9 text-callout" value={q.kind} onChange={(e) => onChange({ kind: e.target.value })}>
+          <input className="input h-9 text-callout" value={q.title} maxLength={200} onChange={(e) => onChange({ title: e.target.value })} placeholder="Name" aria-label={`Name for ${q.file.name}`} />
+          <select aria-label={`Type of ${q.file.name}`} className="input h-9 text-callout" value={q.kind} onChange={(e) => onChange({ kind: e.target.value })}>
             {KIND_CHOICES[q.group].map((k) => <option key={k} value={k}>{KINDS[k].one}</option>)}
           </select>
           <input className="input h-9 text-callout sm:col-span-2" value={q.tags} onChange={(e) => onChange({ tags: e.target.value })} placeholder="Tags, comma separated: team, office, saswad" aria-label={`Tags for ${q.file.name}`} />
-          <textarea rows={2} className="input resize-none text-callout sm:col-span-2" value={q.notes} maxLength={1000} onChange={(e) => onChange({ notes: e.target.value })} placeholder="Notes for the weekly run (where it was shot, who is in it, when to use it)" aria-label={`Notes for ${q.file.name}`} />
+          <textarea rows={2} className="input resize-none text-callout sm:col-span-2" value={q.notes} maxLength={1000} onChange={(e) => onChange({ notes: e.target.value })} placeholder="Notes: where it was taken, who is in it, when to use it" aria-label={`Notes for ${q.file.name}`} />
         </div>
       )}
     </motion.div>
@@ -130,7 +130,7 @@ function DetailSheet({ row: current, onClose, onDelete }) {
       open={!!current}
       onClose={onClose}
       title={row.title || "Untitled"}
-      description={`${K.one} · added ${relative(row.created_at)}${row.used_count ? ` · used ${row.used_count}×` : ""}`}
+      description={`${K.one} · added ${relative(row.created_at)}${row.used_count ? ` · used ${row.used_count} ${row.used_count === 1 ? "time" : "times"}` : ""}`}
       width={560}
       footer={
         <>
@@ -151,9 +151,9 @@ function DetailSheet({ row: current, onClose, onDelete }) {
         )}
         {form && (
           <>
-            <Field label="Title"><input className="input" value={form.title} maxLength={200} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
-            <Field label="Tags" hint="Comma separated. The weekly run searches titles, tags and notes to pick your media."><input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="team, office, saswad" /></Field>
-            <Field label="Notes"><textarea rows={3} className="input resize-y" value={form.notes} maxLength={1000} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Where it was shot, who is in it, when to use it" /></Field>
+            <Field label="Name"><input className="input" value={form.title} maxLength={200} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+            <Field label="Tags" hint="Put commas between tags. We search names, tags and notes to pick your photos and recordings."><input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="team, office, saswad" /></Field>
+            <Field label="Notes"><textarea rows={3} className="input resize-y" value={form.notes} maxLength={1000} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Where it was taken, who is in it, when to use it" /></Field>
           </>
         )}
       </div>
@@ -256,7 +256,7 @@ export default function Library() {
     const skipped = queue.filter((q) => q.status === "rejected").length;
     // All good: close the sheet (files that couldn't be accepted were already explained). Failures stay for a retry.
     setTimeout(() => setQueue((s) => (failed ? s.filter((x) => x.status !== "done") : [])), 900);
-    if (ok) toast({ tone: "ok", title: `${ok} ${ok === 1 ? "file" : "files"} added to the library`, description: skipped ? `${skipped} skipped: unsupported or damaged files.` : undefined, duration: 3200 });
+    if (ok) toast({ tone: "ok", title: `${ok} ${ok === 1 ? "file" : "files"} added to the library`, description: skipped ? `${skipped} skipped: we can't use those files.` : undefined, duration: 3200 });
     return ok;
   };
   const uploading = queue.some((q) => q.status === "uploading");
@@ -292,7 +292,7 @@ export default function Library() {
     <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader
         title="Library"
-        subtitle="Your own photos, footage and voiceovers. The weekly run prefers these over stock when they fit."
+        subtitle="Your own photos, videos and voice recordings. We use these before stock photos when they fit."
         actions={<Button variant="primary" icon={UploadCloud} onClick={browse}>Upload</Button>}
       />
       <input ref={input} type="file" multiple accept={ACCEPT_ATTR} className="hidden" data-testid="library-input" onChange={(e) => { addFiles(e.target.files || []); e.target.value = ""; }} />
@@ -304,10 +304,10 @@ export default function Library() {
       >
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-brand/15 to-brand/5 text-brand-ink"><UploadCloud className="h-5 w-5" /></span>
         <span className="min-w-0 flex-1">
-          <span className="block text-body font-semibold text-ink">Drop photos or voiceovers anywhere, or browse</span>
-          <span className="block text-[12.5px] text-ink-mute">Photos: {ACCEPT.photo.label}, up to 40 MB · Voiceovers: {ACCEPT.audio.label}, up to 50 MB · Footage: {ACCEPT.video.label}</span>
+          <span className="block text-body font-semibold text-ink">Drop photos or voice recordings here, or tap to choose</span>
+          <span className="block text-[12.5px] text-ink-mute">Photos: {ACCEPT.photo.label}, up to 40 MB · Voice: {ACCEPT.audio.label}, up to 50 MB · Videos: {ACCEPT.video.label}</span>
         </span>
-        <span className="hidden text-callout font-semibold text-brand-ink sm:block">Browse</span>
+        <span className="hidden text-callout font-semibold text-brand-ink sm:block">Choose files</span>
       </button>
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -316,13 +316,13 @@ export default function Library() {
             value={kind}
             onChange={setKind}
             layoutId="lib-kind"
-            label="Filter by kind"
+            label="Show"
             options={[{ value: "all", label: "All", count: d.library.length }, ...Object.entries(KINDS).filter(([k]) => counts[k] || ["photo", "voiceover"].includes(k)).map(([value, k]) => ({ value, label: k.label, count: counts[value] }))]}
           />
         </div>
         <div className="relative sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-          <input className="input h-9 pl-9 text-callout" placeholder="Search titles, tags, notes" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search the library" />
+          <input className="input h-9 pl-9 text-callout" placeholder="Search names, tags, notes" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search the library" />
         </div>
       </div>
 
@@ -332,7 +332,7 @@ export default function Library() {
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} transition={spring} className="popover flex flex-col items-center px-10 py-8">
               <UploadCloud className="h-8 w-8 text-brand-ink" />
               <div className="mt-3 text-headline font-semibold">Drop to add to the library</div>
-              <div className="mt-1 text-callout text-ink-mute">Photos, voiceovers and footage</div>
+              <div className="mt-1 text-callout text-ink-mute">Photos, voice recordings and videos</div>
             </motion.div>
           </motion.div>
         )}
@@ -343,14 +343,14 @@ export default function Library() {
       ) : !rows.length ? (
         <Card>
           <EmptyState icon={FolderOpen} title={query ? "Nothing matches" : kind === "all" ? "Your library is empty" : `No ${KINDS[kind]?.label.toLowerCase()} yet`} action={!query && <Button icon={UploadCloud} onClick={browse}>Upload files</Button>}>
-            {query ? "Try another word, or clear the search." : "Add real photos of your team and office, b-roll, and your voiceovers."}
+            {query ? "Try another word, or clear the search." : "Add real photos of your team and office, short videos, and your voice recordings."}
           </EmptyState>
         </Card>
       ) : (
         <div className="space-y-8">
           {[
-            { key: "audio", title: "Voiceovers and music", list: rows.filter(isAudio), grid: "grid gap-3 sm:grid-cols-2", Card: AudioCard },
-            { key: "visual", title: "Photos and footage", list: rows.filter((r) => !isAudio(r)), grid: "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4", Card: VisualCard },
+            { key: "audio", title: "Voice and music", list: rows.filter(isAudio), grid: "grid gap-3 sm:grid-cols-2", Card: AudioCard },
+            { key: "visual", title: "Photos and videos", list: rows.filter((r) => !isAudio(r)), grid: "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4", Card: VisualCard },
           ].filter((g) => g.list.length).map((g, _i, groups) => (
             <section key={g.key} aria-label={g.title}>
               {groups.length > 1 && <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">{g.title} · {g.list.length}</h2>}
@@ -372,7 +372,7 @@ export default function Library() {
         open={queue.length > 0}
         onClose={() => !uploading && setQueue([])}
         title={`Add ${queue.length} ${queue.length === 1 ? "file" : "files"}`}
-        description={rejected ? `${rejected} can't be uploaded (see below). Name the rest so the weekly run can find them.` : "Name them so the weekly run can find the right one."}
+        description={rejected ? `${rejected} can't be used (see below). Give the rest a name so we can find the right one.` : "Give each one a name so we can find the right one."}
         width={640}
         footer={
           <>
@@ -399,7 +399,7 @@ export default function Library() {
         open={!!del}
         onClose={() => setDel(null)}
         title="Delete this file?"
-        description="It's removed from the library and storage. Content already rendered with it is not affected."
+        description="It's deleted for good. Posts already made with it stay as they are."
         confirmLabel="Delete"
         tone="danger"
         onConfirm={() => d.actions.deleteLibrary(del)}

@@ -38,7 +38,7 @@ export function captionError(raw: unknown): string | null {
   if (len < 1) return "caption is empty";
   if (len > CAPTION_MAX) return `caption is longer than ${CAPTION_MAX} characters`;
   if (URL_RE.test(t) || DOMAIN_RE.test(t)) return "caption must not contain a link (the link goes in the first comment)";
-  if (t.includes("—")) return "caption must not contain an em dash";
+  if (t.includes("\u2014")) return "caption must not contain an em dash";
   if (CTRL_RE.test(t)) return "caption must not contain control characters";
   const lines = t.split("\n");
   const last = lines[lines.length - 1];
@@ -62,7 +62,7 @@ export function firstCommentError(raw: unknown): string | null {
   if (t.includes("\n")) return "first comment must be one line";
   if (URL_RE.test(t) || DOMAIN_RE.test(t)) return "first comment must not contain a link (the blog link is added automatically)";
   if (t.includes("#")) return "first comment must not contain hashtags";
-  if (t.includes("—")) return "first comment must not contain an em dash";
+  if (t.includes("\u2014")) return "first comment must not contain an em dash";
   if (CTRL_RE.test(t)) return "first comment must not contain control characters";
   return null;
 }

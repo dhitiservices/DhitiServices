@@ -764,6 +764,7 @@ const localActions = {
     const patch = nonEmpty(pick(obj(p.patch, 'patch'), SOCIAL.patch, 'update_social_post'), 'update_social_post');
     const row = findRow(data, 'social_posts', id) || fail(404, `social post ${id} not found`);
     if (SOCIAL.locked.includes(row.status)) fail(409, `social post ${id} is ${row.status}; a session can no longer change it`);
+    if (row.post_urn) fail(409, `social post ${id} is already on LinkedIn; a session can no longer change it`);
     if (patch.status !== undefined) {
       oneOf(patch.status, ['draft', 'pending_review'], 'status (session token)');
       if (patch.status !== row.status && !(row.status === 'draft' && patch.status === 'pending_review')) fail(409, `status may only go from draft to pending_review (it is ${row.status})`);

@@ -56,9 +56,19 @@ as failed with the error "item is <status>; not changed" and move on.
    ```
    (If the output's first lines are not a `---` frontmatter block, write the frontmatter by hand in the house
    format from `blog-writing.md` section 10.)
-2. Edit the markdown per the change list. Keep the slug, `image`, `order` and `date` unless the feedback asks.
-   New facts need new verified sources (WebFetch).
-3. Run the full editing pass from `blog-editing.md` (lint, `check-blog`, rubric).
+2. Rebuild the claims ledger and its sources, then edit the markdown per the change list. Keep the slug, `image`,
+   `order` and `date` unless the feedback asks.
+   ```bash
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && jq '[.body.claims[] | del(.verified, .sha256, .text_sha256, .source_text_path, .match, .fetched_at, .phrase) | if .extra_quotes then .extra_quotes |= map(del(.sha256, .text_sha256, .source_text_path, .match, .fetched_at)) else . end]' "$WORK/rev/<id>/item.json" > "$WORK/rev/<id>/claims.json" && node src/cli.js restore-sources --item "<id>"
+   ```
+   `restore-sources` brings back the exact texts the claims were verified against (checked by sha256). For every
+   rule the post states, also fetch the source again (`fetch-source`) and search for newer circulars or advisories
+   (`blog-writing.md` section 1, point 6): a restored text proves what the page said then, not that it is still
+   current. New facts need new sources fetched with `fetch-source` and new claims. Edit `claim_text` whenever you
+   edit a factual sentence. A blog saved before the claims ledger has no `body.claims`: build `claims.json` from
+   scratch (`blog-writing.md` section 1b).
+3. Run the full editing pass from `blog-editing.md` (lint, `check-blog --claims`, rubric, and the independent
+   fact-check of step 4 for every claim you added or changed).
 4. Cover: if the feedback asks for a different photo, choose one with `stock-selection.md` and write a new
    `stock.json`. Otherwise reuse the current cover: download the item's `blog_cover` asset
    (`assets[].storage_path` where `kind` is `blog_cover`) with `downloadFile` (see `stock-selection.md` section 1)
@@ -66,11 +76,14 @@ as failed with the error "item is <status>; not changed" and move on.
    `body.meta` (keywords, FAQ) and `body.sources` (titles in "Publisher: page title (Mon YYYY)" form).
 5. Save a new version:
    ```bash
-   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic_id>" --md "$WORK/rev/<id>/<slug>.md" --cover "<cover file>" --stock "$WORK/rev/<id>/stock.json" --meta "$WORK/rev/<id>/meta.json" --item "<id>"
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic_id>" --md "$WORK/rev/<id>/<slug>.md" --claims "$WORK/rev/<id>/claims.json" --cover "<cover file>" --stock "$WORK/rev/<id>/stock.json" --meta "$WORK/rev/<id>/meta.json" --item "<id>"
    ```
 6. Consistency: if the revision removed or changed a fact that a derived item (carousel, graphic, reel) of this
    blog still uses, and that derived item is `pending_review` or `awaiting_voiceover`, revise it too (same rules)
    and say so in the run log. Never touch approved derived items; mention the mismatch in the log instead.
+   The same goes for the blog's LinkedIn post (`node src/cli.js social list --blog <id>`): if its caption uses a
+   changed fact and it is `draft`, `pending_review` or `failed`, save it again with `save-social --item <post id>`
+   (`linkedin.md`). An approved post cannot be changed by a session: log an owner action instead.
 
 ## 4. Carousel and graphic revisions
 

@@ -19,10 +19,15 @@
 //     worker died (status running longer than the kind's lease, JOB_LEASE_MIN);
 //   - jobs and runs belong to a token kind: the publisher owns publish_now jobs and 'publish' runs, sessions own
 //     the rest; finish_job / finish_run only finish rows that are still running.
+//   - v2.5.0: LinkedIn posts (marketing/LINKEDIN.md 2.5). Sessions may insert a social_posts row as draft or
+//     pending_review and edit it while it is draft / pending_review / failed; they can never approve, publish or touch
+//     the publish fields (only the owner approves in the dashboard; the `linkedin` function publishes). The caption and
+//     first comment are checked with the shared validator of LINKEDIN.md 5.3. list_runs is a read-only run lookup
+//     the engine's generating clean-up uses so it never fails items that a live run is still making.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 
-const VERSION = "2.4.0";
+const VERSION = "2.5.0";
 const BUCKET = "marketing";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -190,6 +195,88 @@ const LOCKED_FOR_SESSION = ["approved", "published"];
 const JOB_LEASE_MIN: Record<string, number> = { publish_now: 30, regenerate: 180, render_video: 180, run_weekly: 600 };
 const SESSION_JOB_KINDS = ["run_weekly", "regenerate", "render_video"] as const;
 const PUBLISHER_JOB_KINDS = ["publish_now"] as const;
+
+const RUN_STATUSES = ["running", "succeeded", "failed"] as const;
+
+// ---- social posts (LINKEDIN.md 2.4 / 2.5 / 5.3) ----
+const SOCIAL_FORMATS = ["carousel", "video", "graphic"] as const;
+const SOCIAL_STATUSES = ["draft", "pending_review", "approved", "publishing", "published", "failed", "cancelled"] as const;
+const SOCIAL_INSERT_FIELDS = ["blog_item_id", "format", "recommended_format", "recommendation_reason", "caption", "first_comment", "scheduled_for", "status", "source_item_id"];
+const SOCIAL_PATCH_FIELDS = ["caption", "first_comment", "format", "recommended_format", "recommendation_reason", "scheduled_for", "status"];
+/** Rows a session can no longer change (failed stays editable so a session can fix it; only the owner re-approves). */
+const SOCIAL_LOCKED = ["approved", "publishing", "published", "cancelled"];
+const TAG_LINE = /^(#[A-Za-z][A-Za-z0-9]{1,49})( #[A-Za-z][A-Za-z0-9]{1,49}){0,2}$/;
+const URLISH = /https?:\/\/|www\./i;
+const BARE_DOMAIN = /\b[a-z0-9-]+\.(com|in|co|io|net|org|ai)\b/i;
+// deno-lint-ignore no-control-regex
+const CONTROL = /[\u0000-\u0009\u000B-\u001F\u007F]/;
+
+/** LINKEDIN.md 5.3 caption rules; returns the first failing rule or null. */
+function captionError(raw: unknown): string | null {
+  if (typeof raw !== "string") return "caption must be a string";
+  const t = raw.replace(/\r\n?/g, "\n").trim();
+  if (t.length < 1 || t.length > 3000) return `caption must be 1 to 3000 characters (got ${t.length})`;
+  if (URLISH.test(t)) return "caption must not contain a link (http://, https:// or www.); the blog link goes in the first comment";
+  const dom = t.match(BARE_DOMAIN);
+  if (dom) return `caption must not contain a domain name ("${dom[0]}"); the blog link goes in the first comment`;
+  if (t.includes("—")) return "caption must not contain an em dash";
+  if (CONTROL.test(t)) return "caption must not contain control characters (tabs included); use plain line breaks";
+  const lines = t.split("\n");
+  const last = lines[lines.length - 1];
+  const body = lines.slice(0, -1).join("\n");
+  if (last.includes("#")) {
+    if (!TAG_LINE.test(last)) return 'the last line must be 1 to 3 hashtags like "#TravelOperations #HotelOperations" (letters and digits, separated by single spaces)';
+    if (body.includes("#")) return '"#" may appear only in the final hashtag line';
+  } else if (t.includes("#")) return '"#" may appear only in a final line of at most 3 hashtags';
+  const first200 = t.slice(0, 200);
+  if (!(t.length <= 200 || first200.includes("\n") || /[.!?](\s|$)/.test(first200))) return "the first 200 characters must contain at least one full sentence or line";
+  return null;
+}
+
+/** LINKEDIN.md 5.3 first-comment rules (the line before the link; the linkedin function appends the link). */
+function firstCommentError(raw: unknown): string | null {
+  if (typeof raw !== "string") return "first_comment must be a string";
+  const t = raw.replace(/\r\n?/g, "\n").trim();
+  if (t.includes("\n")) return "first comment must be one line";
+  if (t.length < 1 || t.length > 300) return `first comment must be 1 to 300 characters (got ${t.length})`;
+  if (URLISH.test(t) || BARE_DOMAIN.test(t)) return "first comment must not contain a link: the blog link with UTM tags is added automatically";
+  if (t.includes("#")) return 'first comment must not contain "#"';
+  if (t.includes("—")) return "first comment must not contain an em dash";
+  // deno-lint-ignore no-control-regex
+  if (/[\u0000-\u001F\u007F]/.test(t)) return "first comment must not contain control characters";
+  return null;
+}
+
+/** Validates and normalises the text fields of a social_posts insert/patch in place (400 on failure). */
+function socialTextChecks(row: Obj) {
+  if (row.caption !== undefined) {
+    const e = captionError(row.caption);
+    if (e) throw bad(e);
+    row.caption = (row.caption as string).replace(/\r\n?/g, "\n").trim();
+  }
+  if (row.first_comment !== undefined) {
+    const e = firstCommentError(row.first_comment);
+    if (e) throw bad(e);
+    row.first_comment = (row.first_comment as string).trim();
+  }
+  if (row.format !== undefined) oneOf(row.format, SOCIAL_FORMATS, "format");
+  if (row.recommended_format !== undefined && row.recommended_format !== null) oneOf(row.recommended_format, SOCIAL_FORMATS, "recommended_format");
+  if (row.recommendation_reason !== undefined && row.recommendation_reason !== null) {
+    if (typeof row.recommendation_reason !== "string" || row.recommendation_reason.length > 500 || row.recommendation_reason.includes("\n")) {
+      throw bad("recommendation_reason must be one line of at most 500 characters");
+    }
+  }
+  if (row.scheduled_for !== undefined && row.scheduled_for !== null && (typeof row.scheduled_for !== "string" || Number.isNaN(Date.parse(row.scheduled_for)))) {
+    throw bad("scheduled_for must be an ISO timestamp or null");
+  }
+}
+
+/** Newest child of a blog with this type, in any status (LINKEDIN.md 2.5), or null. */
+async function newestChild(blogId: string, type: string): Promise<string | null> {
+  const row = await run("social.source", db().from("content_items").select("id").eq("parent_id", blogId).eq("type", type)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle());
+  return row?.id ?? null;
+}
 
 const PUBLISHER_ACTIONS = new Set([
   "get_settings", "list_items", "get_item", "list_assets", "sign_download", "update_item",
@@ -594,6 +681,84 @@ const actions: Record<string, Handler> = {
     if (kinds) q = q.in("kind", kinds);
     if (statuses) q = q.in("status", statuses);
     return run("list_jobs", q.order("created_at", { ascending: true }).limit(limit));
+  },
+
+  // ---- runs (read only) ----
+  list_runs(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call list_runs");
+    const limit = int(p.limit, "limit", { min: 1, max: 200, dflt: 50 });
+    let q = db().from("runs").select("id, kind, status, started_at, finished_at");
+    if (p.ids !== undefined) {
+      if (!Array.isArray(p.ids) || p.ids.length > 200) throw bad("ids must be an array (max 200)");
+      q = q.in("id", p.ids.map((x, i) => uuid(x, `ids[${i}]`)));
+    }
+    const status = inList(p.status, RUN_STATUSES, "status");
+    if (status) q = q.in("status", status);
+    const kinds = inList(p.kind, RUN_KINDS, "kind");
+    if (kinds) q = q.in("kind", kinds);
+    return run("list_runs", q.order("started_at", { ascending: false }).limit(limit));
+  },
+
+  // ---- LinkedIn posts (LINKEDIN.md 2.5): sessions draft them, only the owner approves ----
+  async insert_social_post(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call insert_social_post");
+    const row = pick(p, SOCIAL_INSERT_FIELDS, "insert_social_post");
+    row.blog_item_id = uuid(row.blog_item_id, "blog_item_id");
+    oneOf(row.format, SOCIAL_FORMATS, "format");
+    row.status = row.status === undefined ? "pending_review" : oneOf(row.status, ["draft", "pending_review"] as const, "status (session token)");
+    if (row.caption === undefined) throw bad("insert_social_post: caption is required");
+    if (row.first_comment === undefined) throw bad("insert_social_post: first_comment is required");
+    socialTextChecks(row);
+    const blog = await run("insert_social_post.blog", db().from("content_items").select("id, type").eq("id", row.blog_item_id).maybeSingle());
+    if (!blog) throw new ApiError(404, `blog ${row.blog_item_id} not found`);
+    if (blog.type !== "blog") throw bad(`item ${row.blog_item_id} is a ${blog.type}, not a blog`);
+    const derived = await newestChild(row.blog_item_id as string, row.format as string);
+    if (row.source_item_id !== undefined && row.source_item_id !== null && uuid(row.source_item_id, "source_item_id") !== derived) {
+      throw new ApiError(409, `source_item_id ${row.source_item_id} is not the newest ${row.format} of this blog (${derived ?? "none"})`);
+    }
+    row.source_item_id = derived;
+    row.platform = "linkedin"; // created_by keeps its default 'engine'
+    // One active row per blog: the partial unique index answers 23505 -> 409.
+    return run("insert_social_post", db().from("social_posts").insert(row).select().single());
+  },
+
+  async update_social_post(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call update_social_post");
+    const id = uuid(p.id);
+    const patch = nonEmpty(pick(obj(p.patch, "patch"), SOCIAL_PATCH_FIELDS, "update_social_post"), "update_social_post");
+    socialTextChecks(patch);
+    const cur = await single("update_social_post.get", db().from("social_posts").select("id, status, format, blog_item_id, post_urn").eq("id", id).maybeSingle(), `social post ${id} not found`);
+    if (SOCIAL_LOCKED.includes(cur.status)) throw new ApiError(409, `social post ${id} is ${cur.status}; a session can no longer change it`);
+    if (cur.post_urn) throw new ApiError(409, `social post ${id} is already on LinkedIn; a session can no longer change it`);
+    if (patch.status !== undefined) {
+      oneOf(patch.status, ["draft", "pending_review"] as const, "status (session token)");
+      if (patch.status !== cur.status && !(cur.status === "draft" && patch.status === "pending_review")) {
+        throw new ApiError(409, `status may only go from draft to pending_review (it is ${cur.status})`);
+      }
+    }
+    if (patch.format !== undefined && patch.format !== cur.format) {
+      Object.assign(patch, { source_item_id: await newestChild(cur.blog_item_id, patch.format as string), media_urn: null, media_status: null });
+    }
+    // Conditional on the status read above, so an approval that lands in between is never overwritten.
+    const row = await run("update_social_post", db().from("social_posts").update(patch).eq("id", id).eq("status", cur.status).select().maybeSingle());
+    if (row) return row;
+    throw new ApiError(409, `social post ${id} changed meanwhile (it is no longer ${cur.status}); read it again`);
+  },
+
+  get_social_post(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call get_social_post");
+    const id = uuid(p.id);
+    return single("get_social_post", db().from("social_posts").select("*").eq("id", id).maybeSingle(), `social post ${id} not found`);
+  },
+
+  list_social_posts(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call list_social_posts");
+    const limit = int(p.limit, "limit", { min: 1, max: 200, dflt: 50 });
+    let q = db().from("social_posts").select("*");
+    if (p.blog_item_id !== undefined) q = q.eq("blog_item_id", uuid(p.blog_item_id, "blog_item_id"));
+    const status = inList(p.status, SOCIAL_STATUSES, "status");
+    if (status) q = q.in("status", status);
+    return run("list_social_posts", q.order("created_at", { ascending: false }).limit(limit));
   },
 
   async finish_job(p, caller) {

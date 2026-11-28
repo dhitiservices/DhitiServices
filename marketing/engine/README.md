@@ -23,6 +23,8 @@ export CHROMIUM_PATH=/opt/pw-browsers/chromium   # optional: any Playwright Chro
 | `REPO_ROOT` | website checkout used by `check-blog`, `context` and `publish` (default: this repo) |
 | `GIT_PUSH=0` | `publish` commits but does not pull or push. In `DRY_RUN` nothing is pushed unless `GIT_PUSH=1` |
 | `OUT_DIR`, `LOG_QUIET=1` | where the dry-run store and work files go, and how to silence stderr logs |
+| `RUN_ID` | the run id from `run start` (kept in `env.sh`); new and revised items record it in `body.generating` so `sweep` never fails another live run's items |
+| `SOURCES_DIR` | where `fetch-source` saves sources and the claims ledger looks for them (default `$WORK/sources`, else `out/work/sources`) |
 
 Every command prints **one JSON value on stdout** and writes logs to stderr. Exit code 0 means ok, 1 means an error
 (`{"ok":false,"error":"..."}`), and 2 means `check-blog` found problems.
@@ -37,13 +39,18 @@ Every command prints **one JSON value on stdout** and writes logs to stderr. Exi
 | `run start --kind weekly` / `run finish --id X --status succeeded [--log file]` | run bookkeeping |
 | `save-brief brief.json [--run id]` | inserts the research brief and returns `{id}` |
 | `save-topics topics.json` | inserts the topics and returns `[{id,title,planned_publish_date}]` |
-| `check-blog draft.md` | the website's exact rules plus extra checks, giving `{passed,messages,warnings,words,sections}` |
-| `save-blog --topic T --md draft.md --cover photo.jpg --stock stock.json [--meta meta.json] [--owner-note "..."] [--item I] [--focus x,y]` | checks the draft (including link safety: only https/mailto/#/relative links, no reference-style definitions), builds a 1600x900 WebP cover (q82, attention crop), uploads it and creates the blog item, or a new version of it, as `pending_review`. `scheduled_for` is the topic's planned date at 10:00 IST |
+| `fetch-source <url> [<url> ...] [--dir D]` | fetches a source page or PDF for the claims ledger into `$SOURCES_DIR` (default `$WORK/sources`): raw file named by its sha256, extracted text (`<sha>.txt`; PDFs via unpdf), `manifest.json` entry with `fetched_at` |
+| `restore-sources --item B [--dir D]` | for revisions: downloads the source texts a saved blog was verified against (checked by sha256) into the sources folder |
+| `check-blog draft.md [--claims claims.json --meta meta.json]` | the website's exact rules plus extra checks, and with `--claims` the full claims ledger, giving `{passed,messages,warnings,words,sections,claims}` |
+| `save-blog --topic T --md draft.md --claims claims.json --cover photo.jpg --stock stock.json [--meta meta.json] [--owner-note "..."] [--item I] [--focus x,y] [--sources-dir D]` | refuses (exit 1, nothing saved) unless the claims ledger passes; stores `body.claims` (each `verified: true`, with `source_text_path`) and uploads the source texts to `items/<id>/v<n>/sources/<sha>.txt`. It also checks the draft (including link safety: only https/mailto/#/relative links, no reference-style definitions), builds a 1600x900 WebP cover (q82, attention crop), uploads it and creates the blog item, or a new version of it, as `pending_review`. `scheduled_for` is the topic's planned date at 10:00 IST |
 | `make-carousel --parent B --spec carousel.json [--item I]` | 1080x1350 PNG slides and a PDF |
 | `make-graphic --parent B --spec graphic.json [--item I]` | 1080x1080 and 1200x627 PNGs |
 | `make-video --parent B --spec video.json [--item I] [--voiceover vo.mp3 --voiceover-asset id]` | 1080x1920 H.264 reel and a JPEG poster. With `voiceover_script` and no voiceover, the item waits in `awaiting_voiceover` |
 | `make-video --item I --voiceover vo.mp3 [--voiceover-asset id]` | re-renders from the stored sources (no spec and no re-download needed). Scenes are re-timed to the recording in proportion to each scene's `vo_line` word count (lead 0.25 s, tail 0.45 s, minimum 1.5 s per scene, up to 90 s); the voiceover is loudness-normalised to -14 LUFS (true peak -1.5 dB) and replaces the silent track; clip audio is always muted. The item returns to `pending_review` |
 | `preview carousel\|graphic\|video --spec f --out dir [--publish-date YYYY-MM-DD]` / `preview cover --cover photo --out dir [--md draft.md]` | renders locally without uploading, for self-review. Prints `warnings` (dates without a year, dates before the publish date); video previews also write `safe-zone-sheet.jpg` (one frame per scene with the platform UI zones shaded) |
+| `save-social --blog B --format carousel\|video\|graphic --source-item C --caption caption.txt --first-comment comment.txt --reason "..." [--item P] [--draft]` | the blog's LinkedIn post (`social_posts`, LINKEDIN.md 2.5/5): checks the caption (link, domain, em dash, hashtags on the last line, hook in the first 200 characters, emoji, @mentions, numbers backed by the blog's verified claims) and the first comment (one line, no link; the UTM link is shown in `first_comment_preview`), and that the source item is the blog's newest creative of that format. Saved as `pending_review`; only the owner approves |
+| `social list [--blog B]` · `social get --id P` | read LinkedIn posts |
+| `sweep [--run R] [--hours 2] [--dry-list]` | marks stuck `generating` items failed (revisions go back to their previous status and content). Never touches an item whose run (`body.generating.run_id`, from `RUN_ID`) is still running |
 | `topic --id T --status ready` · `job claim [--kinds regenerate]` · `job finish --id J --status done` · `item --id I` | bookkeeping |
 | `publish [--dry-list]` | publishes the approved blogs that are due or have a `publish_now` job |
 
@@ -98,6 +105,17 @@ dates in the copy that have no year or fall before the blog's `scheduled_for`.
 relative to the spec file. The engine uploads each source to `items/<id>/src/` (photos at 2560 px or less; clips
 re-encoded only above 45 MB). In the saved body each path becomes `null`, with `stock` and `source` (the storage path)
 in its place, so the database never holds local paths.
+
+### Claims ledger (`claims.json`)
+
+Shape and rules: `marketing/playbook/blog-writing.md` section 1b and `src/claims.js`. Each entry is
+`{id, kind, claim_text, source_url, source_title, quote, extra_quotes?, derived?, note?}` with `kind` one of
+`fact, law, stat, date, quote` (sourced), `dhiti` (owner-approved proof points), `illustrative` (labelled example),
+`advice` (recommendation, needs `note`). The engine checks: claim_text is in the post; the source is in the
+engine's own fetch manifest with matching sha256; the 8 to 60 word quote is in the fetched text (normalised);
+every number, date, financial year, section and document number of the claim is in the quote or in
+`derived.arithmetic`; law claims cite a government source; no factual-looking sentence is uncovered; no relative
+dates; numbers in title, description, imageAlt and FAQ are backed by sourced claims.
 
 ## Publishing
 

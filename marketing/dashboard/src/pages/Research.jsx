@@ -56,7 +56,7 @@ export default function Research({ id }) {
     return (
       <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
         <PageHeader title="Research" />
-        <Card><EmptyState icon={Telescope} title="No research briefs yet">Every weekly run starts by reading the news, forums and competitors, then writes a brief here before planning topics.</EmptyState></Card>
+        <Card><EmptyState icon={Telescope} title="No research yet">Every Monday we read the news, forums and other companies, then write a short report here before planning the blogs.</EmptyState></Card>
       </div>
     );
   }
@@ -64,7 +64,7 @@ export default function Research({ id }) {
   return (
     <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader
-        eyebrow={`Research brief · ${relative(brief.created_at)}`}
+        eyebrow={`Research · ${relative(brief.created_at)}`}
         title={`Week of ${formatDate(dateOnly(brief.week_start), { day: "numeric", month: "long" })}`}
         actions={
           d.briefs.length > 1 && (
@@ -93,15 +93,15 @@ export default function Research({ id }) {
               <p className="mt-3 max-w-3xl text-[19px] leading-[1.55] tracking-[-0.012em] text-white/90 sm:text-[21px]">{brief.summary}</p>
               <div className="mt-6 flex flex-wrap gap-2 text-[12.5px] text-white/60">
                 <span>{plural(brief.trends?.length || 0, "trend")}</span><span>·</span>
-                <span>{plural(brief.pain_points?.length || 0, "pain point")}</span><span>·</span>
-                <span>{plural(brief.opportunities?.length || 0, "opportunity", "opportunities")}</span><span>·</span>
+                <span>{plural(brief.pain_points?.length || 0, "problem")}</span><span>·</span>
+                <span>{plural(brief.opportunities?.length || 0, "idea")}</span><span>·</span>
                 <span>{plural(brief.sources?.length || 0, "source")}</span>
               </div>
             </div>
           </div>
 
           {topics.length > 0 && (
-            <Section icon={CalendarDays} title="Topics planned from this brief" count={topics.length} tone="brand">
+            <Section icon={CalendarDays} title="Blogs planned from this research" count={topics.length} tone="brand">
               <div className="grid gap-3 md:grid-cols-3">
                 {topics.map((t) => (
                   <button key={t.id} onClick={() => navigate("/calendar")} className="card flex flex-col p-5 text-left transition-shadow hover:card-lift">
@@ -111,7 +111,7 @@ export default function Research({ id }) {
                     </div>
                     <div className="mt-2 text-body font-semibold leading-5">{t.title}</div>
                     {t.rationale && <p className="mt-1.5 line-clamp-2 text-[12.5px] text-ink-mute">{t.rationale}</p>}
-                    <div className="mt-auto pt-3 text-[12px] font-medium text-ink-mute">{t.planned_publish_date ? formatDate(dateOnly(t.planned_publish_date), { weekday: "short", day: "numeric", month: "short" }) : "Unscheduled"}</div>
+                    <div className="mt-auto pt-3 text-[12px] font-medium text-ink-mute">{t.planned_publish_date ? formatDate(dateOnly(t.planned_publish_date), { weekday: "short", day: "numeric", month: "short" }) : "No date yet"}</div>
                   </button>
                 ))}
               </div>
@@ -133,7 +133,7 @@ export default function Research({ id }) {
           )}
 
           {brief.pain_points?.length > 0 && (
-            <Section icon={Users} title="Buyer pain points" count={brief.pain_points.length} tone="warn">
+            <Section icon={Users} title="What buyers struggle with" count={brief.pain_points.length} tone="warn">
               <div className="card divide-y divide-[color:var(--hairline)]">
                 {brief.pain_points.map((p, i) => (
                   <div key={i} className="grid gap-2 p-5 md:grid-cols-[180px_1fr]">
@@ -150,7 +150,7 @@ export default function Research({ id }) {
           )}
 
           {brief.opportunities?.length > 0 && (
-            <Section icon={Lightbulb} title="Opportunities" count={brief.opportunities.length} tone="ok">
+            <Section icon={Lightbulb} title="Ideas worth writing" count={brief.opportunities.length} tone="ok">
               <div className="grid gap-3 md:grid-cols-2">
                 {brief.opportunities.map((o, i) => (
                   <div key={i} className="card relative overflow-hidden p-5">
@@ -165,7 +165,7 @@ export default function Research({ id }) {
           )}
 
           {brief.competitor_notes?.length > 0 && (
-            <Section icon={Swords} title="Competitors" count={brief.competitor_notes.length} tone="violet">
+            <Section icon={Swords} title="What others do" count={brief.competitor_notes.length} tone="violet">
               <div className="card divide-y divide-[color:var(--hairline)]">
                 {brief.competitor_notes.map((c, i) => (
                   <div key={i} className="flex gap-4 p-5">

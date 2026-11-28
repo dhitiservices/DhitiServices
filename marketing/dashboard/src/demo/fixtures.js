@@ -236,7 +236,7 @@ Good support is designed, not hired. Fix the process gaps that create repeat con
 
 
 /* ---------- fact lists (body.claims) for the sample blogs ---------- */
-const C = (id, claim_text, source_title, source_url, quote, extra = {}) => ({ id, claim_text, source_title, source_url, quote, kind: "fact", verified: true, source_date: "2026-10-14", ...extra });
+const C = (id, claim_text, source_title, source_url, quote, extra = {}) => ({ id, claim_text, source_title, source_url, quote, kind: "fact", verified: true, fetched_at: "2026-11-23T09:12:00Z", ...extra });
 const BSP = "https://www.iata.org/en/services/finance/bsp/";
 const ADM_CLAIMS = [
   C("c1", "Every ticket an agency issues flows into one BSP settlement cycle.", "IATA: Billing and Settlement Plan", BSP, "BSP is a system designed to facilitate and simplify the selling, reporting and remitting procedures of IATA Accredited Passenger Sales Agents."),
@@ -251,8 +251,9 @@ const ADM_CLAIMS = [
   C("c10", "Each airline publishes its own ADM policy.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Each BSP airline must publish its ADM policy and make it available to agents."),
   C("c11", "Memos are settled through the same BSP billing.", "IATA: Billing and Settlement Plan", BSP, "ADMs are processed through BSP and settled in the agent's billing."),
   C("c12", "BSP runs in more than 170 countries and territories.", "IATA: Billing and Settlement Plan", BSP, "BSP operates in over 170 countries and territories."),
-  C("c13", "Errors are most often made late in the working day.", "Dhiti Services: own desk records, Jan to Sep 2026", "https://www.dhitiservices.com/", "Tickets issued after 16:00 made up 41% of the errors our desk caught in the period.", { kind: "fact", source_title: "Dhiti Services desk report (internal)" }),
-  C("c14", "A second check inside four hours catches errors before the void window closes.", "Dhiti Services: own desk records, Jan to Sep 2026", "https://www.dhitiservices.com/", "Tickets checked within 4 hours of issue could still be voided in 96% of the flagged cases."),
+  { id: "c13", kind: "dhiti", claim_text: "Dhiti has more than 200 trained specialists on its desks.", phrase: "more than 200 trained specialists", verified: true },
+  C("c14", "IATA publishes a resolution on how agency debit memos are raised.", "IATA: Resolution 850m, ADM rules (Jan 2026)", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Resolution 850m sets out the rules airlines follow when they raise agency debit memos."),
+  { id: "a1", kind: "advice", claim_text: "Review every ticket issued after 4 pm first.", note: "Our own process step, not a measured fact.", verified: true },
   { id: "e1", claim_text: "An agency issuing 1,800 tickets a month with a 0.6% ADM rate loses about ₹1.03 lakh a month.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
 ];
 const ROOMING_CLAIMS = [
@@ -263,7 +264,7 @@ const ROOMING_CLAIMS = [
 const SUPPORT_CLAIMS = [
   C("s1", "Customers value low effort more than delight.", "Gartner: Customer Service and Support", "https://www.gartner.com/en/customer-service-support", "Customer effort is a stronger driver of loyalty than delight."),
   C("s2", "Each repeat contact costs about as much as the first one.", "Gartner: Customer Service and Support", "https://www.gartner.com/en/customer-service-support", "", { verified: false }),
-  C("s3", "Refund status is the top contact reason across OTAs.", "Travel trade forum thread", "https://example.com/forum/adm", "", { verified: false, source_date: null }),
+  C("s3", "Refund status is the top contact reason across OTAs.", "Travel trade forum thread", "https://example.com/forum/adm", "", { verified: false, fetched_at: null }),
   { id: "s4", claim_text: "A team handling 6,000 contacts a month finds that 1,100 are repeats about refund status.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
 ];
 

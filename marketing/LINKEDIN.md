@@ -847,18 +847,20 @@ create extension if not exists pg_cron;   -- not installed today (checked 2026-1
 create extension if not exists pg_net;
 select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'linkedin_cron_secret',
                            'x-cron-secret header for linkedin/publish_due');
-select cron.schedule('linkedin-publish-due', '*/5 * * * *', $job$
+select cron.schedule('linkedin-publish-due', '*/10 * * * *', $job$
   select net.http_post(
     url := 'https://yexxrcgxhwsopssfyylo.supabase.co/functions/v1/linkedin/publish_due',
     headers := jsonb_build_object('content-type','application/json',
       'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'linkedin_cron_secret')),
     body := '{}'::jsonb, timeout_milliseconds := 60000)
+  where exists (select 1 from public.linkedin_connection where id = 1 and status in ('connected','choose_org'));
 $job$);
 ```
 
 - The secret is generated inside the database and never appears in the repo.
 - To rotate it, run `select vault.update_secret(id, <new>)`. The function reads the secret on each call.
-- While dormant, each cron call costs one cheap function invocation (about 288 a day).
+- **As built:** every 10 minutes (not 5), and the job sends no HTTP request at all while LinkedIn is not connected
+  (the `WHERE` clause), so while dormant it costs nothing.
 
 ---
 
@@ -1069,7 +1071,8 @@ export function buildCommentary(caption: string): string {
 Function settings that only the test harness sets:
 
 - `LINKEDIN_MOCK_BASE=http://127.0.0.1:<port>`. It replaces `https://api.linkedin.com` and
-  `https://www.linkedin.com/oauth/v2`, and is added to the upload-host allowlist.
+  `https://www.linkedin.com/oauth/v2`, and is added to the upload-host allowlist. **As built**, the two bases can also
+  be set separately with `LINKEDIN_API_BASE` and `LINKEDIN_OAUTH_BASE` (Edge Function env only).
 - The function refuses to start if `LINKEDIN_MOCK_BASE` is set while `SUPABASE_URL` is the production project URL. The
   mock is only possible with `supabase functions serve` against a local or branch database.
 
@@ -1118,3 +1121,65 @@ Acceptance tests:
 9. **Org logo** via `logoV2` → `urn:li:image:<id>` → `GET /rest/images`, and the CDN host for the dashboard CSP.
 10. Whether PUTs to upload URLs count against API rate limits.
 11. **`organizationAcls` response key** for the org: `organization` vs `organizationTarget`. Both are read.
+
+---
+
+## 10. As built (v1, 2026-11-28)
+
+**State:** applied and deployed, dormant. Migrations `linkedin_core` and `linkedin_cron` are on project
+`yexxrcgxhwsopssfyylo`. Edge Function `linkedin` v1 is deployed with `verify_jwt = false`. The cron job
+`linkedin-publish-due` is active. The connection is `not_configured`, and the only Vault secret is
+`linkedin_cron_secret`.
+
+**Files**
+
+- `marketing/supabase/functions/linkedin/index.ts`: Supabase wiring (service-role client, `getUser` + `is_team` as the user, Vault RPCs).
+- `marketing/supabase/functions/linkedin/core.ts`: routes, LinkedIn client and state machine. It has no npm imports, so it can be tested with a fake database.
+- `marketing/supabase/functions/linkedin/validate.ts`: caption and comment rules, little-text escaping, and the UTM link builder.
+- `marketing/supabase/functions/linkedin/migrations/*.sql`: copies of the applied migrations, for review. They are not deployed.
+
+### 10.1 Differences from sections 2 to 8, and why
+
+| # | Contract said | Built | Why |
+|---|---|---|---|
+| 1 | cron every 5 min | every 10 min, and no HTTP call unless the status is `connected`/`choose_org` | Owner instruction for this build. Costs nothing while dormant. |
+| 2 | `LINKEDIN_MOCK_BASE` only | also `LINKEDIN_API_BASE` / `LINKEDIN_OAUTH_BASE`; any override is refused when `SUPABASE_URL` is the production project | Build instruction. Tokens can never be sent to a non-LinkedIn host in production. |
+| 3 | columns in 2.2 | added to `linkedin_connection`: `last_refresh_attempt_at`, `last_refresh_error`, `last_check_attempt_at`, `last_429_at`, `rate_limited_until` | They throttle refresh and heartbeat retries (hourly), drive `REFRESH_FAILING`, and handle the 429 back-off of 3.9 (the second 429 on the same UTC day waits until midnight). |
+| 4 | columns in 2.4 | added to `social_posts`: `stage_changed_at`, `post_attempts`, `comment_requested_at`, CHECK `status <> 'published' or post_urn is not null`, CHECKs on the `media_urn`/`post_urn` shape | `post_attempts` counts `POST /rest/posts` calls; `attempts` counts claimed runs, so video polling cannot use up the "3 posts max" rule. `stage_changed_at` drives the reconcile grace period and the 60-minute video limit. |
+| 5 | SQL in the function | service-role-only RPCs that use the database clock: `linkedin_oauth_state_create`, `linkedin_oauth_state_consume` (consume plus the owner re-check in one statement), `linkedin_due_posts`, `linkedin_claim_post`, `linkedin_secret_exists` | These are atomic and clock-safe. `secret_exists` lets `status` report `secret_saved` without reading the secret. |
+| 6 | team update protection by column grant | column grant **plus** guard triggers. `linkedin_connection_guard` allows only `paused`; `linkedin_social_posts_guard` checks every column except the five team columns. The guard skips only `postgres`/`service_role`/`supabase_admin` (the contract said "applies when current_user = authenticated") | Defence in depth, and it fails closed for any other role. |
+| 7 | validator 5.3 | one extra rule: a caption made only of hashtags is refused ("caption needs text before the hashtags") | It would otherwise pass every rule. |
+| 8 | reconcile 3.7.1 | posts that are not found are re-POSTed only once 5 minutes have passed since the request (`RECONCILE_GRACE_MS`) | Protects against the author finder lagging behind a just-created post. |
+| 9 | comment 201 | a 2xx with no `x-restli-id` and no `commentUrn` (cut response) stays `requested` and is reconciled | It stores the real ids instead of marking `posted` without them. |
+| 10 | video ≤ 500 MB | the function refuses reels over 150 MB | Edge Function memory limit. Reels are 20 to 40 s, usually well under 30 MB. |
+| 11 | callback 302 | with no `DASHBOARD_ORIGIN` set, the callback shows a minimal no-store HTML page instead of redirecting. It also redirects with `?linkedin=choose_org` when there are several pages | `DASHBOARD_ORIGIN` is not set yet. A `choose_org` value is needed for the dashboard. |
+| 12 | blog-not-live wait | when the blog is not live and nothing was sent yet, the row is handed back from `publishing` to `approved` (and `attempts` reset) | The owner can still unapprove or edit it, and waiting does not count toward the give-up limit. |
+| 13 | cron during `choose_org` | `publish_due` runs token maintenance but never publishes | It keeps the token alive while the owner picks the page. |
+| 14 | `GET /health` | `GET .../linkedin` and `.../linkedin/health` answer `{service:"dhiti-linkedin", version, api_version}` | It is a public health check and returns no data. |
+| 15 | (none) | `social_posts` and `linkedin_connection` were added to the `supabase_realtime` publication | Live dashboard updates. Realtime applies RLS, and neither table holds secrets. |
+
+**Found in testing:** Deno's `fetch` silently re-sends a POST when a pooled keep-alive connection is closed before any
+response bytes arrive. So "no response" can still mean "created twice". This is why every create is reconciled by
+reading LinkedIn back before it is sent again, and why the reconcile grace period exists.
+
+### 10.2 For the dashboard and engine workflow
+
+- Dashboard writes: `update linkedin_connection set paused`; `update social_posts set caption, first_comment, format,
+  status, scheduled_for` (the trigger does the rest). Errors from the trigger come back as Postgres errors:
+  - `23514` (check_violation) for "approve the carousel first" and the caption rules
+  - `42501` for status changes that are not allowed, and for edits while approved
+- Live caption checks: `rpc('linkedin_caption_error', {p})` and `rpc('linkedin_first_comment_error', {p})` (authenticated) return `null` or the message.
+- The engine inserts `social_posts` with the service role (status `draft`/`pending_review`), as in 2.5.
+- Set the function secret `DASHBOARD_ORIGIN` to the Netlify origin before connecting.
+
+### 10.3 Tests (session scratchpad `linkedin/`)
+
+- **SQL** (`rls_test.sql`): 51 checks, one statement that always rolls back. They cover anon, a stranger JWT and the allowlisted owner JWT against RLS, column grants, the guard trigger transitions, claim and due, OAuth state single use, expiry and owner binding, and the Vault helpers. Result: 51/51.
+- **End to end** (`e2e.mjs` under Deno 2.9.6, Node mock `mock/server.mjs`, in-memory database mirror `memdb.mjs`): 83/83.
+- **Live smoke tests:**
+  - health answers 200
+  - every team route answers 401 without a valid session
+  - `publish_due` answers 401 with a wrong or missing secret
+  - the callback with a forged state answers `state_invalid`
+  - PostgREST refuses anon access to all three tables and to the secret RPC
+  - the `net` schema is not exposed.

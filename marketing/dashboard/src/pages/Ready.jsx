@@ -7,7 +7,7 @@ import { PageHeader } from "../components/Shell.jsx";
 import { Button, CopyButton, Skeleton, EmptyState, Card, cx } from "../components/ui.jsx";
 import { PostedSheet } from "../components/ReviewSheets.jsx";
 import { ItemThumb } from "../components/ItemBits.jsx";
-import { TYPE_META, assetsFor, captionOf, byType } from "../lib/model.js";
+import { TYPE_META, assetsFor, captionOf, byType, graphicKind } from "../lib/model.js";
 import { downloadMany, downloadName } from "../lib/media.js";
 import { formatDate, dateOnly, relative } from "../lib/format.js";
 import { spring } from "../lib/motion.js";
@@ -33,17 +33,17 @@ export default function Ready() {
 
   return (
     <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
-      <PageHeader title="Ready to post" subtitle="Approved social pieces. Download, copy the caption, post, then mark it as posted." />
+      <PageHeader title="Ready to post" subtitle="Approved posts. Download them, copy the text, post them, then tap I posted it." />
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[340px] rounded-2xl" />)}</div>
       ) : !items.length ? (
-        <Card><EmptyState icon={PackageOpen} title="Nothing waiting to be posted">Approve a carousel, graphic or reel in Review and it shows up here, ready to download.</EmptyState></Card>
+        <Card><EmptyState icon={PackageOpen} title="Nothing to post right now">Approve a carousel, graphic or reel in Review and it shows up here, ready to download.</EmptyState></Card>
       ) : (
         groups.map(({ topic, list }) => (
           <section key={topic?.id || "x"} className="mb-10">
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h2 className="text-headline font-semibold">{topic?.title || "Other"}</h2>
-              {topic?.planned_publish_date && <span className="text-callout text-ink-mute">Blog {formatDate(dateOnly(topic.planned_publish_date), { weekday: "short", day: "numeric", month: "short" })}</span>}
+              {topic?.planned_publish_date && <span className="text-callout text-ink-mute">Blog goes live {formatDate(dateOnly(topic.planned_publish_date), { weekday: "short", day: "numeric", month: "short" })}</span>}
             </div>
             <motion.div layout className="grid gap-4 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
               <AnimatePresence>
@@ -60,15 +60,15 @@ export default function Ready() {
                       <div className="flex flex-1 flex-col p-4">
                         <div className="flex items-center gap-2">
                           <T.icon className="h-4 w-4 text-ink-mute" />
-                          <span className="text-callout font-semibold">{T.label}{item.body?.kind ? ` · ${item.body.kind}` : ""}</span>
+                          <span className="text-callout font-semibold">{T.label}{item.type === "graphic" && item.body?.kind ? ` · ${graphicKind(item.body.kind)}` : ""}</span>
                           <span className="ml-auto text-[11.5px] text-ink-faint">Approved {relative(item.approved_at)}</span>
                         </div>
-                        <p className="mt-2 line-clamp-3 flex-1 text-[13px] leading-[19px] text-ink-soft">{item.body?.caption_linkedin || item.body?.caption || "No caption"}</p>
+                        <p className="mt-2 line-clamp-3 flex-1 text-[13px] leading-[19px] text-ink-soft">{item.body?.caption_linkedin || item.body?.caption || "No text yet"}</p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <Button size="sm" icon={Download} onClick={() => downloadMany(files)} disabled={!files.length}>Download{files.length > 1 ? ` ${files.length}` : ""}</Button>
-                          <CopyButton text={captionOf(item)} label="Caption" />
+                          <CopyButton text={captionOf(item)} label="Copy text" />
                         </div>
-                        <Button size="sm" variant="tinted" icon={Send} className="mt-2 w-full" onClick={() => setPosting(item)}>Mark as posted</Button>
+                        <Button size="sm" variant="tinted" icon={Send} className="mt-2 w-full" onClick={() => setPosting(item)}>I posted it</Button>
                       </div>
                     </motion.div>
                   );

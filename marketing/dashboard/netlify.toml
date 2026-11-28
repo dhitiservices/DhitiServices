@@ -22,7 +22,7 @@
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
     Cross-Origin-Opener-Policy = "same-origin"
     X-Robots-Tag = "noindex, nofollow"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://yexxrcgxhwsopssfyylo.supabase.co; media-src 'self' blob: https://yexxrcgxhwsopssfyylo.supabase.co; font-src 'self'; connect-src 'self' https://yexxrcgxhwsopssfyylo.supabase.co wss://yexxrcgxhwsopssfyylo.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://yexxrcgxhwsopssfyylo.supabase.co https://media.licdn.com; media-src 'self' blob: https://yexxrcgxhwsopssfyylo.supabase.co; font-src 'self'; connect-src 'self' https://yexxrcgxhwsopssfyylo.supabase.co wss://yexxrcgxhwsopssfyylo.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 [[headers]]
   for = "/assets/*"

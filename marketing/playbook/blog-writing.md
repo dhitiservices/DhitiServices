@@ -11,15 +11,22 @@ files in `content/blog/`). Match their rhythm: short paragraphs, plain sentences
 ## 1. Research the post (before drafting)
 
 1. Start from the topic's `angle`, `rationale` and the brief URLs it cites.
-2. Find 3 to 6 credible sources for the post's factual claims (WebSearch, then WebFetch each one). Prefer primary
-   sources and serious trade press published in the last 12 months. Evergreen reference pages (an IATA programme
-   page, a regulation) are fine for definitions.
-3. For every number you plan to use, WebFetch the page and confirm the exact figure, unit, sample, date and who
-   published it. Write these into `$WORK/<slug>/sources.json` as you go:
-   `[{"title":"Publisher: page title (Mon YYYY)","url":"https://...","claim":"the exact fact you will use"}]`.
-4. If a source cannot be opened or does not say it, do not use the claim. Never cite a URL you have not fetched.
-   A search-result snippet is not a fetch (fallback when WebFetch is blocked: `node src/cli.js fetch <url> --out
-   "$WORK/src/<n>.html"`, then grep the file).
+2. Find 3 to 6 credible sources for the post's factual claims (WebSearch, then fetch each one). **Prefer primary
+   sources** for every rule, date and deadline: gst.gov.in and tutorial.gst.gov.in (GSTN), cbic-gst.gov.in and
+   taxinformation.cbic.gov.in (CBIC), gstcouncil.gov.in, pib.gov.in, rbi.org.in, dgca.gov.in, egazette.gov.in and
+   the ministry sites. Use trade press only for market statistics, and name the publisher in the sentence
+   ("TTR Weekly's report on the ... study says"). Evergreen reference pages are fine for definitions.
+3. **Fetch every source with the engine** (this is what the claims ledger trusts; WebFetch is for reading only):
+   ```bash
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js fetch-source "<url>" ["<url>" ...]
+   ```
+   It saves the page or PDF under `$WORK/sources/` with its sha256 and the extracted text (`text_file` in the
+   output; PDFs are converted to text). Read and grep that text file, not a snippet. A page the engine cannot fetch
+   (DNS, 403, a JavaScript-only page) cannot back a claim: find another primary page or PDF that says the same
+   thing, or drop the claim.
+4. **Build `$WORK/<slug>/claims.json` while you write** (section 1b). Every number, %, ₹ amount, date, deadline, law,
+   section, rule, circular, notification, named-company fact and quote in the post gets a claim with a verbatim
+   quote copied from the fetched text. If a source does not say it, the sentence does not go in.
 5. For tax, regulation or settlement topics (GST, TCS, BSP, IATA, RBI, card rules), search for rule changes in
    the last 24 months and cite the primary text (Act section, notification, circular, GSTN / IATA advisory) for
    every rule you state. Write dates explicitly ("on 30 November each year"). Never write relative time ("has just
@@ -52,6 +59,56 @@ files in `content/blog/`). Match their rhythm: short paragraphs, plain sentences
 10. **Source fidelity.** Quote descriptors exactly ("25 leading enterprises", not "large"); a trade-press article
     about a study is attributed as a report of that study, not as the study. In `sources.json`, note when a check
     relied on a saved copy because the live page could not be fetched.
+
+## 1b. The claims ledger (`claims.json`): no claim, no sentence
+
+`save-blog` refuses the post (there is no override) unless every factual sentence is in this file and verified.
+`check-blog --claims` runs the same checks; run it after every edit.
+
+```json
+[
+  {"id": "s16-4", "kind": "law",
+   "claim_text": "Section 16(4), as CBIC's Circular 237/31/2024-GST sets it out, allows credit up to 30 November after the financial year ends, or the date the annual return is filed if earlier.",
+   "source_url": "https://cbic-gst.gov.in/pdf/circular-237-31-2024-GST.pdf",
+   "source_title": "CBIC: Circular No. 237/31/2024-GST (Oct 2024)",
+   "quote": "Sub-section (4), sub-section (5) and sub-section (6) of section 16 of the CGST Act are reproduced below for ready reference",
+   "extra_quotes": [{"source_url": "https://cbic-gst.gov.in/pdf/circular-237-31-2024-GST.pdf", "quote": "A registered person shall not be entitled to take input tax credit ... after the thirtieth day of November ..."}]},
+  {"id": "cutoff-2526", "kind": "date",
+   "claim_text": "For invoices of 2025-26, the cut-off is 30 November 2026: credit not taken in a return filed by then is lost.",
+   "source_url": "...", "source_title": "...", "quote": "...thirtieth day of November following the end of financial year...",
+   "derived": {"arithmetic": "FY 2025-26 ends on 31 March 2026; the thirtieth day of November following it is 30 November 2026"}},
+  {"id": "intro", "kind": "illustrative", "claim_text": "Take an illustrative case. It is the 15th of the month, ..."},
+  {"id": "gst-fields", "kind": "advice", "claim_text": "Make the GST fields mandatory for corporate bookings, ...", "note": "Dhiti's recommended booking-tool setting, not a legal requirement"},
+  {"id": "cta", "kind": "dhiti", "claim_text": "Dhiti supports ..., with more than 200 trained specialists."}
+]
+```
+
+(The `...` above are shortened for this page; real quotes are copied in full.)
+
+- `claim_text`: the exact sentence or span from the post, markdown removed (link text stays, `**` and the URL go).
+  Usually one whole sentence. A claim may cover two sentences of the same paragraph.
+- `kind`: `fact`, `law` (Act, rule, circular, notification: **primary source only**), `stat` (survey, market number),
+  `date` (deadlines, cut-offs, start dates), `quote` (words in "double quotes" that must be in the source quote),
+  `illustrative` (a made-up example: no source; its paragraph must start with "For example", "Take an illustrative
+  case" or contain "Illustrative"), `advice` (Dhiti's own recommendation or a step of the routine: no source, a
+  `note` saying why it is not a fact, and no %, money, year, section, document number or number above 100 in it),
+  `dhiti` (only the owner-approved proof points of `quality-bar.md` section 1, word for word).
+- `quote`: 8 to 60 words copied **verbatim** from the engine-fetched text of `source_url` (the engine ignores case,
+  spacing, smart quotes, hyphenation and HTML entities, nothing else). Use `extra_quotes` when a sentence combines
+  two passages or two sources.
+- Every number, date, financial year, section and document number in `claim_text` must also be in the quote(s).
+  If you computed it (a cut-off year, a sum, a count of conditions), add `derived.arithmetic` with the working,
+  written so that every computed token appears in it. Keep derivations simple and check them twice.
+- The engine also finds factual-looking sentences you forgot: anything with digits, %, ₹, a month name, Section,
+  Rule, Circular, Notification, GSTR, IMS, CBIC, RBI, DGCA, must, mandatory, deadline, Act, survey or a quotation.
+  Each needs a claim (sourced, illustrative or advice). Questions in the FAQ are exempt; their answers are not.
+- Numbers in the title, description, imageAlt and FAQ answers must appear in a sourced claim of the post.
+- **No relative dates** anywhere ("recently", "this year", "last year", "currently", "nowadays", "the day this guide
+  was published"): write the absolute date. When a fact can change, say "As of <date>". The post may go live later
+  than planned, so nothing may depend on the publish day.
+
+After the post and `claims.json` pass `check-blog --claims`, the independent fact-check of `blog-editing.md` step 4
+runs before `save-blog`.
 
 ## 2. Structure: exactly 8 `##` sections
 
@@ -91,8 +148,9 @@ title. The primary keyword appears naturally in at least one `##` heading.
   `In Atradius's [2026 survey of B2B payment practices in India](https://...), nearly nine in ten firms reported overdue invoices.`
   Never "click here", never bare URLs, no references list at the end.
 - Put most evidence in sections 1 and 2; use it again in the method only where it helps.
-- **Numbers come only from sources** you fetched, written exactly as the source states them (you may round "50.8%"
-  to "about half" but never sharpen "about half" into "51%").
+- **Numbers come only from sources** the engine fetched (`fetch-source`), written exactly as the source states them
+  (you may round "50.8%" to "about half" but never sharpen "about half" into "51%"). Each one is a claim in
+  `claims.json`.
 - Illustrative numbers and scenarios are labelled: "In an illustrative month of 400 refunds...", "Take an
   illustrative 60-room hotel...". Never present an illustration as data.
 - Name the publisher and, where it helps, the sample and date ("HOTREC's distribution study of 1,882 European
@@ -119,7 +177,7 @@ title. The primary keyword appears naturally in at least one `##` heading.
   It depends on the airline's ADM policy, ...
   ```
 - No new facts in answers that are not already sourced in the post. The same questions and answers go into
-  `meta.faq` for structured data.
+  `meta.faq` for structured data. Each answer sentence with a fact gets its own claim (reuse the source and quote).
 
 ## 7. The CTA section (section 8, always last)
 
@@ -138,7 +196,7 @@ Follow the house pattern from published posts:
    Example: "Dhiti supports corporate travel and hotel businesses with back-office operations, accounts and
    finance, reporting and sales support, with more than 200 trained specialists. If debit memos are quietly eating
    into your margins, we would be glad to help you build a process that keeps that money in the business."
-   Calm, specific, never pushy. Only facts from `quality-bar.md` section 1.
+   Calm, specific, never pushy. Only facts from `quality-bar.md` section 1 (the sentence is a `dhiti` claim).
 
 ## 8. Internal links
 
@@ -187,6 +245,7 @@ The email arrives on a Tuesday morning. ...
 
 Also prepare `$WORK/<slug>/meta.json` (passed to `save-blog --meta`, and used by you for creatives):
 `{"primary_keyword":"","secondary_keywords":[],"faq":[{"q":"","a":""}],"sources":[{"title":"Publisher: page title (Mon YYYY)","url":"https://..."}]}`.
-Keywords and FAQ live here, never as extra frontmatter keys. If a source could not be fetched (PLAYBOOK rule 3),
-also pass `--owner-note "UNVERIFIED SOURCES: <urls>, verify before approving"`: the dashboard shows it above the
-post.
+Keywords and FAQ live here, never as extra frontmatter keys. A source the engine could not fetch is never cited
+(rewrite or drop the sentence); there is no "unverified" post any more.
+
+Also `$WORK/<slug>/claims.json` (section 1b) and `$WORK/<slug>/factcheck.md` (`blog-editing.md` step 4).

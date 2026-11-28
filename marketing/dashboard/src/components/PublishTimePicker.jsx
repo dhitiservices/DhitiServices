@@ -34,7 +34,7 @@ export function PublishTimePicker({ value, onChange, publishDays = [], plannedDa
       <div>
         <div id={`${idPrefix}-day-label`} className="mb-2 flex items-center justify-between text-callout font-semibold text-ink-soft">
           <span>Day</span>
-          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-mute"><span className="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden /> Publish day</span>
+          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-mute"><span className="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden /> Go-live day</span>
         </div>
         <div className="grid grid-cols-7 gap-1" role="group" aria-labelledby={`${idPrefix}-day-label`}>
           {days.map((d, i) => {
@@ -44,7 +44,7 @@ export function PublishTimePicker({ value, onChange, publishDays = [], plannedDa
             const isPlanned = plannedDay === d;
             const active = d === day;
             const showMonth = i === 0 || d.slice(8) === "01";
-            const label = `${formatDate(date, { weekday: "short", day: "numeric", month: "short" })}${d === today ? ", today" : ""}${isPublish ? ", publish day" : ""}${isPlanned ? ", planned slot" : ""}`;
+            const label = `${formatDate(date, { weekday: "short", day: "numeric", month: "short" })}${d === today ? ", today" : ""}${isPublish ? ", go-live day" : ""}${isPlanned ? ", planned day" : ""}`;
             return (
               <button
                 key={d}
@@ -78,7 +78,7 @@ export function PublishTimePicker({ value, onChange, publishDays = [], plannedDa
         <Segmented
           size="sm"
           className="w-full [&>button]:flex-1 [&>button]:justify-center"
-          label="Publish time (IST)"
+          label="Go-live time (IST)"
           layoutId={`${idPrefix}-time`}
           value={preset}
           onChange={(v) => set(day, v === "other" ? (PRESET_TIMES.includes(time) ? "14:00" : time) : v)}

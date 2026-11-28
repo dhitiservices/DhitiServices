@@ -1,48 +1,54 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import {
-  Play, ArrowRight, Telescope, Inbox, Mic, MessageSquareWarning, CheckCircle2, CalendarClock, Globe2, Sparkles, Clock3, AlertCircle,
-} from "lucide-react";
+import { Play, ArrowRight, Telescope, Mic, CheckCircle2, CalendarClock, Clock3, AlertCircle, Sparkles, Linkedin, FileText, ChevronRight } from "lucide-react";
 import { useData } from "../lib/store.jsx";
 import { navigate, Link } from "../lib/router.jsx";
 import { PageHeader } from "../components/Shell.jsx";
 import { Button, Card, Chip, StatusChip, Skeleton, EmptyState, SectionTitle, cx } from "../components/ui.jsx";
-import { ContentChips } from "../components/ItemBits.jsx";
-import { ITEM_STATUS, JOB_STATUS, RUN_STATUS, RUN_KIND, JOB_KIND } from "../lib/model.js";
-import {
-  greeting, formatLongDay, formatDate, formatTime, dateOnly, relative, duration, weekStartIST, addDays, todayIST, plural,
-} from "../lib/format.js";
+import { ContentChips, ItemThumb } from "../components/ItemBits.jsx";
+import { ITEM_STATUS, RUN_KIND, JOB_KIND, itemTitle } from "../lib/model.js";
+import { voiceoverState } from "../components/viewers/VideoViewer.jsx";
+import { greeting, formatLongDay, formatDate, formatTime, dateOnly, relative, addDays, todayIST } from "../lib/format.js";
 import { list, listItem, spring } from "../lib/motion.js";
+
+const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+const time24 = (d) => formatDate(d, { hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** "Monday at 10:00", or "Monday 7 Dec at 10:00" when it is more than six days away. */
+function whenWords(d) {
+  const far = new Date(d).getTime() - Date.now() > 6 * 86400000;
+  return `${formatDate(d, far ? { weekday: "long", day: "numeric", month: "short" } : { weekday: "long" })} at ${time24(d)}`;
+}
+
+/**
+ * The one thing to do next, in order: blogs to review, reels that need the owner's voice, social posts to review,
+ * LinkedIn posts that need a look, then anything that went wrong. The rest is listed under "Also waiting".
+ */
+function useNextSteps(d) {
+  return useMemo(() => {
+    const blogs = d.items.filter((i) => i.type === "blog" && i.status === "pending_review");
+    const voice = d.items.filter((i) => i.status === "awaiting_voiceover" && voiceoverState(i, d.jobs).state !== "rendering");
+    const posts = d.items.filter((i) => i.type !== "blog" && i.status === "pending_review");
+    const liReady = d.socialPosts.filter((p) => p.status === "pending_review" && ["approved", "published"].includes(d.itemById.get(p.blog_item_id)?.status));
+    const liBad = d.socialPosts.filter((p) => p.status === "failed" || (p.status === "published" && p.comment_status === "failed"));
+    const failed = d.items.filter((i) => i.status === "failed");
+    const steps = [];
+    if (blogs.length) steps.push({ key: "blogs", icon: FileText, title: `${n(blogs.length, "blog is", "blogs are")} ready for you`, text: "Read it, check the facts, then approve. About five minutes each.", cta: "Review now", to: `/review/${blogs[0].id}`, items: blogs, short: n(blogs.length, "blog to review", "blogs to review") });
+    if (voice.length) steps.push({ key: "voice", icon: Mic, title: `${n(voice.length, "reel needs", "reels need")} your voice`, text: "Read the script out loud and upload the recording.", cta: "Record now", to: `/review/${voice[0].id}`, items: voice, short: n(voice.length, "reel needs your voice", "reels need your voice") });
+    if (posts.length) steps.push({ key: "posts", icon: Sparkles, title: `${n(posts.length, "post is", "posts are")} ready for you`, text: "Carousels, graphics and reels for social media.", cta: "Review now", to: `/review/${posts[0].id}`, items: posts, short: n(posts.length, "post to review", "posts to review") });
+    if (liReady.length) steps.push({ key: "li", icon: Linkedin, title: `${n(liReady.length, "LinkedIn post is", "LinkedIn posts are")} ready for you`, text: "Check how it looks, then approve it.", cta: "Open it", to: `/review/${liReady[0].blog_item_id}`, items: [], short: n(liReady.length, "LinkedIn post to approve", "LinkedIn posts to approve") });
+    if (liBad.length) steps.push({ key: "libad", icon: Linkedin, tone: "warn", title: liBad[0].status === "failed" ? "A LinkedIn post did not go out" : "A LinkedIn comment did not go out", text: "Open it and tap Try again.", cta: "Open it", to: `/review/${liBad[0].blog_item_id}`, items: [], short: "LinkedIn needs a look" });
+    if (failed.length) steps.push({ key: "failed", icon: AlertCircle, tone: "warn", title: `Something went wrong with ${n(failed.length, "piece", "pieces")}`, text: "Open it and say what to change. We try again.", cta: "Open it", to: `/review/${failed[0].id}`, items: failed, short: n(failed.length, "thing went wrong", "things went wrong") });
+    return steps;
+  }, [d.items, d.jobs, d.socialPosts, d.itemById]);
+}
 
 export default function Overview() {
   const d = useData();
   const loading = d.status === "loading";
   const now = new Date();
-
-  const stats = useMemo(() => {
-    const c = (fn) => d.items.filter(fn).length;
-    const monthAgo = Date.now() - 30 * 86400000;
-    return {
-      review: c((i) => i.status === "pending_review"),
-      voice: c((i) => i.status === "awaiting_voiceover"),
-      changes: c((i) => i.status === "changes_requested"),
-      approved: c((i) => i.status === "approved" && i.type !== "blog"),
-      scheduled: c((i) => i.type === "blog" && i.status === "approved"),
-      published: c((i) => i.status === "published" && new Date(i.published_at).getTime() > monthAgo),
-      generating: c((i) => i.status === "generating"),
-    };
-  }, [d.items]);
-
-  // Focus week = the newest planned week (usually next week, produced by the weekly run).
-  const focusWeek = useMemo(() => {
-    const weeks = [...new Set(d.topics.map((t) => t.week_start))].sort();
-    const thisWeek = weekStartIST();
-    return weeks.filter((w) => w >= thisWeek).pop() || weeks.pop() || thisWeek;
-  }, [d.topics]);
-
-  const weekTopics = d.topics.filter((t) => t.week_start === focusWeek && t.status !== "skipped");
-  const weekItems = d.items.filter((i) => weekTopics.some((t) => t.id === i.topic_id));
-  const brief = d.briefs.find((b) => b.week_start === focusWeek) || d.briefs[0];
+  const steps = useNextSteps(d);
+  const making = d.items.filter((i) => i.status === "generating").length;
 
   const timeline = useMemo(() => {
     const today = todayIST();
@@ -58,60 +64,31 @@ export default function Overview() {
       if (ymd < today || ymd > horizon) continue;
       rows.push({ topic: t, blog, when, ymd, children: d.items.filter((i) => i.topic_id === t.id) });
     }
-    return rows.sort((a, b) => a.when - b.when).slice(0, 6);
+    return rows.sort((a, b) => a.when - b.when).slice(0, 5);
   }, [d.topics, d.items]);
+
+  // The next approved blog that is due: "Next blog posts Monday at 10:00."
+  const nextLive = useMemo(() => d.items
+    .filter((i) => i.type === "blog" && i.status === "approved" && i.scheduled_for && new Date(i.scheduled_for) > now)
+    .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for))[0] || null, [d.items]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const weeklyJob = d.jobs.find((j) => j.kind === "run_weekly");
   const weeklyActive = weeklyJob && (weeklyJob.status === "queued" || weeklyJob.status === "running");
-  const needs = stats.review + stats.voice;
-
-  const subtitle = loading ? "Loading your week…" : needs
-    ? `${plural(needs, "item")} ${needs === 1 ? "needs" : "need"} your eyes${timeline[0] ? ` · next blog ${formatDate(timeline[0].when, { weekday: "short", day: "numeric", month: "short" })}` : ""}`
-    : "You're all caught up. New drafts appear here as soon as they're made.";
+  const brief = d.briefs[0];
 
   return (
-    <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
-      <PageHeader
-        eyebrow={formatLongDay(now)}
-        title={greeting(now)}
-        subtitle={subtitle}
-        actions={
-          <>
-            {weeklyJob && (
-              <motion.div initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} transition={spring} className="hidden sm:block" title={`Last weekly run request ${relative(weeklyJob.created_at)}`}>
-                <Chip tone={JOB_STATUS[weeklyJob.status]?.tone} pulse={JOB_STATUS[weeklyJob.status]?.pulse}>
-                  {weeklyJob.status === "done" ? `Last run ${relative(weeklyJob.finished_at || weeklyJob.created_at)}` : weeklyJob.status === "failed" ? "Last run failed" : JOB_STATUS[weeklyJob.status]?.label}
-                </Chip>
-              </motion.div>
-            )}
-            <Button variant="secondary" icon={Play} disabled={weeklyActive} onClick={() => d.actions.runWeekly()}>
-              {weeklyActive ? (weeklyJob.status === "running" ? "Weekly run in progress" : "Weekly run queued") : "Run weekly now"}
-            </Button>
-            <Button variant="primary" iconRight={ArrowRight} onClick={() => navigate("/review")} disabled={!needs && !loading}>
-              Review{needs ? ` ${needs}` : ""}
-            </Button>
-          </>
-        }
-      />
+    <div className="mx-auto max-w-[1120px] px-4 py-6 sm:px-8 lg:py-10">
+      <PageHeader eyebrow={formatLongDay(now)} title={greeting(now)} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <WeekHero loading={loading} weekStart={focusWeek} topics={weekTopics} items={weekItems} className="lg:col-span-3" />
-        <ResearchCard loading={loading} brief={brief} className="lg:col-span-2" />
-      </div>
+      {loading ? (
+        <Skeleton className="h-[220px] rounded-[22px]" />
+      ) : (
+        <NextStep steps={steps} nextLive={nextLive} making={making} weeklyActive={weeklyActive} />
+      )}
 
-      <motion.div variants={list} initial="initial" animate="animate" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        {/* Neutral wells; only a tile that needs the owner's action (and has something in it) turns brand red. */}
-        <Stat loading={loading} icon={Inbox} attention label="Needs review" value={stats.review} to="/review" />
-        <Stat loading={loading} icon={Mic} attention label="Needs voiceover" value={stats.voice} to="/review?filter=voice" />
-        <Stat loading={loading} icon={MessageSquareWarning} label="Changes requested" value={stats.changes} to="/review?filter=changes" />
-        <Stat loading={loading} icon={CalendarClock} label="Blogs scheduled" value={stats.scheduled} to="/calendar" />
-        <Stat loading={loading} icon={CheckCircle2} label="Ready to post" value={stats.approved} to="/ready" />
-        <Stat loading={loading} icon={Globe2} label="Published · 30 days" value={stats.published} to="/published" />
-      </motion.div>
-
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-5">
+      <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-5">
         <section className="min-w-0 lg:col-span-3">
-          <SectionTitle action={<Link to="/calendar" className="text-callout font-semibold text-brand-ink hover:underline">Calendar</Link>}>Upcoming publishes</SectionTitle>
+          <SectionTitle action={<Link to="/calendar" className="text-callout font-semibold text-brand-ink hover:underline">Calendar</Link>}>Coming up</SectionTitle>
           <Card className="p-2">
             {loading ? (
               <div className="space-y-2 p-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-16" />)}</div>
@@ -120,146 +97,144 @@ export default function Overview() {
                 {timeline.map((row, i) => <TimelineRow key={row.topic.id} row={row} last={i === timeline.length - 1} />)}
               </motion.ol>
             ) : (
-              <EmptyState icon={CalendarClock} title="Nothing scheduled in the next two weeks">
-                Run the weekly pipeline to research and plan the next three blogs.
-              </EmptyState>
+              <EmptyState icon={CalendarClock} title="Nothing planned for the next two weeks">New blog ideas are planned every Monday morning.</EmptyState>
             )}
           </Card>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+            <span className="text-[12.5px] text-ink-mute">New blogs are made every Monday morning.</span>
+            <Button variant="ghost" size="sm" icon={Play} disabled={weeklyActive || loading} onClick={() => d.actions.runWeekly()}>
+              {weeklyActive ? "Making this week's blogs…" : "Make this week's blogs now"}
+            </Button>
+          </div>
         </section>
 
-        <section className="min-w-0 lg:col-span-2">
-          <SectionTitle action={<Link to="/settings#runs" className="text-callout font-semibold text-brand-ink hover:underline">All runs</Link>}>Recent activity</SectionTitle>
-          <Card className="divide-y divide-[color:var(--hairline)]">
-            {loading ? (
-              <div className="space-y-2 p-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
-            ) : (
-              <>
-                {d.activeJobs.slice(0, 3).map((j) => (
-                  <div key={j.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-ink/[0.05] text-ink-soft"><Sparkles className="h-4 w-4" /></span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-callout font-semibold">{JOB_KIND[j.kind] || j.kind}</div>
-                      <div className="text-[12px] text-ink-mute">Requested {relative(j.created_at)}{j.requested_by ? ` by ${j.requested_by.split("@")[0]}` : ""}</div>
-                    </div>
-                    <StatusChip map={JOB_STATUS} status={j.status} size="sm" />
-                  </div>
-                ))}
-                {d.runs.slice(0, 5).map((r) => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className={cx("flex h-8 w-8 items-center justify-center rounded-[9px]", r.status === "failed" ? "bg-brand/10 text-brand-ink" : "bg-ink/[0.05] text-ink-soft")}>
-                      {r.status === "failed" ? <AlertCircle className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-callout font-semibold">{RUN_KIND[r.kind] || r.kind}</div>
-                      <div className="truncate text-[12px] text-ink-mute">
-                        {relative(r.started_at)}{r.finished_at ? ` · ${duration(r.started_at, r.finished_at)}` : ""}{r.error ? ` · ${r.error}` : ""}
-                      </div>
-                    </div>
-                    <StatusChip map={RUN_STATUS} status={r.status} size="sm" />
-                  </div>
-                ))}
-                {!d.runs.length && !d.activeJobs.length && (
-                  <EmptyState icon={Clock3} title="No runs yet" className="!py-10">The weekly run starts automatically every Monday morning.</EmptyState>
-                )}
-              </>
-            )}
-          </Card>
+        <section className="min-w-0 space-y-8 lg:col-span-2">
+          <div>
+            <SectionTitle>This week's research</SectionTitle>
+            <ResearchCard loading={loading} brief={brief} />
+          </div>
+          <div>
+            <SectionTitle action={<Link to="/settings#runs" className="text-callout font-semibold text-brand-ink hover:underline">See all</Link>}>Recently</SectionTitle>
+            <Activity loading={loading} />
+          </div>
         </section>
       </div>
     </div>
   );
 }
 
-function WeekHero({ loading, weekStart, topics, items, className }) {
-  const counts = Object.fromEntries(Object.keys(ITEM_STATUS).map((k) => [k, items.filter((i) => i.status === k).length]));
-  const total = items.length || 1;
-  const order = ["published", "approved", "pending_review", "awaiting_voiceover", "changes_requested", "generating", "failed", "rejected"];
-  const colors = { published: "#5AA2FF", approved: "#34C77B", pending_review: "#FF3322", awaiting_voiceover: "#FF9B85", changes_requested: "#FFB340", generating: "rgba(255,255,255,.35)", failed: "#C20600", rejected: "rgba(255,255,255,.18)" };
-  const blogs = items.filter((i) => i.type === "blog");
-
-  return (
-    <div className={cx("mesh-ink grain relative overflow-hidden rounded-[22px] p-6 text-white shadow-lift sm:p-7", className)}>
-      <span className="mesh-sheen" aria-hidden />
-      <div className="relative z-[1]">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="shrink-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60">Week at a glance</div>
-            <div className="mt-1 text-title-2 font-bold tracking-[-0.02em]">Week of {formatDate(dateOnly(weekStart), { day: "numeric", month: "long" })}</div>
-          </div>
-          <span className="mt-0.5 shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white/85 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12)] backdrop-blur-sm">
-            {plural(topics.length, "topic")} · {plural(items.length, "piece")}
-          </span>
-        </div>
-
-        <div className="mt-7 grid grid-cols-3 gap-4">
-          {[
-            ["To review", (counts.pending_review || 0) + (counts.awaiting_voiceover || 0)],
-            ["Approved", counts.approved || 0],
-            ["Blogs live", blogs.filter((b) => b.status === "published").length],
-          ].map(([label, v]) => (
-            <div key={label}>
-              {loading ? <div className="h-10 w-12 rounded-lg bg-white/10" /> : (
-                <motion.div key={v} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="tnum text-[40px] font-bold leading-[44px] tracking-[-0.035em]">{v}</motion.div>
-              )}
-              <div className="mt-1 text-callout text-white/55">{label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-7">
-          <div className="flex h-2 w-full gap-[3px] overflow-hidden rounded-full">
-            {!loading && order.map((k) => counts[k] ? (
-              <motion.div key={k} initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ ...spring, delay: 0.1 }} style={{ flexGrow: counts[k], flexBasis: 0, background: colors[k], transformOrigin: "left" }} className="h-full rounded-[2px] first:rounded-l-full last:rounded-r-full" />
-            ) : null)}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-            {order.filter((k) => counts[k]).map((k) => (
-              <span key={k} className="flex items-center gap-1.5 text-[12px] text-white/60">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: colors[k] }} />
-                {ITEM_STATUS[k].label} <span className="tnum font-semibold text-white/85">{counts[k]}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ResearchCard({ loading, brief, className }) {
-  if (loading) return <Card className={cx("p-6", className)}><Skeleton className="h-4 w-32" /><Skeleton className="mt-4 h-24" /><Skeleton className="mt-4 h-6 w-48" /></Card>;
-  if (!brief) {
+function NextStep({ steps, nextLive, making, weeklyActive }) {
+  const top = steps[0];
+  if (!top) {
+    const line = nextLive ? `Next blog posts ${whenWords(nextLive.scheduled_for)}.` : making || weeklyActive ? "We're making new blogs now. They show up here when they're ready." : "New blogs arrive on Monday morning.";
     return (
-      <Card className={cx("flex", className)}>
-        <EmptyState icon={Telescope} title="No research yet" className="m-auto !py-10">Each weekly run starts with a research brief on trends and buyer pain points.</EmptyState>
-      </Card>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="card relative overflow-hidden p-6 sm:p-8" data-testid="next-step" data-state="caught-up">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-ok/[0.08] blur-3xl" aria-hidden />
+        <div className="relative flex items-start gap-4 sm:items-center sm:gap-5">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ok/[0.12] text-ok sm:h-14 sm:w-14"><CheckCircle2 className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2} /></span>
+          <div className="min-w-0">
+            <h2 className="text-[24px] font-bold leading-[30px] tracking-[-0.025em] text-ink sm:text-[30px] sm:leading-[36px]">You're all caught up.</h2>
+            <p className="mt-1 text-body text-ink-mute sm:text-[17px] sm:leading-6">{line}</p>
+          </div>
+        </div>
+        {nextLive && (
+          <button type="button" onClick={() => navigate(`/review/${nextLive.id}?filter=approved`)} className="relative mt-6 flex w-full items-center gap-3 rounded-2xl bg-ink/[0.035] p-3 text-left transition-colors hover:bg-ink/[0.06]">
+            <ItemThumb item={nextLive} className="h-12 w-[68px]" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-callout font-semibold text-ink">{itemTitle(nextLive)}</span>
+              <span className="block text-[12.5px] text-ink-mute">Goes live {formatDate(nextLive.scheduled_for, { weekday: "short", day: "numeric", month: "short" })} at {time24(nextLive.scheduled_for)}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 text-ink-faint" />
+          </button>
+        )}
+      </motion.div>
     );
   }
+  const rest = steps.slice(1);
+  const thumbs = top.items.slice(0, 3);
   return (
-    <Card as="button" onClick={() => navigate(`/research/${brief.id}`)} className={cx("group flex flex-col p-6 text-left transition-shadow hover:card-lift", className)}>
-      <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/10 text-brand-ink"><Telescope className="h-3.5 w-3.5" strokeWidth={2.2} /></span>
-        <span className="eyebrow">Research · week of {formatDate(dateOnly(brief.week_start))}</span>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mesh-ink grain relative overflow-hidden rounded-[22px] p-6 text-white shadow-lift sm:p-8" data-testid="next-step" data-state={top.key}>
+      <span className="mesh-sheen" aria-hidden />
+      <div className="relative z-[1] flex flex-col gap-6 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white/85 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12)]">
+            <top.icon className="h-3.5 w-3.5" strokeWidth={2.2} /> Your next step
+          </div>
+          <h2 className="mt-4 text-[28px] font-bold leading-[33px] tracking-[-0.03em] sm:text-[36px] sm:leading-[41px]">{top.title}</h2>
+          <p className="mt-2 max-w-[460px] text-body text-white/70 sm:text-[17px] sm:leading-6">{top.text}</p>
+          <Button variant="primary" size="lg" iconRight={ArrowRight} onClick={() => navigate(top.to)} className="mt-6 h-12 w-full rounded-[14px] px-6 text-[16px] sm:w-auto" data-testid="next-step-cta">
+            {top.cta}
+          </Button>
+        </div>
+        {thumbs.length > 0 && (
+          <div className="relative hidden h-[150px] w-[250px] shrink-0 sm:block" aria-hidden>
+            {thumbs.map((it, i) => (
+              <div key={it.id} className="absolute rounded-[12px] shadow-[0_18px_40px_-12px_rgb(0_0_0/0.6)] ring-1 ring-white/10" style={{ right: i * 34, top: i * 18, zIndex: 3 - i, transform: `rotate(${(i - 1) * -4}deg)`, opacity: 1 - i * 0.18 }}>
+                <ItemThumb item={it} className={it.type === "blog" ? "h-[108px] w-[176px] rounded-[12px]" : "h-[120px] w-[96px] rounded-[12px]"} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      <p className="mt-4 line-clamp-5 text-body text-ink-soft">{brief.summary}</p>
-      <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-5">
-        <Chip tone="neutral" dot={false}>{plural(brief.trends?.length || 0, "trend")}</Chip>
-        <Chip tone="neutral" dot={false}>{plural(brief.pain_points?.length || 0, "pain point")}</Chip>
-        <Chip tone="neutral" dot={false}>{plural(brief.opportunities?.length || 0, "opportunity", "opportunities")}</Chip>
-        <ArrowRight className="ml-auto h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-brand-ink" />
-      </div>
+      {rest.length > 0 && (
+        <div className="relative z-[1] mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-5">
+          <span className="mr-1 self-center text-[12.5px] font-medium text-white/55">Also waiting:</span>
+          {rest.map((s) => (
+            <button key={s.key} type="button" onClick={() => navigate(s.to)} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white/10 px-3 text-[12.5px] font-semibold text-white/90 transition-colors hover:bg-white/[0.16]">
+              <s.icon className="h-3.5 w-3.5" /> {s.short} <ChevronRight className="h-3.5 w-3.5 opacity-60" />
+            </button>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function ResearchCard({ loading, brief }) {
+  if (loading) return <Card className="p-5"><Skeleton className="h-4 w-32" /><Skeleton className="mt-4 h-16" /></Card>;
+  if (!brief) return <Card><EmptyState icon={Telescope} title="No research yet" className="!py-10">Every Monday we read the news and forums, then write a short report here.</EmptyState></Card>;
+  return (
+    <Card as="button" onClick={() => navigate(`/research/${brief.id}`)} className="group flex w-full flex-col p-5 text-left transition-shadow hover:card-lift">
+      <span className="flex items-center gap-2 text-[12.5px] font-semibold text-brand-ink">
+        <Telescope className="h-3.5 w-3.5" strokeWidth={2.2} /> Week of {formatDate(dateOnly(brief.week_start), { day: "numeric", month: "long" })}
+      </span>
+      <span className="mt-2.5 line-clamp-3 text-callout leading-[19px] text-ink-soft">{brief.summary}</span>
+      <span className="mt-3 inline-flex items-center gap-1 text-callout font-semibold text-ink">Read it <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" /></span>
     </Card>
   );
 }
 
-function Stat({ loading, icon: Icon, attention, label, value, to }) {
-  const hot = attention && !loading && value > 0;
+function Activity({ loading }) {
+  const d = useData();
+  if (loading) return <Card className="space-y-2 p-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10" />)}</Card>;
+  const rows = [
+    ...d.activeJobs.slice(0, 2).map((j) => ({ id: j.id, label: JOB_KIND[j.kind] || "Working on something", sub: `Started ${relative(j.created_at)}`, state: j.status === "running" ? "Working" : "Waiting", tone: "active", pulse: true })),
+    ...d.runs.slice(0, 4).map((r) => ({
+      id: r.id,
+      label: RUN_KIND[r.kind] || "Work",
+      sub: r.status === "failed" ? (r.kind === "publish" ? "Didn't work. It tries again on its own." : "Didn't work. We'll look at it.") : r.status === "running" ? `Started ${relative(r.started_at)}` : `Finished ${relative(r.finished_at || r.started_at)}`,
+      state: r.status === "failed" ? "Didn't work" : r.status === "running" ? "Working" : "Done",
+      tone: r.status === "failed" ? "danger" : r.status === "running" ? "active" : "ok",
+      pulse: r.status === "running",
+      bad: r.status === "failed",
+    })),
+  ].slice(0, 4);
+  if (!rows.length) return <Card><EmptyState icon={Clock3} title="Nothing yet" className="!py-10">New blogs are made every Monday morning.</EmptyState></Card>;
   return (
-    <motion.button variants={listItem} onClick={() => navigate(to)} whileTap={{ scale: 0.98 }} className="card group p-4 text-left transition-shadow hover:card-lift">
-      <span className={cx("flex h-8 w-8 items-center justify-center rounded-[9px] transition-colors", hot ? "bg-brand/10 text-brand-ink" : "bg-ink/[0.05] text-ink-soft")}><Icon className="h-4 w-4" strokeWidth={2.2} /></span>
-      {loading ? <Skeleton className="mt-3 h-7 w-10" /> : <div className="tnum mt-3 text-[26px] font-bold leading-8 tracking-[-0.03em] text-ink">{value}</div>}
-      <div className="mt-0.5 text-[12.5px] font-medium text-ink-mute">{label}</div>
-    </motion.button>
+    <Card className="divide-y divide-[color:var(--hairline)]">
+      {rows.map((r) => (
+        <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+          <span className={cx("flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px]", r.bad ? "bg-brand/10 text-brand-ink" : "bg-ink/[0.05] text-ink-soft")}>
+            {r.bad ? <AlertCircle className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-callout font-semibold">{r.label}</div>
+            <div className="truncate text-[12px] text-ink-mute">{r.sub}</div>
+          </div>
+          <Chip tone={r.tone} pulse={r.pulse} size="sm">{r.state}</Chip>
+        </div>
+      ))}
+    </Card>
   );
 }
 
@@ -290,7 +265,7 @@ function TimelineRow({ row, last }) {
             {blog ? <StatusChip map={ITEM_STATUS} status={blog.status} size="sm" /> : <Chip size="sm" tone="neutral">Planned</Chip>}
           </div>
           <div className="mt-0.5 text-[12.5px] text-ink-mute">
-            {topic.category}{blog?.scheduled_for ? ` · ${formatTime(blog.scheduled_for)} IST` : ""}{topic.primary_keyword ? ` · “${topic.primary_keyword}”` : ""}
+            {topic.category}{blog?.scheduled_for ? ` · goes live at ${formatTime(blog.scheduled_for)}` : ""}
           </div>
           <div className="pointer-events-auto relative mt-2 w-fit max-w-full"><ContentChips items={children} size="sm" onOpen={(i) => navigate(`/review/${i.id}`)} /></div>
         </div>

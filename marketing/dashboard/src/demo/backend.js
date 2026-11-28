@@ -67,6 +67,17 @@ function statusOf(c, posts) {
 export function createDemoBackend() {
   const db = buildFixtures();
   let li = loadLi();
+  // ?state=clear: everything already reviewed (shows the "all caught up" home).
+  try {
+    if (new URLSearchParams(window.location.search).get("state") === "clear") {
+      for (const it of db.items) if (["pending_review", "awaiting_voiceover", "changes_requested", "generating"].includes(it.status)) Object.assign(it, { status: "approved", approved_at: new Date().toISOString(), feedback: null });
+      for (const p of db.socialPosts) {
+        if (["pending_review", "draft"].includes(p.status)) p.status = "approved";
+        if (p.comment_status === "failed") Object.assign(p, { comment_status: "posted", last_error: null });
+      }
+      db.jobs = db.jobs.filter((j) => j.kind !== "regenerate");
+    }
+  } catch { /* no URL */ }
   const listeners = new Set();
   const emit = (table, eventType, row) => listeners.forEach((l) => l({ table, eventType, row: clone(row), old: { id: row.id } }));
   const sessionListeners = new Set();

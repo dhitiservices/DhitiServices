@@ -145,7 +145,7 @@ export function LinkedInPreview({ caption, comment, link, format, item, title, o
         {caption?.trim() ? (
           <>
             <Rich text={more || !tail ? `${head}${tail}` : head} />
-            {tail && !more && <>{"…"}<button type="button" onClick={() => setMore(true)} className="ml-1 font-semibold text-ink-mute hover:text-info hover:underline">see more</button></>}
+            {tail && !more && <>{/[.!?:]$/.test(head) ? " …" : "…"}<button type="button" onClick={() => setMore(true)} className="ml-1 font-semibold text-ink-mute hover:text-info hover:underline">see more</button></>}
             {tail && more && <button type="button" onClick={() => setMore(false)} className="mt-1 block font-semibold text-ink-mute hover:text-info hover:underline">show less</button>}
           </>
         ) : <span className="text-ink-faint">No text yet</span>}
@@ -347,7 +347,7 @@ function Card({ post, blog }) {
             <label className="block">
               <span className="mb-1.5 block text-callout font-semibold text-ink-soft">First comment</span>
               <input className="input h-11 text-[14px]" value={draft.first_comment} maxLength={320} onChange={(e) => setDraft((x) => ({ ...x, first_comment: e.target.value.replace(/\n/g, " ") }))} aria-describedby={`li-com-checks-${post.id}`} />
-              <span className="mt-2 flex items-center gap-1.5 text-[12px] text-ink-mute"><Link2 className="h-3.5 w-3.5 shrink-0" /> Then the blog link: <span className="min-w-0 truncate font-medium text-info">{link ? link.replace(/^https:\/\//, "") : "added when it goes live"}</span></span>
+              <span className="mt-2 flex items-center gap-1.5 text-[12px] text-ink-mute"><Link2 className="h-3.5 w-3.5 shrink-0" /> <span className="shrink-0 whitespace-nowrap">Then the blog link:</span> <span className="min-w-0 truncate font-medium text-info">{link ? link.replace(/^https:\/\//, "") : "added when it goes live"}</span></span>
               <Checks list={com} id={`li-com-checks-${post.id}`} />
             </label>
           </>

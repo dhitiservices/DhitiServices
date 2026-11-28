@@ -10,6 +10,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 import { type Conn, createHandler, type Db, loadConfig, type Post, type PostExpect } from "./core.ts";
+import { linkedinFetch, WRITE_CLIENT_MODE } from "./http.ts";
 
 // Public by design (ARCHITECTURE.md): used only to call is_team() as the signed-in user.
 const PUBLISHABLE_KEY = "sb_publishable_eggopcLFltAS1Q3nTmGecQ_dUMTCIhR";
@@ -162,11 +163,15 @@ const db: Db = {
 const handler = createHandler({
   db,
   config,
-  fetch: (input, init) => fetch(input, init),
+  // POST/PUT go over a client without connection reuse, so Deno never re-sends a create on its own (http.ts).
+  fetch: (input, init) => linkedinFetch(input, init),
   now: () => Date.now(),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   log: (line) => console.log(line),
   randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
 });
+
+// One non-secret line per cold start, so the logs show whether the no-reuse write client is active.
+console.log(JSON.stringify({ fn: "linkedin", boot: true, write_client: WRITE_CLIENT_MODE }));
 
 Deno.serve(handler);

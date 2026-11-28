@@ -33,7 +33,7 @@ export function ItemThumb({ item, className }) {
 /** One chip per derived item (blog, carousel, graphics, reel) with a status dot. */
 export function ContentChips({ items, onOpen, size = "md", compact = false }) {
   const sorted = [...items].sort(byType);
-  if (!sorted.length) return <span className="text-[12px] text-ink-faint">No content yet</span>;
+  if (!sorted.length) return <span className="text-[12px] text-ink-faint">Nothing made yet</span>;
   return (
     <div className="flex flex-wrap gap-1.5">
       {sorted.map((i) => {

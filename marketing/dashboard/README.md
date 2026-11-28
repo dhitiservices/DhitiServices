@@ -76,17 +76,26 @@ returns no data because every policy checks the allowlist).
 
 | Route | What it does |
 |---|---|
-| `/` Overview | Week at a glance, research summary, pipeline counts, upcoming publishes, recent runs/jobs, **Run weekly now** (`jobs` insert `run_weekly`) |
+| `/` Home | One "next step" card first (blogs ready for you, then reels that need your voice, posts to review, LinkedIn posts that need a look, anything that went wrong; the rest as "Also waiting" chips), or "You're all caught up. Next blog posts Monday at 10:00."; then Coming up, this week's research, Recently, and **Make this week's blogs now** (`jobs` insert `run_weekly`) |
 | `/review/:id?` Review | Queue grouped by topic; blog article preview (marked + DOMPurify), inline edit (title, description with 160-char counter, Markdown), carousel slide viewer + PDF, graphic square/landscape, reel player. Reels in `awaiting_voiceover` show the voiceover studio: the script (large, copy button, word count,
 target seconds), the line for each scene, and a drop zone (or a take from the library); upload = `library_assets` row
 + `jobs` insert `render_video {content_item_id, library_asset_id}`, then "Rendering with your voice" until Realtime
-brings the item back as `pending_review`. Approve (blog: pick publish time, IST), Request changes (`changes_requested` + `feedback` and `jobs` insert `regenerate`), Reject, Publish now (`jobs` insert `publish_now`). Optimistic, with Undo |
+brings the item back as `pending_review`. Blogs also show **Facts checked** (`body.claims` from the engine's claims ledger:
+a green line "All 14 facts checked against the source" or a red warning, each fact with its source, check date and the
+exact quote; examples and advice are labelled, not counted as facts; approving a blog with an unchecked fact needs a
+tick "I checked them myself") and the **LinkedIn post** card (`social_posts`, LINKEDIN.md 2.4): a company-post preview
+with the "...see more" cut, the media as document pages, video or picture, the first comment with the blog link,
+Carousel/Reel/Graphic switch (only formats made for that blog; recommended one marked "Best" with its reason), caption
+and first-comment editors with live checks (no link, 3 hashtags at most, no long dash, length), and the status in words
+("Will post after the blog is live", "Posted", "Posted, comment failed" + Try again via `retry_comment`, Post now via
+`publish_now` with a confirm). Approve (blog: pick publish time, IST, plus "Also post on LinkedIn after the blog is
+live?", default yes, which approves the post and the creative it shows), Request changes (`changes_requested` + `feedback` and `jobs` insert `regenerate`), Reject, Publish now (`jobs` insert `publish_now`). Optimistic, with Undo |
 | `/calendar` | Week columns, topics on planned dates, status and content chips, skip topic (with Undo) |
 | `/research/:id?` | Research briefs: summary, trends, pain points, opportunities, competitors, sources |
 | `/ready` | Approved carousels/graphics/reels: download all, copy caption, mark as posted (`published` + optional URL) |
 | `/published` | Live blogs and posted social pieces |
 | `/library` | Owner photos (JPG/PNG/WebP; HEIC refused with a how-to), voiceovers (MP3/M4A/WAV) and footage (MP4/MOV): drag-drop anywhere or browse, type checked by file content, upload progress, thumbnails and waveforms, title/tags/notes, delete. Storage `library/<uuid>/<file>` + a `library_assets` row |
-| `/settings` | `settings.data` fields (cadence, publish days, audience, avoid topics, extra guidance; other keys are preserved), appearance, runs with expandable logs |
+| `/settings` | **LinkedIn** (first section, `#linkedin`): the four setup steps with ticks (create the app, ask for access, paste your keys, connect the page); a Client ID + Client Secret form (secret masked, `autocomplete=off`, sent only in the body of `linkedin/save_app`, cleared right away, never shown again); **Connect LinkedIn** (`oauth/start`, then a top-level navigation to `www.linkedin.com/oauth/v2/authorization` only); the return (`?linkedin=connected` or `?linkedin=error&reason=`) as a banner; choose the page (`select_org`); "Connected to Dhiti Services" with the logo and "Reconnect needed in N days"; Pause (`linkedin_connection.paused`); Disconnect with a confirm (optionally also deleting the keys); `status.warnings` as plain-English banners. Then `settings.data` fields (cadence, publish days, audience, avoid topics, extra guidance; other keys are preserved), appearance, runs with expandable logs |
 
 Keyboard: `⌘K`/`Ctrl K` or `/` command menu · Review: `J`/`K` next/previous, `A` approve, `R` request changes, `U` upload voiceover (reels waiting for one),
 `E` edit blog, `⌘S` save, `Esc` close. Arrow keys move carousel slides.
@@ -95,6 +104,8 @@ Keyboard: `⌘K`/`Ctrl K` or `/` command menu · Review: `J`/`K` next/previous, 
 
 Everything is in `src/lib/backend.js` (Supabase) and `src/lib/store.jsx` (state, optimistic actions, toasts).
 Writes used, all allowed by RLS for team members: `content_items` update, `topics` update, `settings` update,
+`social_posts` update (caption, first_comment, format, status; the `linkedin_social_posts_guard` trigger decides),
+`linkedin_connection.paused`, the `linkedin` Edge Function routes with the user's JWT,
 `jobs` insert, `library_assets` insert/update (title, notes, tags only)/delete, storage upload/delete under `library/`.
 The database checks each write itself (migrations `jobs_insert_policy_strict`, `library_uploads_type_and_path_checks`,
 `least_privilege_table_grants`): a job must be one of the four shapes the dashboard sends, queued by the signed-in
@@ -134,3 +145,6 @@ Demo mode (`VITE_DEMO=1` build or `vite dev`, then `/?demo=1`) runs everything a
 sign in with any email and the code **123456** (an address starting with `outsider` shows the not-allowed path;
 asking for a second code within 60 s behaves like Supabase's cooldown). Uploads are simulated with progress; a
 voiceover render finishes after about 9 s (a take whose title contains "fail" shows the failed-render path).
+LinkedIn in demo: `/settings?li=none|app|choose|connected|expiring|expired` sets the connection state for the tab;
+saving keys and Connect run the whole round trip locally (no LinkedIn call). `/?state=clear` starts with everything
+reviewed (the "all caught up" home).

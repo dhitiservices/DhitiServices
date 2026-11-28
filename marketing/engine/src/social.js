@@ -35,6 +35,7 @@ export function validateCaption(caption) {
     if (!TAG_LINE.test(last)) return 'the last line must be 1 to 3 hashtags like "#TravelOperations #HotelOperations" (letters and digits, separated by single spaces)';
     if (body.includes('#')) return '"#" may appear only in the final hashtag line';
   } else if (t.includes('#')) return '"#" may appear only in a final line of at most 3 hashtags';
+  if (TAG_LINE.test(last) && !body.trim()) return 'the caption needs text before the hashtags';
   const first200 = t.slice(0, 200);
   if (!(t.length <= 200 || first200.includes('\n') || /[.!?](\s|$)/.test(first200))) return 'the first 200 characters must contain at least one full sentence or line (the hook, before "...see more")';
   return null;
@@ -97,6 +98,7 @@ export function captionHouseChecks(caption, { blogBody } = {}) {
   if (first.length > 200) warnings.push(`the first line is ${first.length} characters; keep the hook within the first 200 (before "...see more")`);
   if (/^(in today'?s|in an era|in the (fast|ever)|are you|have you ever)/i.test(first)) errors.push('the hook must state the reader\'s problem or a specific number, not a generic opener');
   for (const para of prose.split(/\n\s*\n/)) {
+    if (/^\s*(\d{1,2}[.)]|[-*•])\s/m.test(para)) continue; // a list: one item per line is fine
     const n = (para.match(/[.?!](\s|$)/g) || []).length;
     if (n > 2) warnings.push(`paragraph "${para.slice(0, 50)}..." has ${n} sentences; keep 1 or 2 per paragraph`);
   }
@@ -108,7 +110,9 @@ export function captionHouseChecks(caption, { blogBody } = {}) {
   const tokens = [];
   for (const para of prose.split(/\n\s*\n/)) {
     const labelled = ILLUSTRATIVE.test(para);
-    for (const tok of extractTokens(normText(para))) if (!labelled) tokens.push(tok);
+    // list markers ("1. ", "2) ") are layout, not facts
+    const text = para.replace(/^\s*\d{1,2}[.)]\s+/gm, '');
+    for (const tok of extractTokens(normText(text))) if (!labelled) tokens.push(tok);
   }
   if (tokens.length) {
     if (!claims) errors.push('the blog has no verified claims ledger yet (save it with --claims first); a caption with numbers or dates needs one');

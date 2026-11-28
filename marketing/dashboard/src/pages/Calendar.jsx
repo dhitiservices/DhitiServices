@@ -48,7 +48,7 @@ export default function Calendar() {
     <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader
         title="Calendar"
-        subtitle={`${weekTopics.filter((t) => t.status !== "skipped").length} topics planned · publishing on ${publishDays.map((p) => p.slice(0, 3)).join(", ") || "no days set"}`}
+        subtitle={`${weekTopics.filter((t) => t.status !== "skipped").length} blogs planned · they go live on ${publishDays.map((p) => p.slice(0, 3)).join(", ") || "no days yet"}`}
         actions={
           <div className="flex items-center gap-1.5">
             <Button variant="secondary" size="sm" onClick={() => { setDir(0); setWeek(weekStartIST()); }}>This week</Button>
@@ -83,7 +83,7 @@ export default function Calendar() {
                   <span className={cx("tnum flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-[15px] font-bold", isToday ? "bg-brand-deep text-white" : past ? "text-ink-faint" : "text-ink")}>
                     {Number(day.ymd.slice(8))}
                   </span>
-                  {isPublish && <span className="ml-auto rounded-md bg-ok/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ok">Publish</span>}
+                  {isPublish && <span className="ml-auto rounded-md bg-ok/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ok">Go live</span>}
                 </div>
                 <div className={cx("flex flex-1 flex-col gap-2", emptyWeek && "hidden")}>
                   {loading ? (
@@ -91,7 +91,7 @@ export default function Calendar() {
                   ) : topics.length ? (
                     topics.map((t) => <TopicCard key={t.id} topic={t} onSkip={() => setSkip(t)} />)
                   ) : (
-                    <div className="hidden flex-1 items-center justify-center text-[12px] text-ink-faint md:flex">{isPublish && !past ? "Open slot" : ""}</div>
+                    <div className="hidden flex-1 items-center justify-center text-[12px] text-ink-faint md:flex">{isPublish && !past ? "Free" : ""}</div>
                   )}
                 </div>
               </div>
@@ -102,7 +102,7 @@ export default function Calendar() {
 
       {!loading && unscheduled.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-3 text-headline font-semibold">Unscheduled</h2>
+          <h2 className="mb-3 text-headline font-semibold">No date yet</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{unscheduled.map((t) => <TopicCard key={t.id} topic={t} onSkip={() => setSkip(t)} />)}</div>
         </div>
       )}
@@ -124,7 +124,7 @@ export default function Calendar() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-callout font-semibold text-ink">{t.title}</span>
-                    <span className="block truncate text-[12px] text-ink-mute">{t.category || "Topic"}</span>
+                    <span className="block truncate text-[12px] text-ink-mute">{t.category || "Blog idea"}</span>
                   </span>
                   {blog ? <StatusChip map={ITEM_STATUS} status={blog.status} size="sm" /> : <StatusChip map={TOPIC_STATUS} status={t.status} size="sm" />}
                 </button>
@@ -136,8 +136,8 @@ export default function Calendar() {
 
       {emptyWeek && (
         <div className="card mt-6">
-          <EmptyState icon={CalendarDays} title="Nothing planned this week" action={<Button variant="secondary" onClick={() => d.actions.runWeekly()}>Run weekly now</Button>}>
-            Topics appear here once the weekly run has researched and planned them.
+          <EmptyState icon={CalendarDays} title="Nothing planned this week" action={<Button variant="secondary" onClick={() => d.actions.runWeekly()}>Make this week's blogs now</Button>}>
+            New blog ideas show up here after Monday morning.
           </EmptyState>
         </div>
       )}
@@ -145,9 +145,9 @@ export default function Calendar() {
       <Confirm
         open={!!skip}
         onClose={() => setSkip(null)}
-        title="Skip this topic?"
-        description="It won't be produced or published. Content already made stays in Review until you reject it."
-        confirmLabel="Skip topic"
+        title="Skip this blog idea?"
+        description="It won't be made or go live. Anything already made stays in Review."
+        confirmLabel="Skip it"
         tone="danger"
         onConfirm={() => d.actions.skipTopic(skip)}
       >
@@ -170,7 +170,7 @@ function TopicCard({ topic, onSkip }) {
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate pr-5 text-[11.5px] font-semibold tracking-[-0.003em] text-brand-ink" title={topic.category || undefined}>{topic.category || "Topic"}</div>
+          <div className="truncate pr-5 text-[11.5px] font-semibold tracking-[-0.003em] text-brand-ink" title={topic.category || undefined}>{topic.category || "Blog idea"}</div>
           <button
             onClick={() => blog && navigate(`/review/${blog.id}`)}
             className={cx("mt-1 text-left text-[13.5px] font-semibold leading-[18px] tracking-[-0.008em] text-ink", blog && "hover:underline", skipped && "line-through")}
@@ -183,12 +183,12 @@ function TopicCard({ topic, onSkip }) {
           <Menu
             items={[
               blog && { label: "Open blog", icon: FileText, onClick: () => navigate(`/review/${blog.id}`) },
-              { label: "Skip topic", icon: SkipForward, danger: true, onClick: onSkip },
+              { label: "Skip this idea", icon: SkipForward, danger: true, onClick: onSkip },
             ]}
-            trigger={({ toggle, open, triggerProps }) => <IconButton icon={MoreHorizontal} label="Topic actions" size="sm" onClick={toggle} active={open} {...triggerProps} className="h-7 w-7 opacity-60 group-hover:opacity-100 focus-visible:opacity-100" />}
+            trigger={({ toggle, open, triggerProps }) => <IconButton icon={MoreHorizontal} label="More" size="sm" onClick={toggle} active={open} {...triggerProps} className="h-7 w-7 opacity-60 group-hover:opacity-100 focus-visible:opacity-100" />}
           />
         ) : (
-          <IconButton icon={Undo2} label="Restore topic" size="sm" className="h-7 w-7" onClick={() => d.actions.restoreTopic(topic)} />
+          <IconButton icon={Undo2} label="Bring it back" size="sm" className="h-7 w-7" onClick={() => d.actions.restoreTopic(topic)} />
         )}
         </div>
       </div>

@@ -39,7 +39,19 @@ import { config } from './config.js';
 const require = createRequire(import.meta.url);
 
 export const SOURCED_KINDS = ['fact', 'law', 'stat', 'date', 'quote'];
-export const CLAIM_KINDS = [...SOURCED_KINDS, 'illustrative', 'advice'];
+export const CLAIM_KINDS = [...SOURCED_KINDS, 'dhiti', 'illustrative', 'advice'];
+
+/**
+ * Dhiti's own proof points, as the owner published them (playbook/quality-bar.md section 1; the site renders them
+ * with JavaScript, so a fetch cannot see them). A `dhiti` claim must contain one of these phrases, and every number in
+ * it must come from that phrase. Change this list only when the owner changes the site.
+ */
+export const DHITI_FACTS = Object.freeze([
+  'more than 200 trained specialists',
+  'more than 200 people trained and working',
+  'four service lines',
+  'more than 25 brands',
+]);
 export const QUOTE_MIN_WORDS = 8;
 export const QUOTE_MAX_WORDS = 60;
 
@@ -121,6 +133,8 @@ export function htmlToText(html) {
   s = s.replace(/<\/?(td|th)\b[^>]*>/gi, ' \t ');
   s = s.replace(/<[^>]+>/g, '');
   s = decodeEntities(s);
+  // pages that embed escaped HTML (&lt;p&gt;...) decode into tags: strip those too
+  if (/<\/?[a-z][a-z0-9]*(\s[^>]*)?>/i.test(s)) s = s.replace(/<\/?(p|div|li|ul|ol|br|tr|h[1-6]|table)\b[^>]*>/gi, '\n').replace(/<\/?[a-z][a-z0-9]*(\s[^>]*)?>/gi, '');
   return s
     .split('\n')
     .map((l) => l.replace(/[ \t ]+/g, ' ').trim())
@@ -520,7 +534,7 @@ export function splitSentences(text) {
   for (const m of text.matchAll(re)) {
     const endPunct = m.index + m[0].length - m[1].length;
     const before = text.slice(start, m.index + 1);
-    const lastWord = (before.match(/([A-Za-z][A-Za-z.]*)\.$/) || [])[1];
+    const lastWord = (before.match(/(?:^|[\s(])([A-Za-z][A-Za-z.]*)\.$/) || [])[1];
     if (lastWord && (ABBREV.has(lastWord.toLowerCase()) || /^[A-Z]$/.test(lastWord))) continue;
     if (/\d\.$/.test(before) && /^\s+\d/.test(text.slice(m.index + 1))) continue;
     out.push({ text: text.slice(start, endPunct).trim(), start, end: endPunct });
@@ -641,6 +655,21 @@ export async function verifyClaims(claimsInput, { markdown, frontmatter = {}, fa
     const out = { id, kind, claim_text: claimText };
     const claimTokens = extractTokens(claimText);
 
+    if (kind === 'dhiti') {
+      if (c.source_url || c.quote) err('dhiti claims use the owner-approved proof points, not a source_url or quote');
+      const phrase = DHITI_FACTS.find((f) => needle.includes(f));
+      if (!phrase) err(`dhiti claims must use one of the owner-approved proof points exactly: ${DHITI_FACTS.map((f) => `"${f}"`).join(', ')}`);
+      else {
+        const miss = claimTokens.filter((t) => !tokenCovered(t, quoteEvidence([phrase])));
+        if (miss.length) err(`${miss.map(tokenLabel).join(', ')} is not an owner-approved Dhiti number`);
+      }
+      out.phrase = phrase ?? null;
+      out.verified = errors.every((e) => !e.startsWith(`${label}:`));
+      out.occurrences = occ;
+      verified.push(out);
+      continue;
+    }
+
     if (kind === 'illustrative' || kind === 'advice') {
       if (c.source_url || c.quote) err(`${kind} claims have no source_url or quote (a sourced fact is kind fact, law, stat, date or quote)`);
       if (kind === 'advice') {
@@ -692,7 +721,7 @@ export async function verifyClaims(claimsInput, { markdown, frontmatter = {}, fa
         continue;
       }
       if (kind === 'law' && !PRIMARY_HOST.test(new URL(url).hostname)) err(`law claims must cite a primary source (a government, regulator or gazette site), not ${new URL(url).hostname}`);
-      if (kind === 'stat' && !PRIMARY_HOST.test(new URL(url).hostname)) warnings.push(`${label}: market stat from ${new URL(url).hostname}; the sentence must name who published it`);
+      if (kind === 'stat' && qi === 0 && !PRIMARY_HOST.test(new URL(url).hostname)) warnings.push(`${label}: market stat from ${new URL(url).hostname}; the sentence must name who published it`);
       evidenceTexts.push(quote);
       sourcesOut.push({
         source_url: url,
@@ -800,6 +829,7 @@ export async function verifyClaims(claimsInput, { markdown, frontmatter = {}, fa
   const stats = {
     claims: claims.length,
     sourced: verified.filter((v) => SOURCED_KINDS.includes(v.kind)).length,
+    dhiti: verified.filter((v) => v.kind === 'dhiti').length,
     illustrative: verified.filter((v) => v.kind === 'illustrative').length,
     advice: verified.filter((v) => v.kind === 'advice').length,
     verified: verified.filter((v) => v.verified).length,
@@ -820,6 +850,7 @@ export function storedClaims(verified, textPaths) {
     if (v.extra_quotes) out.extra_quotes = v.extra_quotes.map(clean);
     if (v.derived) out.derived = v.derived;
     if (v.note) out.note = v.note;
+    if (v.phrase) out.phrase = v.phrase;
     return out;
   });
 }

@@ -1,5 +1,5 @@
 import { CheckCircle2, XCircle, Lightbulb, ShieldCheck, ShieldAlert, ExternalLink, ChevronDown } from "lucide-react";
-import { claimSummary, summaryLine, isExample, claimDate } from "../../lib/claims.js";
+import { claimSummary, summaryLine, extrasLine, isExample, isAdvice, isDhiti, isNotFact, isChecked, claimDate } from "../../lib/claims.js";
 import { formatDate, hostOf } from "../../lib/format.js";
 import { safeHref } from "../../lib/safe.js";
 import { cx } from "../ui.jsx";
@@ -40,7 +40,7 @@ export function FactsBanner({ body }) {
         <span className={cx("block text-callout font-semibold", good ? "text-ok" : "text-brand-ink")}>{summaryLine(s)}</span>
         <span className="block text-[12.5px] text-ink-mute">
           {good ? "Each one has the exact words from its source." : `${s.checked} of ${s.facts} checked.`}
-          {s.examples ? ` ${s.examples === 1 ? "1 example is" : `${s.examples} examples are`} labelled as examples.` : ""}
+          {extrasLine(s) ? ` ${extrasLine(s)}` : ""}
         </span>
       </span>
       <ChevronDown className="h-4 w-4 shrink-0 text-ink-faint" />
@@ -48,41 +48,62 @@ export function FactsBanner({ body }) {
   );
 }
 
+function Quote({ q }) {
+  const href = safeHref(q.source_url);
+  return (
+    <div className="mt-2 first:mt-0">
+      {q.quote ? <blockquote className="border-l-2 border-ok/50 pl-3 text-[13.5px] italic leading-[20px] text-ink-soft">“{q.quote}”</blockquote> : <p className="text-[12.5px] text-brand-ink">No quote from the source yet.</p>}
+      {href && (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-info hover:underline">
+          Open the source <span className="text-ink-faint">({hostOf(href)})</span> <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
+    </div>
+  );
+}
+
 function Claim({ c, i }) {
   const example = isExample(c);
-  const ok = !example && c.verified === true && c.source_url && String(c.quote || "").trim();
-  const href = safeHref(c.source_url);
+  const advice = isAdvice(c);
+  const dhiti = isDhiti(c);
+  const ok = !isNotFact(c) && isChecked(c);
   const when = dateText(claimDate(c));
+  const extra = Array.isArray(c.extra_quotes) ? c.extra_quotes.filter(Boolean) : [];
   return (
     <li className="flex gap-3 py-3.5" data-testid="fact">
       <span className="mt-0.5 shrink-0" aria-hidden>
-        {example ? <Lightbulb className="h-5 w-5 text-ink-mute" /> : ok ? <CheckCircle2 className="h-5 w-5 text-ok" /> : <XCircle className="h-5 w-5 text-brand-ink" />}
+        {example || advice ? <Lightbulb className="h-5 w-5 text-ink-mute" /> : ok ? <CheckCircle2 className="h-5 w-5 text-ok" /> : <XCircle className="h-5 w-5 text-brand-ink" />}
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[15px] leading-[22px] text-ink">
-          <span className="sr-only">{example ? "Example. " : ok ? "Checked. " : "Not checked. "}</span>
+          <span className="sr-only">{example ? "Example. " : advice ? "Our advice. " : ok ? "Checked. " : "Not checked. "}</span>
           {c.claim_text || <span className="text-ink-faint">No sentence given</span>}
         </p>
-        {example ? (
-          <p className="mt-1 text-[12.5px] text-ink-mute"><span className="mr-1.5 inline-flex rounded-md bg-ink/[0.06] px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft">Example</span>Made-up example, labelled as one in the blog. Not a fact.</p>
+        {example || advice ? (
+          <p className="mt-1 text-[12.5px] text-ink-mute">
+            <span className="mr-1.5 inline-flex rounded-md bg-ink/[0.06] px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft">{example ? "Example" : "Our advice"}</span>
+            {example ? "Made-up example, labelled as one in the blog. Not a fact." : c.note || "Our own advice, not a fact."}
+          </p>
+        ) : dhiti ? (
+          <p className="mt-1 text-[12.5px] text-ink-mute">
+            {!ok && <span className="mr-1.5 inline-flex rounded-md bg-brand/[0.1] px-1.5 py-0.5 text-[11px] font-semibold text-brand-ink">Not checked</span>}
+            About Dhiti{c.phrase ? `: matches your approved fact “${c.phrase}”` : ""}
+          </p>
         ) : (
           <>
             <p className="mt-1 text-[12.5px] text-ink-mute">
               {!ok && <span className="mr-1.5 inline-flex rounded-md bg-brand/[0.1] px-1.5 py-0.5 text-[11px] font-semibold text-brand-ink">Not checked</span>}
-              {c.source_title || hostOf(c.source_url) || "No source"}{when ? ` · ${when}` : ""}
+              {c.source_title || hostOf(c.source_url) || "No source"}{when ? ` · checked ${when}` : ""}
             </p>
-            {(c.quote || href) && (
+            {(c.quote || c.source_url || extra.length > 0) && (
               <details className="group mt-1.5 [&_summary::-webkit-details-marker]:hidden">
                 <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md text-[12.5px] font-semibold text-ink-soft hover:text-ink">
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /> {c.quote ? "Show the exact words" : "Show source"}
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /> {c.quote ? "Show the exact words" : "Show the source"}
                 </summary>
                 <div className="mt-2 rounded-xl bg-ink/[0.035] p-3">
-                  {c.quote ? <blockquote className="border-l-2 border-ok/50 pl-3 text-[13.5px] italic leading-[20px] text-ink-soft">“{c.quote}”</blockquote> : <p className="text-[12.5px] text-brand-ink">No quote from the source yet.</p>}
-                  {href && (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-semibold text-info hover:underline">
-                      Open source <span className="text-ink-faint">({hostOf(href)})</span> <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
+                  <Quote q={c} />
+                  {extra.map((q, k) => <Quote key={k} q={q} />)}
+                  {c.derived?.arithmetic && <p className="mt-2 text-[12.5px] text-ink-soft"><span className="font-semibold text-ink">How the number was worked out: </span>{c.derived.arithmetic}</p>}
                 </div>
               </details>
             )}
@@ -98,13 +119,14 @@ function Claim({ c, i }) {
 export function FactsPanel({ body }) {
   const s = claimSummary(body);
   if (!s || !s.total) return null;
-  const order = [...s.unchecked, ...s.list.filter((c) => !isExample(c) && !s.unchecked.includes(c)), ...s.list.filter(isExample)];
+  // Not-checked facts first, then checked facts, then examples and advice.
+  const order = [...s.unchecked, ...s.list.filter((c) => !isNotFact(c) && !s.unchecked.includes(c)), ...s.list.filter(isNotFact)];
   return (
     <section id="facts" className="card mt-12 scroll-mt-6 overflow-hidden" aria-labelledby="facts-title" data-testid="facts-panel">
       <div className="px-5 pt-5 sm:px-6">
         <div className={cx("eyebrow", s.allChecked ? "!text-ok" : "!text-brand-ink")}>Facts checked</div>
         <h2 id="facts-title" className="mt-1 text-title-2 font-bold text-ink">{s.allChecked ? `${s.facts} of ${s.facts} match the source` : `${s.checked} of ${s.facts} checked`}</h2>
-        <p className="mt-1 text-callout text-ink-mute">Each fact in the blog, where it came from, and the exact words in the source.</p>
+        <p className="mt-1 text-callout text-ink-mute">Each fact in the blog, where it came from, and the exact words in the source. {extrasLine(s)}</p>
       </div>
       <ol className="mt-2 divide-y divide-[color:var(--hairline)] px-5 sm:px-6">
         {order.map((c, i) => <Claim key={c.id || i} c={c} i={i} />)}

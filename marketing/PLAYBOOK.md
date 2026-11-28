@@ -15,6 +15,7 @@ Contract: `marketing/ARCHITECTURE.md` (v2 with the v3 addendum). Detailed rubric
 | `playbook/blog-writing.md`, `playbook/blog-editing.md` | Before step 4 |
 | `playbook/stock-selection.md` | Before buying any photo or clip |
 | `playbook/carousel.md`, `playbook/graphics.md`, `playbook/video.md` | Before step 5 |
+| `playbook/linkedin.md` | Before step 5.5 (the blog's LinkedIn post) |
 | `playbook/revisions.md` | Before step R |
 
 ## Non-negotiable rules
@@ -23,11 +24,13 @@ Contract: `marketing/ARCHITECTURE.md` (v2 with the v3 addendum). Detailed rubric
 2. **No AI-generated media, ever.** Only `mcp__Magnific__stock_search`, `stock_get`, `stock_download` (always with
    `ai_generated: "excluded"`) and `account_balance`. Never call any Magnific generation, editing, upscaling,
    TTS, music or SFX tool, and no other image or video generator. Owner library media is preferred when it fits.
-3. **Never fabricate** facts, numbers, sources, quotes, clients or Dhiti results. Every external claim is sourced
-   and verified with WebFetch (fallback: `node src/cli.js fetch <url> --out "$WORK/src/<n>.html"` and grep it).
-   If neither can open a source, do not use any number or rule from it. Never treat a search-result snippet as
-   verification. If fewer than 3 sources of a post can be fetched, save that blog only with a first-line owner
-   action in the run log: "UNVERIFIED SOURCES: <urls>, verify before approving". Illustrative examples are labelled.
+3. **Blogs must be 100% accurate. Never fabricate** facts, numbers, sources, quotes, clients or Dhiti results.
+   Every source is fetched by the engine (`node src/cli.js fetch-source <url>`), and every factual sentence of a
+   blog is in its claims ledger (`claims.json`, `playbook/blog-writing.md` section 1b) with a verbatim quote from
+   that fetched text. `save-blog` refuses any post whose ledger fails; there is no override. A source the engine
+   cannot fetch backs nothing: use another primary source or drop the sentence. A search-result snippet is never
+   verification. An independent sub-agent fact-checks every post before it is saved (`blog-editing.md` step 4).
+   Illustrative examples are labelled ("For example", "Take an illustrative case"). No relative dates.
 4. **No em dashes (—)** anywhere. No banned phrases (`quality-bar.md` section 5).
 5. **Never commit, push or edit files in the repository.** All work files live in `~/dhiti-work/`. Publishing is
    done later by GitHub Actions after the owner approves.
@@ -184,8 +187,11 @@ SHEET
 ```bash
 source ~/dhiti-work/env.sh && cd "$ENGINE" && (node src/cli.js --help 2>&1 | head -80)
 source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js context > "$WORK/ctx.json" && jq 'keys' "$WORK/ctx.json"
-source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js run start --kind weekly | tee "$WORK/run.json"
+source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js run start --kind weekly | tee "$WORK/run.json" && echo "export RUN_ID=$(jq -r .id "$WORK/run.json")" >> ~/dhiti-work/env.sh
 ```
+
+`RUN_ID` in `env.sh` marks every item this run creates or revises (`body.generating.run_id`), so the clean-up
+(section F) never touches items that another live session is still making.
 
 - Use `--kind jobs` in revisions mode (keep that kind even if a `run_weekly` job is claimed later; say so in the log).
 - If a flag in this playbook differs from the CLI's own help, follow the CLI and note it in the run log.
@@ -232,12 +238,18 @@ Write and save all blogs before making creatives: a blog is the most valuable ou
 of time, finished blogs are what the owner needs. For each topic:
 
 1. `node src/cli.js topic --id <topic id> --status producing`
-2. **Write** (`blog-writing.md`): research the post, verify every source with WebFetch, write
-   `$WORK/<slug>/<slug>.md` with house frontmatter, 1,300 to 1,900 words, exactly 8 `##` sections (scenario
-   opening, one bold key sentence, evidence, method, trap, keep-it-working, FAQ, ownership + Dhiti CTA last),
-   3+ inline https sources, 2 to 3 internal links `../<slug>/`, no em dashes. Also `sources.json` and `meta.json`.
+2. **Write** (`blog-writing.md`): research the post, fetch every source with `node src/cli.js fetch-source <url>`
+   (primary sources for every rule and date), write `$WORK/<slug>/<slug>.md` with house frontmatter, 1,300 to
+   1,900 words, exactly 8 `##` sections (labelled scenario opening, one bold key sentence, evidence, method, trap,
+   keep-it-working, FAQ, ownership + Dhiti CTA last), 3+ inline https sources, 2 to 3 internal links `../<slug>/`,
+   no em dashes, no relative dates. Build `$WORK/<slug>/claims.json` as you write (section 1b). Also `meta.json`.
 3. **Edit** (`blog-editing.md`): score the rubric, rewrite weak parts, run `lint.sh` and
-   `node src/cli.js check-blog "$WORK/<slug>/<slug>.md"` until `passed` is true and every rubric score is 4+.
+   `node src/cli.js check-blog "$WORK/<slug>/<slug>.md" --claims "$WORK/<slug>/claims.json" --meta "$WORK/<slug>/meta.json"`
+   until `passed` is true (site rules and claims) and every rubric score is 4+.
+3b. **Independent fact-check** (`blog-editing.md` step 4): a fresh sub-agent that did not write the post gets only
+   the post, `claims.json` and `$WORK/sources/`, and tries to refute every claim and find newer law. Fix or drop
+   every finding, re-run step 3. An unresolved finding means the blog is not saved (mark the topic failed with the
+   reason, section F).
 4. **Cover photo** (`stock-selection.md`): owner library first, else Magnific photos (landscape, people,
    `ai_generated: "excluded"`, Indian/South Asian professional context, authentic, no text/logos/watermarks).
    Inspect previews on a contact sheet before buying. `stock_download`, then **immediately**
@@ -245,9 +257,12 @@ of time, finished blogs are what the owner needs. For each topic:
    `$WORK/<slug>/stock.json`. Update `imageAlt` to describe the chosen photo, then re-run `check-blog`.
 5. **Save**:
    ```bash
-   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic id>" --md "$WORK/<slug>/<slug>.md" --cover "$WORK/stock/<id>.jpg" --stock "$WORK/<slug>/stock.json" --meta "$WORK/<slug>/meta.json" | tee "$WORK/<slug>/blog.saved.json"
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic id>" --md "$WORK/<slug>/<slug>.md" --claims "$WORK/<slug>/claims.json" --cover "$WORK/stock/<id>.jpg" --stock "$WORK/<slug>/stock.json" --meta "$WORK/<slug>/meta.json" | tee "$WORK/<slug>/blog.saved.json"
    ```
    Record the blog item id in `state.json`. The item is now `pending_review`, scheduled for the planned date 10:00 IST.
+   The engine stored every claim with `verified: true` and the exact source texts under
+   `items/<id>/v<n>/sources/`; the owner sees the fact list in the dashboard. If it refuses with
+   `claims check failed`, fix each listed sentence (or drop it) and run step 3 and 3b again.
 
 ## 5. Creatives (per blog, in priority order)
 
@@ -266,8 +281,14 @@ two creatives of the same blog (the engine refuses it). Each format gets its own
    on-screen text at most 9 words, `voiceover_script` + per-scene `vo_line`, mostly portrait stock footage (at most
    5 clips) plus stills. `preview video`, extract 3+ frames with ffmpeg and Read them, then
    `make-video --parent <blog item id> --spec ...`. The item waits in `awaiting_voiceover` for the owner's recording.
-4. `node src/cli.js topic --id <topic id> --status ready` once the blog is saved and its creatives are done (or have
-   failed and been logged; see section F).
+4. Creative copy follows the claims rule too: a number, date or section on a slide, graphic or reel must be one the
+   blog's verified claims contain.
+5. **LinkedIn post** (`linkedin.md`): recommend ONE format with a one-line reason the owner sees, write the caption
+   and the first-comment line in Dhiti's voice, and save it with `node src/cli.js save-social --blog <blog item id>
+   --format carousel|video|graphic --source-item <that creative's id> --caption <file> --first-comment <file>
+   --reason "<one line>"`. The owner approves it in the dashboard; never try to approve or publish it.
+6. `node src/cli.js topic --id <topic id> --status ready` once the blog is saved, its creatives and its LinkedIn post
+   are done (or have failed and been logged; see section F).
 
 ## R. Revisions
 
@@ -279,7 +300,7 @@ arrived during the run.
 
 ## 6. Finish
 
-1. Safety sweep: no item of this run left in `generating`, no claimed job left `running`
+1. Safety sweep: no item of this run left in `generating` (`node src/cli.js sweep`), no claimed job left `running`
    (section F has the commands).
 2. Total the credits: `jq -s 'map(.credit_cost) | add' "$WORK/credits.jsonl"` (0 if the file does not exist).
 3. Append the summary to `$WORK/run-log.md`:
@@ -321,12 +342,14 @@ arrived during the run.
   ```
   (If the CLI does not accept `--error`, use
   `node --input-type=module -e "import {updateTopic} from './src/store.js'; await updateTopic(process.argv[1], {status:'failed', error: process.argv[2]})" "<topic id>" "<reason>"`.)
-- **Never leave items in `generating`.** At the end (and after any crash inside a `make-*` or `save-blog`), mark
-  stuck items failed: those belonging to this run's topics, or older than 2 hours (another session may be working
-  on younger ones):
+- **Never leave items in `generating`.** At the end (and after any crash inside a `make-*` or `save-blog`), run:
   ```bash
-  source ~/dhiti-work/env.sh && cd "$ENGINE" && node --input-type=module -e "import fs from 'node:fs'; import {listItems, updateItem} from './src/store.js'; const mine = new Set((JSON.parse(fs.readFileSync(process.env.WORK + '/state.json', 'utf8')).topics || []).map(t => t.id)); const old = Date.now() - 2 * 3600e3; const rows = (await listItems({status: 'generating'})).filter(r => mine.has(r.topic_id) || Date.parse(r.created_at) < old); for (const r of rows) await updateItem(r.id, {status: 'failed', error: 'The session ended before this item was finished. Request changes to regenerate it.'}); console.log(JSON.stringify(rows.map(r => r.id)))"
+  source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js sweep
   ```
+  It reads `RUN_ID` from `env.sh` and fails (or, for a revision, puts back to its previous status and content) every
+  `generating` item that this run left behind, that belongs to a run that is no longer running (or has run for over
+  12 hours), or that has no run and was not updated for 2 hours. It never touches an item whose run is still
+  running: another session may be making it. `--dry-list` shows what it would do.
 - **Jobs:** every claimed job ends with `job finish --status done` or `--status failed --error "<reason>"`.
 - **Out of time:** if the session is close to its limit, stop starting new creatives, make sure every started item
   is saved or marked failed, and run section 6. Topics with a saved blog stay `producing` if creatives are missing,
@@ -362,9 +385,14 @@ node src/cli.js run start --kind weekly|jobs              -> {id}
 node src/cli.js save-brief brief.json                     -> {id}
 node src/cli.js save-topics topics.json                   -> [{id,title}]
 node src/cli.js topic --id ID --status producing|ready|failed
-node src/cli.js check-blog draft.md                       -> {passed, messages, words, sections}
-node src/cli.js fetch URL --out FILE                      -> {path, bytes, mime}
-node src/cli.js save-blog --topic ID --md F --cover F --stock F --meta F [--item ID] [--owner-note "UNVERIFIED SOURCES: ..."]
+node src/cli.js fetch-source URL [URL ...]                 -> sources saved in $WORK/sources (sha256 + text)
+node src/cli.js restore-sources --item BLOG_ID            -> the verified source texts of a saved blog (revisions)
+node src/cli.js check-blog draft.md --claims claims.json --meta meta.json -> {passed, messages, claims:{...}}
+node src/cli.js fetch URL --out FILE                      -> {path, bytes, mime} (stock media)
+node src/cli.js save-blog --topic ID --md F --claims claims.json --cover F --stock F --meta F [--item ID]
+node src/cli.js save-social --blog ID --format carousel|video|graphic --source-item ID --caption F --first-comment F --reason "..." [--item POST_ID]
+node src/cli.js social list --blog ID                     -> the blog's LinkedIn post
+node src/cli.js sweep [--dry-list]                        -> stuck generating items cleaned up (never a live run's)
 node src/cli.js preview carousel|graphic|video --spec F --out DIR
 node src/cli.js make-carousel|make-graphic|make-video --parent BLOG_ITEM_ID --spec F [--item ID] [--voiceover F]
 node src/cli.js job finish --id ID --status done|failed [--error MSG]
@@ -372,5 +400,6 @@ node src/cli.js run finish --id ID --status succeeded|failed --log run-log.md
 ```
 
 `$WORK` layout: `ctx.json`, `run.json`, `state.json`, `run-log.md`, `credits.jsonl`, `library.json`, `brief.json`,
-`topics.json`, `stock/<id>.<ext>`, `prev/` (previews and contact sheets), `<slug>/` (draft, sources, stock.json,
-specs, previews), `rev/<item id>/` (revisions).
+`topics.json`, `stock/<id>.<ext>`, `sources/` (engine-fetched sources: `manifest.json`, raw files, `<sha>.txt`),
+`prev/` (previews and contact sheets), `<slug>/` (draft, `claims.json`, `factcheck.md`, `meta.json`, stock.json,
+specs, previews, LinkedIn caption and comment), `rev/<item id>/` (revisions).

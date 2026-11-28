@@ -17,7 +17,7 @@ import {
   firstCommentError,
 } from "./validate.ts";
 
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 export const LINKEDIN_VERSION = "202611";
 export const API_VERSION_SUNSET = "2027-11-16";
 export const API_VERSION_AGING_AFTER = "2027-08-16";
@@ -52,6 +52,11 @@ const MAX_POST_ATTEMPTS = 3;
 const MAX_COMMENT_ATTEMPTS = 5;
 const MAX_CLAIMS = 60;
 const RECONCILE_GRACE_MS = 5 * MIN;
+// A post stuck in post_requested, or a first comment still pending/requested, gives up after this long (and
+// LinkedIn is asked at most once an hour after the first hour), so one stuck row cannot use up the daily quota.
+const PHASE_LIMIT_MS = 24 * HOUR;
+const SLOW_AFTER_MS = HOUR;
+const SLOW_WAIT_MS = HOUR;
 const VIDEO_PROCESSING_LIMIT_MS = 60 * MIN;
 const MAX_VIDEO_BYTES = 150 * 1024 * 1024; // Edge Function memory bound; LinkedIn allows 500 MB
 const MIN_VIDEO_BYTES = 75 * 1024;
@@ -296,7 +301,7 @@ function scrub(ctx: Ctx | null, s: unknown, max = 300): string {
     if (sec && sec.length >= 6) out = out.split(sec).join("[redacted]");
   }
   out = out.replace(/https?:\/\/\S+/g, "[url]").replace(TOKENISH, "[redacted]");
-  return out.length > max ? out.slice(0, max - 1) + "…" : out;
+  return out.length > max ? out.slice(0, max - 1) + "..." : out;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -471,6 +476,13 @@ function liErr(ctx: Ctx, r: LiRes): string {
 }
 
 const ok2xx = (s: number) => s >= 200 && s < 300;
+/** A definite refusal (not worth retrying): 4xx other than 401 (token check), 408, 409 (documented retry), 426, 429. */
+const final4xx = (s: number) => s >= 400 && s < 500 && ![401, 408, 409, 426, 429].includes(s);
+
+/** ETag header value -> part id: LinkedIn's finalize wants the ids without the quotes (VIDEOS schema). */
+export function etagToPartId(etag: string): string {
+  return etag.trim().replace(/^W\//, "").replace(/^"(.*)"$/, "$1");
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Handler
@@ -1043,7 +1055,14 @@ async function refreshTokens(deps: Deps, ctx: Ctx, conn: Conn): Promise<boolean>
   const li = new LinkedIn(deps, ctx, null);
   let r: LiRes;
   try {
-    r = await li.oauthForm("refresh", "/accessToken", { grant_type: "refresh_token", refresh_token: rt, client_id: conn.client_id, client_secret: secret });
+    // redirect_uri: the REFRESH error table calls it mandatory (its parameter table omits it); sending it is harmless.
+    r = await li.oauthForm("refresh", "/accessToken", {
+      grant_type: "refresh_token",
+      refresh_token: rt,
+      client_id: conn.client_id,
+      client_secret: secret,
+      redirect_uri: REDIRECT_URI,
+    });
   } catch (e) {
     if (e instanceof NetError || e instanceof OutOfTime) {
       await deps.db.updateConnection({ last_refresh_error: "network error" });
@@ -1071,7 +1090,16 @@ async function refreshTokens(deps: Deps, ctx: Ctx, conn: Conn): Promise<boolean>
     return true;
   }
   if (r.status === 400) {
-    await deps.db.updateConnection({ status: "expired", last_refresh_error: liErr(ctx, r), last_error: "LinkedIn refused to renew the connection; reconnect" });
+    // The refresh token is unusable, but the access token may still be valid for days: keep publishing with it.
+    // maintenance() marks the connection expired once the access token runs out, and ACCESS_TOKEN_EXPIRING warns
+    // the owner to reconnect before that.
+    const desc = String(j.error_description ?? "");
+    if (/invalid, expired or revoked/i.test(desc)) await deps.db.secretDelete(SECRET.refresh);
+    await deps.db.updateConnection({
+      has_refresh_token: false,
+      last_refresh_error: liErr(ctx, r),
+      last_error: "LinkedIn refused to renew the connection; reconnect before the access token expires",
+    });
     return false;
   }
   await deps.db.updateConnection({ last_refresh_error: liErr(ctx, r) });
@@ -1193,6 +1221,8 @@ async function retryComment(deps: Deps, ctx: Ctx, body: Obj) {
   await requireConnected(deps);
   const reset = await deps.db.updatePost(row.id, { status: "published", comment_status: row.comment_status }, {
     comment_attempts: 0,
+    // Restarts the 24-hour comment phase (stage stays post_created; stage_changed_at is the phase clock).
+    stage_changed_at: iso(deps.now()),
     // If a comment was ever sent, reconcile first (it may exist); otherwise start from pending.
     comment_status: row.comment_text_sent ? "requested" : "pending",
     last_error: null,
@@ -1349,7 +1379,30 @@ class Runner {
       this.wait(10 * MIN, `${what}: token rejected`, "LinkedIn rejected the token");
       return;
     }
-    this.wait(2 * MIN, `${what}: ${r ? `HTTP ${r.status}` : "network error"}`, `${what}: ${r ? liErr(this.ctx, r) : "network error"}`);
+    this.wait(this.backoff(2 * MIN), `${what}: ${r ? `HTTP ${r.status}` : "network error"}`, `${what}: ${r ? liErr(this.ctx, r) : "network error"}`);
+  }
+
+  /** How long the row has been in its current phase (stage_changed_at; retry_comment restarts it). */
+  phaseAge(): number {
+    const since = ms(this.row.stage_changed_at);
+    return since === null ? 0 : this.now() - since;
+  }
+  /** After the first hour in a phase, LinkedIn is asked at most once an hour. */
+  backoff(d: number): number {
+    return this.phaseAge() > SLOW_AFTER_MS ? Math.max(d, SLOW_WAIT_MS) : d;
+  }
+  /** Marks the first comment failed (the post itself stays published). */
+  async commentFail(msg: string) {
+    await this.write({ status: "published", comment_status: this.row.comment_status }, {
+      comment_status: "failed",
+      last_error: scrub(this.ctx, msg),
+      next_attempt_at: null,
+    });
+    this.note = msg;
+  }
+  /** Gives up on a post whose creation could not be confirmed. Never re-POSTs: the post may exist. */
+  async failUnconfirmed(why: string) {
+    await this.fail(`could not confirm the post on LinkedIn (${why}); check the company page before approving again`);
   }
 
   async rateLimited(what: string): Promise<never> {
@@ -1433,7 +1486,12 @@ class Runner {
         await this.transient(put, "video part upload");
         return;
       }
-      etags.push(etag);
+      const id = etagToPartId(etag);
+      if (!id) {
+        await this.transient(null, "video part upload returned an empty ETag");
+        return;
+      }
+      etags.push(id);
     }
     if (media.poster) {
       const put = await this.li.upload("video_thumbnail", v.thumbnailUploadUrl, media.poster.bytes, { "media-type-family": "STILLIMAGE", "Content-Type": "application/octet-stream" }, false);
@@ -1447,6 +1505,11 @@ class Runner {
       body: { finalizeUploadRequest: { video: urn, uploadToken: typeof v.uploadToken === "string" ? v.uploadToken : "", uploadedPartIds: etags } },
     });
     if (!ok2xx(fin.status)) {
+      if (final4xx(fin.status)) {
+        // A definite refusal: retrying would re-upload the whole video on every run.
+        await this.fail(`LinkedIn refused the video finalize: ${liErr(this.ctx, fin)}`);
+        return;
+      }
       await this.transient(fin, "video finalize");
       return;
     }
@@ -1560,13 +1623,24 @@ class Runner {
     const q = `/posts?author=${encodeUrn(this.conn.org_urn!)}&q=author&count=20&sortBy=CREATED&viewContext=AUTHOR`;
     const r = await this.li.rest("post_reconcile", "GET", q, { finder: true });
     if (r.status !== 200 || !r.json) {
+      if (final4xx(r.status)) {
+        await this.failUnconfirmed(r.status === 403 ? "LinkedIn denied access; reconnect" : liErr(this.ctx, r));
+        return undefined;
+      }
+      if (r.status !== 429 && this.phaseAge() > PHASE_LIMIT_MS) {
+        await this.failUnconfirmed("LinkedIn did not answer for 24 hours");
+        return undefined;
+      }
       await this.transient(r, "post reconcile");
       return undefined;
     }
     const els = Array.isArray(r.json.elements) ? (r.json.elements as Obj[]) : [];
     for (const el of els) {
+      // The finder is already scoped to our page (author=<org urn>), and the media URN is unique to our upload, so
+      // match on the media alone: LinkedIn samples return the author as urn:li:organization:<id> or
+      // urn:li:company:<id>, and a missed match would mean a duplicate re-POST.
       const media = ((el.content as Obj | undefined)?.media as Obj | undefined)?.id;
-      if (media === this.row.media_urn && typeof el.id === "string" && el.author === this.conn.org_urn) return el.id;
+      if (media === this.row.media_urn && typeof el.id === "string" && /^urn:li:(share|ugcPost):[0-9]+$/.test(el.id)) return el.id;
     }
     return null;
   }
@@ -1577,7 +1651,11 @@ class Runner {
       found = await this.findPost();
     } catch (e) {
       if (e instanceof NetError) {
-        this.wait(2 * MIN, "post reconcile: network error");
+        if (this.phaseAge() > PHASE_LIMIT_MS) {
+          await this.failUnconfirmed("LinkedIn could not be reached for 24 hours");
+          return;
+        }
+        this.wait(this.backoff(2 * MIN), "post reconcile: network error");
         return;
       }
       throw e;
@@ -1614,11 +1692,19 @@ class Runner {
   async checkPostState(): Promise<"go" | "wait" | "failed" | "error"> {
     const r = await this.li.rest("post_get", "GET", `/posts/${encodeUrn(this.row.post_urn!)}?viewContext=AUTHOR`);
     if (r.status !== 200 || !r.json) {
+      if (final4xx(r.status)) {
+        await this.commentFail(this.readRefusal(r));
+        return "failed";
+      }
       await this.transient(r, "post check");
       return "error";
     }
     const st = r.json.lifecycleState;
     if (st === "PUBLISHED") return "go";
+    if (st === "DRAFT") {
+      await this.commentFail("the post is a draft on LinkedIn; publish it there, then use Retry comment");
+      return "failed";
+    }
     if (st === "PUBLISH_FAILED") {
       await this.write({ status: "published", comment_status: this.row.comment_status }, {
         status: "failed",
@@ -1628,8 +1714,20 @@ class Runner {
       this.note = "post failed on LinkedIn";
       return "failed";
     }
-    this.wait(2 * MIN, `post ${String(st ?? "processing")}`, null);
+    if (this.phaseAge() > PHASE_LIMIT_MS) {
+      await this.commentFail(`the post is still ${String(st ?? "PROCESSING").replace(/[^A-Z_]/g, "").slice(0, 40)} on LinkedIn after 24 hours; use Retry comment once it is live`);
+      return "failed";
+    }
+    const shown = String(st ?? "PROCESSING").replace(/[^A-Z_]/g, "").slice(0, 40) || "PROCESSING";
+    this.wait(this.backoff(2 * MIN), `post ${shown}`, `LinkedIn shows the post as ${shown}; the first comment waits until it is PUBLISHED`);
     return "wait";
+  }
+
+  /** The error text for a definite refusal of a read about our post (GET post, comments list). */
+  readRefusal(r: LiRes): string {
+    if (r.status === 404 || r.status === 410) return "the post no longer exists on LinkedIn";
+    if (r.status === 403) return "LinkedIn denied access to the post (page admin role lost?); reconnect, then use Retry comment";
+    return `LinkedIn refused to read the post: ${liErr(this.ctx, r)}`;
   }
 
   async sendComment(blog: Item) {
@@ -1662,6 +1760,11 @@ class Runner {
     if (ok2xx(r.status)) {
       const cid = r.headers.get("x-restli-id") ?? (typeof r.json?.id === "string" ? r.json.id : null);
       const curn = typeof r.json?.commentUrn === "string" ? r.json.commentUrn : null;
+      if (!cid && !curn) {
+        // Accepted but the response was cut: the comment exists; the next run finds it and stores its ids.
+        this.wait(2 * MIN, "comment: no id in response, will reconcile", null);
+        return;
+      }
       await this.write({ status: "published", comment_status: "requested" }, {
         comment_id: cid ? cid.slice(0, 200) : null,
         comment_urn: curn ? curn.slice(0, 300) : null,
@@ -1674,7 +1777,7 @@ class Runner {
     }
     if (r.status === 429) {
       // Comments have their own 1-minute limit (COMMENTS): wait 2 minutes, no global back-off.
-      this.wait(2 * MIN, "comment: throttled", "LinkedIn comment limit; trying again in 2 minutes");
+      this.wait(this.backoff(2 * MIN), "comment: throttled", "LinkedIn comment limit; trying again shortly");
       return;
     }
     if (r.status >= 400 && r.status < 500 && ![401, 409, 426].includes(r.status)) {
@@ -1689,7 +1792,11 @@ class Runner {
     const r = await this.li.rest("comment_reconcile", "GET", `/socialActions/${encodeUrn(this.row.post_urn!)}/comments?start=0&count=100`);
     if (r.status !== 200 || !r.json) {
       if (r.status === 429) {
-        this.wait(2 * MIN, "comment reconcile: throttled");
+        this.wait(this.backoff(2 * MIN), "comment reconcile: throttled");
+        return undefined;
+      }
+      if (final4xx(r.status)) {
+        await this.commentFail(this.readRefusal(r));
         return undefined;
       }
       await this.transient(r, "comment reconcile");
@@ -1701,7 +1808,8 @@ class Runner {
     const firstLine = sent.split("\n")[0] ?? "";
     for (const el of els) {
       const text = String(((el.message as Obj | undefined)?.text ?? ""));
-      if (el.actor !== this.conn.org_urn) continue;
+      // Our page as actor, in either URN form LinkedIn samples use.
+      if (el.actor !== this.conn.org_urn && el.actor !== `urn:li:company:${orgIdOf(this.conn.org_urn!)}`) continue;
       if ((link && text.includes(link)) || (firstLine && text.trim().startsWith(firstLine))) {
         return { id: typeof el.id === "string" ? el.id : null, urn: typeof el.commentUrn === "string" ? el.commentUrn : null };
       }
@@ -1712,6 +1820,10 @@ class Runner {
   async commentFlow(blog: Item | null) {
     if (!blog || !blog.published_url || !blogUrlOk(blog.published_url, (blog.body as Obj | null)?.slug)) {
       await this.write({ status: "published", comment_status: this.row.comment_status }, { comment_status: "failed", last_error: "the blog link is missing or not a Dhiti blog URL" });
+      return;
+    }
+    if (this.phaseAge() > PHASE_LIMIT_MS) {
+      await this.commentFail(`the first comment could not be posted within 24 hours (${(this.row.last_error ?? "no answer").slice(0, 120)}); use Retry comment`);
       return;
     }
     for (let step = 0; step < 4; step++) {
@@ -1727,7 +1839,7 @@ class Runner {
           found = await this.findComment();
         } catch (e) {
           if (e instanceof NetError) {
-            this.wait(2 * MIN, "comment reconcile: network error");
+            this.wait(this.backoff(2 * MIN), "comment reconcile: network error");
             return;
           }
           throw e;
@@ -1808,7 +1920,11 @@ async function processPost(deps: Deps, ctx: Ctx, id: string, opts: { manual: boo
 
 async function runMachine(deps: Deps, run: Runner, _from: string, opts: { manual: boolean; blogChecked?: boolean; commentOnly?: boolean }) {
   // Runs spent waiting for the blog do not count: only rows with media work in progress can give up here.
-  if (run.row.attempts > MAX_CLAIMS && run.row.status === "publishing" && run.row.stage !== null && run.row.stage !== "post_requested") {
+  if (run.row.attempts > MAX_CLAIMS && run.row.status === "publishing" && run.row.stage === "post_requested") {
+    await run.failUnconfirmed(`gave up after ${MAX_CLAIMS} runs`);
+    return;
+  }
+  if (run.row.attempts > MAX_CLAIMS && run.row.status === "publishing" && run.row.stage !== null) {
     await run.fail("gave up after too many tries");
     return;
   }

@@ -30,8 +30,8 @@ export class ErrorBoundary extends Component {
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand/[0.1]">
           <AlertTriangle className="h-6 w-6 text-brand-ink" strokeWidth={2} />
         </div>
-        <h2 className="text-title-2 font-bold text-ink">This page hit a problem</h2>
-        <p className="mt-2 text-body text-ink-mute">Your data is safe. Try again, or reload the app if it keeps happening.</p>
+        <h2 className="text-title-2 font-bold text-ink">Something went wrong on this page</h2>
+        <p className="mt-2 text-body text-ink-mute">Your work is safe. Try again, or reload if it keeps happening.</p>
         <p className="mt-2 max-w-full truncate text-[12px] text-ink-faint">{String(this.state.error?.message || this.state.error)}</p>
         <div className="mt-6 flex gap-2">
           <button type="button" onClick={() => this.setState({ error: null })} className="h-9 rounded-xl px-3.5 text-callout font-semibold text-ink-soft shadow-[0_0_0_1px_var(--hairline-strong)] hover:bg-ink/[0.04]">

@@ -267,3 +267,42 @@ OTP expiry to 600 s and tighten the OTP send/verify rate limits (README "Owner s
 - Review in as few taps as possible: open, look, Approve (or Ask for changes with a short note). Destructive or public actions get a clear confirm in plain words ("This will post to LinkedIn now").
 - Helpful empty states, errors that say what to do next, no dead ends. Works perfectly on iPhone (the owner often uses the phone).
 - Look and feel: Apple x Stripe x Notion — calm, premium, generous space, SF Pro Display, subtle premium gradients, smooth motion.
+
+## v4 Accuracy gate and LinkedIn drafts (engine; binding)
+
+**Claims ledger.** `save-blog` requires `--claims claims.json` and refuses (exit 1, nothing saved, no override)
+unless every check of `marketing/engine/src/claims.js` passes. Sources must be fetched by the engine itself
+(`cli.js fetch-source <url>`: raw bytes + sha256 + extracted text, PDFs via `unpdf`, `manifest.json` in
+`$SOURCES_DIR`, default `$WORK/sources`). Rules: `playbook/blog-writing.md` section 1b; independent fact-check by a
+fresh sub-agent: `playbook/blog-editing.md` step 4. Stored shape (dashboard fact list reads it):
+
+```jsonc
+"claims": [{ "id", "kind": "fact|law|stat|date|quote|dhiti|illustrative|advice", "claim_text", "verified": true,
+  // sourced kinds only:
+  "source_url", "source_title", "quote", "fetched_at", "sha256", "text_sha256",
+  "source_text_path": "items/<id>/v<n>/sources/<sha256>.txt", "match": "exact|loose",
+  "extra_quotes": [{ same fields }], "derived": { "arithmetic", "from": [] },
+  // advice: "note"; dhiti: "phrase" (the owner-approved proof point it uses)
+}],
+"claims_check": { "passed": true, "stats": { claims, sourced, dhiti, illustrative, advice, verified, factual_sentences, covered_sentences, sources }, "warnings": [], "checked_at" }
+```
+
+`dhiti` and `advice` claims have no `source_url` by design (owner-approved proof points; Dhiti's own
+recommendations). The dashboard must show them as "Dhiti fact" / "Our advice", not as unchecked facts.
+Bucket `marketing` allows `text/plain` for the source texts (migration `claims_ledger_source_text_mime`; uploads only
+through the engine's signed URLs).
+
+**Engine API v2.5.0** (session tokens only; the publisher gets none of these):
+
+| action | payload | rules |
+|---|---|---|
+| `insert_social_post` | `{blog_item_id, format, recommended_format?, recommendation_reason?, caption, first_comment, scheduled_for?, status?, source_item_id?}` | blog must be `type='blog'`; status `draft`/`pending_review` only; `source_item_id` derived (newest child of that type, any status; a given one must equal it, else 409); LINKEDIN.md 5.3 caption and first-comment rules (400); one active row per blog (409) |
+| `update_social_post` | `{id, patch}` | patch: caption, first_comment, format, recommended_format, recommendation_reason, scheduled_for, status; status only draft to pending_review; 409 when approved, publishing, published, cancelled or `post_urn` set; a format change re-derives `source_item_id` and clears media; conditional on the status read |
+| `get_social_post` / `list_social_posts` | `{id}` / `{blog_item_id?, status?, limit?}` | read only |
+| `list_runs` | `{ids?, status?, kind?, limit?}` | read only (`id, kind, status, started_at, finished_at`) |
+
+**Generating clean-up.** New and revised items carry `body.generating = {run_id, started_at, prev_status}` (from
+`RUN_ID`, written to `env.sh` after `run start`; the key disappears when the item is saved). `cli.js sweep` fails an
+item in `generating` only if its run is this run, is no longer running, has run over 12 h, or (no run recorded) the
+item's `updated_at` is over 2 h old; a revision goes back to `prev_status` with its previous content. It never
+touches an item whose run is still running.

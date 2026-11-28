@@ -23,14 +23,14 @@ export default function Published() {
   return (
     <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader
-        title="Published"
-        subtitle="Everything that is live on dhitiservices.com or has been posted to social."
-        actions={<Segmented value={tab} onChange={setTab} layoutId="pub-tab" options={[{ value: "blog", label: "Blogs", count: counts.blog }, { value: "social", label: "Social", count: counts.social }]} />}
+        title="Live"
+        subtitle="Everything that is live on dhitiservices.com or posted on social media."
+        actions={<Segmented value={tab} onChange={setTab} layoutId="pub-tab" options={[{ value: "blog", label: "Blogs", count: counts.blog }, { value: "social", label: "Social posts", count: counts.social }]} />}
       />
       {loading ? (
         <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
       ) : !rows.length ? (
-        <Card><EmptyState icon={Globe2} title={tab === "blog" ? "No blogs published yet" : "Nothing posted yet"}>{tab === "blog" ? "Approved blogs are published automatically at their scheduled time." : "Mark pieces as posted from Ready to post."}</EmptyState></Card>
+        <Card><EmptyState icon={Globe2} title={tab === "blog" ? "No blogs live yet" : "Nothing posted yet"}>{tab === "blog" ? "Approved blogs go live on their own at the time you picked." : "Tap I posted it in Ready to post."}</EmptyState></Card>
       ) : (
         <motion.div key={tab} variants={list} initial="initial" animate="animate" className="card divide-y divide-[color:var(--hairline)] overflow-hidden">
           {rows.map((i) => {
@@ -49,7 +49,7 @@ export default function Published() {
                   </div>
                 </button>
                 {url ? (
-                  <a href={safeHref(url)} target="_blank" rel="noopener noreferrer" aria-label={`Open live post on ${hostOf(url)} (new tab)`} className="flex shrink-0 items-center gap-1 rounded-full bg-ink/[0.05] px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-info/10 hover:text-info">
+                  <a href={safeHref(url)} target="_blank" rel="noopener noreferrer" aria-label={`See it live on ${hostOf(url)} (new tab)`} className="flex shrink-0 items-center gap-1 rounded-full bg-ink/[0.05] px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-info/10 hover:text-info">
                     <span className="hidden sm:inline">{hostOf(url)}</span><ArrowUpRight className="h-3.5 w-3.5" />
                   </a>
                 ) : <span className="text-[12px] text-ink-faint">No link</span>}

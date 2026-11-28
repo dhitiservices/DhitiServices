@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth.js";
 import { Confirm } from "../components/Sheet.jsx";
 import { useData } from "../lib/store.jsx";
 import { PageHeader, useTheme } from "../components/Shell.jsx";
+import { LinkedInSettings } from "../components/linkedin/Settings.jsx";
 import { Button, Card, Field, Stepper, StatusChip, Skeleton, Segmented, EmptyState, Avatar, cx } from "../components/ui.jsx";
 import { RUN_STATUS, RUN_KIND } from "../lib/model.js";
 import { formatDateTime, duration, relative } from "../lib/format.js";
@@ -73,7 +74,9 @@ export default function Settings() {
   const savedKey = JSON.stringify(saved);
   const lastSaved = useRef(savedKey);
   useEffect(() => {
-    setForm((f) => (JSON.stringify(f) === lastSaved.current ? JSON.parse(savedKey) : f));
+    // Read the previous key now: React may run the updater later, after the ref below has moved on.
+    const prev = lastSaved.current;
+    setForm((f) => (JSON.stringify(f) === prev ? JSON.parse(savedKey) : f));
     lastSaved.current = savedKey;
   }, [savedKey]);
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
@@ -94,7 +97,8 @@ export default function Settings() {
   }, [dirty]);
 
   useEffect(() => {
-    if (window.location.hash === "#runs" && !loading) requestAnimationFrame(() => document.getElementById("runs")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    const id = window.location.hash.slice(1);
+    if ((id === "runs" || id === "linkedin") && !loading) requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, [loading]);
 
   const perWeek = form.blogs_per_week * (1 + form.carousels_per_blog + form.graphics_per_blog + form.videos_per_blog);
@@ -102,19 +106,21 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-[924px] px-4 py-6 sm:px-8 lg:py-10">
-      <PageHeader className="max-w-[860px]" title="Settings" subtitle="What the weekly run makes, who it writes for, and when blogs go live." />
+      <PageHeader className="max-w-[860px]" title="Settings" subtitle="LinkedIn, what we make each week, who it's for, and when blogs go live." />
 
       {loading ? (
         <div className="max-w-[860px] space-y-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>
       ) : (
         <div className="max-w-[860px] space-y-8">
+          <LinkedInSettings />
+
           <section>
-            <h2 className="mb-3 text-headline font-semibold">Weekly output</h2>
+            <h2 className="mb-3 text-headline font-semibold">Each week</h2>
             <Card className="divide-y divide-[color:var(--hairline)]">
               <Row label="Blogs per week" hint="Each blog gets its own carousel, graphics and reel."><Stepper label="blogs per week" value={form.blogs_per_week} onChange={set("blogs_per_week")} min={1} max={7} /></Row>
               <Row label="Carousels per blog"><Stepper label="carousels per blog" value={form.carousels_per_blog} onChange={set("carousels_per_blog")} min={0} max={3} /></Row>
               <Row label="Graphics per blog" hint="Square and landscape versions of each."><Stepper label="graphics per blog" value={form.graphics_per_blog} onChange={set("graphics_per_blog")} min={0} max={5} /></Row>
-              <Row label="Reels per blog" hint="You record the voiceover; the reel is timed to it."><Stepper label="reels per blog" value={form.videos_per_blog} onChange={set("videos_per_blog")} min={0} max={2} /></Row>
+              <Row label="Reels per blog" hint="You record the voice. The reel is timed to it."><Stepper label="reels per blog" value={form.videos_per_blog} onChange={set("videos_per_blog")} min={0} max={2} /></Row>
               <div className="flex items-center justify-between bg-ink/[0.02] px-5 py-3 text-callout">
                 <span className="text-ink-mute">Every week you review</span>
                 <motion.span key={perWeek} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="tnum font-semibold text-ink">{perWeek} pieces</motion.span>
@@ -123,7 +129,7 @@ export default function Settings() {
           </section>
 
           <section>
-            <h2 className="mb-3 text-headline font-semibold">Publish days</h2>
+            <h2 className="mb-3 text-headline font-semibold">Go-live days</h2>
             <Card className="p-5">
               <div className="grid grid-cols-7 gap-1.5">
                 {DAYS.map((day) => {
@@ -144,33 +150,33 @@ export default function Settings() {
                 })}
               </div>
               <p className={cx("mt-3 text-[12.5px]", daysMismatch ? "text-warn" : "text-ink-mute")}>
-                {daysMismatch ? `You picked ${form.publish_days.length} days for ${form.blogs_per_week} blogs. Extra blogs share a day; spare days stay empty.` : "Blogs go live at 10:00 IST on these days. You can change any single post's time when you approve it."}
+                {daysMismatch ? `You picked ${form.publish_days.length} days for ${form.blogs_per_week} blogs. Extra blogs share a day; spare days stay empty.` : "Blogs go live at 10:00 IST on these days. You can pick another time for any blog when you approve it."}
               </p>
             </Card>
           </section>
 
           <section>
-            <h2 className="mb-3 text-headline font-semibold">Audience and direction</h2>
+            <h2 className="mb-3 text-headline font-semibold">Who we write for</h2>
             <Card className="space-y-5 p-5">
-              <Field label="Audience" hint="Who every post is written for.">
+              <Field label="Readers" hint="Who every blog is written for.">
                 <textarea rows={3} className="input resize-y leading-[22px]" value={form.audience} onChange={(e) => set("audience")(e.target.value)} />
               </Field>
-              <Field as="div" label="Avoid topics" hint="Press Enter to add. The planner never picks these.">
+              <Field as="div" label="Topics to avoid" hint="Press Enter to add one. We never write about these.">
                 <TokenInput value={form.avoid_topics} onChange={set("avoid_topics")} placeholder="e.g. Visa advice" />
               </Field>
-              <Field label="Extra guidance" hint="Anything the writer should know this month: offers, events, tone.">
+              <Field label="Notes for the writer" hint="Anything to know this month: offers, events, tone.">
                 <textarea rows={4} className="input resize-y leading-[22px]" value={form.extra_guidance} onChange={(e) => set("extra_guidance")(e.target.value)} placeholder="e.g. Mention our new Saswad centre in one post this month." />
               </Field>
             </Card>
           </section>
 
           <section>
-            <h2 className="mb-3 text-headline font-semibold">Guardrails</h2>
+            <h2 className="mb-3 text-headline font-semibold">Our rules</h2>
             <Card className="divide-y divide-[color:var(--hairline)]">
               {[
-                ["Licensed stock only", "Photos and footage come from Magnific stock or your library, with a licence trail on every file."],
-                ["No AI-generated images, video or audio", "Generation tools are never used. Voiceovers are recorded by you."],
-                ["Human approval required", "Nothing is published or posted until someone on the team approves it."],
+                ["Only real, paid-for photos", "Photos and videos come from Magnific stock or your library. We keep the licence for every file."],
+                ["No AI pictures, videos or voices", "We never make pictures, videos or voices with AI. You record the voice."],
+                ["Nothing goes out without you", "Nothing goes live or gets posted until you approve it."],
               ].map(([t, h]) => (
                 <div key={t} className="flex items-start gap-3 px-5 py-4">
                   <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg bg-ok/10 text-ok"><ShieldCheck className="h-4 w-4" /></span>
@@ -184,9 +190,9 @@ export default function Settings() {
           <SecuritySection />
 
           <section>
-            <h2 className="mb-3 text-headline font-semibold">Appearance</h2>
+            <h2 className="mb-3 text-headline font-semibold">Look</h2>
             <Card className="p-1">
-              <Row label="Theme" hint="Auto follows your device.">
+              <Row label="Light or dark" hint="Auto follows your phone or computer.">
                 <Segmented value={theme} onChange={setTheme} layoutId="theme-settings" options={[{ value: "light", label: "Light", icon: Sun }, { value: "dark", label: "Dark", icon: Moon }, { value: "system", label: "Auto", icon: Monitor }]} />
               </Row>
             </Card>
@@ -205,7 +211,7 @@ export default function Settings() {
             transition={spring}
             className="glass fixed inset-x-3 bottom-[calc(84px+var(--safe-bottom))] z-40 mx-auto flex max-w-[560px] items-center gap-2 rounded-2xl p-2 pl-4 shadow-pop lg:bottom-6 lg:left-[252px]"
           >
-            <span className="flex-1 text-callout font-medium text-ink-soft">Unsaved changes</span>
+            <span className="flex-1 text-callout font-medium text-ink-soft">Not saved yet</span>
             <Button variant="ghost" onClick={() => setForm(saved)}>Discard</Button>
             <Button variant="primary" icon={Check} onClick={save} loading={busy} kbd={`${MOD}S`}>Save</Button>
           </motion.div>
@@ -225,27 +231,28 @@ function RunsLog() {
       setLogs((l) => ({ ...l, [r.id]: null }));
       try {
         const text = await d.actions.fetchRunLog(r.id);
-        setLogs((l) => ({ ...l, [r.id]: text || "No log captured for this run." }));
+        setLogs((l) => ({ ...l, [r.id]: text || "No details for this one." }));
       } catch (e) {
-        setLogs((l) => ({ ...l, [r.id]: `Couldn't load the log: ${e.message}` }));
+        setLogs((l) => ({ ...l, [r.id]: `Couldn't load the details: ${e.message}` }));
       }
     }
   };
   return (
     <section id="runs" className="scroll-mt-20">
-      <h2 className="mb-3 text-headline font-semibold">Runs</h2>
+      <h2 className="mb-3 text-headline font-semibold">History</h2>
       <Card className="divide-y divide-[color:var(--hairline)] overflow-hidden">
-        {!d.runs.length && <EmptyState title="No runs yet" className="!py-10">Runs appear here as the weekly session, revisions and publisher do their work.</EmptyState>}
+        {!d.runs.length && <EmptyState title="Nothing yet" className="!py-10">Each time we make blogs, fix something or put a blog live, it shows up here.</EmptyState>}
         {d.runs.map((r) => {
           const isOpen = open === r.id;
-          const usage = r.usage && Object.keys(r.usage).length ? Object.entries(r.usage).map(([k, v]) => `${k.replace(/_/g, " ")} ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ") : "";
+          const USAGE = { blogs: "blogs", carousels: "carousels", graphics: "graphics", videos: "reels", revisions: "fixes", published: "put live" };
+          const usage = r.usage ? Object.entries(r.usage).filter(([k, v]) => USAGE[k] && typeof v === "number").map(([k, v]) => `${v} ${USAGE[k]}`).join(", ") : "";
           return (
             <div key={r.id}>
               <button onClick={() => toggle(r)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-ink/[0.02]" aria-expanded={isOpen}>
                 <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={spring}><ChevronRight className="h-4 w-4 text-ink-faint" /></motion.span>
                 <div className="min-w-0 flex-1">
                   <div className="text-callout font-semibold">{RUN_KIND[r.kind] || r.kind}</div>
-                  <div className="truncate text-[12px] text-ink-mute">{formatDateTime(r.started_at)} IST{r.finished_at ? ` · ${duration(r.started_at, r.finished_at)}` : ` · started ${relative(r.started_at)}`}{usage ? ` · ${usage}` : ""}</div>
+                  <div className="truncate text-[12px] text-ink-mute">{formatDateTime(r.started_at)} IST{r.finished_at ? ` · took ${duration(r.started_at, r.finished_at)}` : ` · started ${relative(r.started_at)}`}{usage ? ` · ${usage}` : ""}</div>
                 </div>
                 <StatusChip map={RUN_STATUS} status={r.status} size="sm" />
               </button>
@@ -253,12 +260,22 @@ function RunsLog() {
                 {isOpen && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }} className="overflow-hidden">
                     <div className="px-5 pb-4">
-                      {r.error && <div className="mb-2 rounded-xl bg-brand/[0.07] px-3 py-2 text-[12.5px] font-medium text-brand-deep dark:text-brand-bright">{r.error}</div>}
-                      {logs[r.id] == null ? (
-                        <div className="space-y-1.5 rounded-xl bg-ink/[0.035] p-3"><Skeleton className="h-3 w-3/4" /><Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" /></div>
-                      ) : (
-                        <pre className="tnum max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl bg-[#161110] p-4 font-sans text-[12px] leading-[19px] text-white/80 dark:bg-black/40">{logs[r.id]}</pre>
-                      )}
+                      <p className={cx("mb-2 rounded-xl px-3 py-2 text-[12.5px] font-medium", r.status === "failed" ? "bg-brand/[0.07] text-brand-deep dark:text-brand-bright" : "bg-ink/[0.04] text-ink-soft")}>
+                        {r.status === "failed" ? (r.kind === "publish" ? "This didn't work. It tries again on its own, every 30 minutes." : "This didn't work. Your approved work is safe.") : r.status === "running" ? "Still working on it." : "Finished without problems."}
+                      </p>
+                      <details className="group [&_summary::-webkit-details-marker]:hidden">
+                        <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[12.5px] font-semibold text-ink-soft hover:text-ink">
+                          <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" /> Technical details (for your developer)
+                        </summary>
+                        <div className="mt-2">
+                          {r.error && <div className="mb-2 rounded-xl bg-ink/[0.04] px-3 py-2 text-[12px] text-ink-soft">{r.error}</div>}
+                          {logs[r.id] == null ? (
+                            <div className="space-y-1.5 rounded-xl bg-ink/[0.035] p-3"><Skeleton className="h-3 w-3/4" /><Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" /></div>
+                          ) : (
+                            <pre className="tnum max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl bg-[#161110] p-4 font-sans text-[12px] leading-[19px] text-white/80 dark:bg-black/40">{logs[r.id]}</pre>
+                          )}
+                        </div>
+                      </details>
                     </div>
                   </motion.div>
                 )}
@@ -285,20 +302,20 @@ function SecuritySection() {
           <Avatar email={user?.email || ""} size={36} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-body font-semibold text-ink">{user?.email || "Signed in"}</div>
-            <div className="text-[12.5px] text-ink-mute">{demo ? "Demo session (sample data)" : "Signed in with an emailed code"}</div>
+            <div className="text-[12.5px] text-ink-mute">{demo ? "Demo with sample data" : "Signed in with an emailed code"}</div>
           </div>
           <Button variant="secondary" icon={LogOut} onClick={() => run("local")} loading={busy === "local"}>Sign out</Button>
         </div>
         {[
-          [Mail, "Email code sign-in", "A 6-digit code (or the link in the same email) each time. No password, no authenticator app."],
-          [Timer, "Automatic lock", "Signs out after 30 minutes without activity, with a 60-second warning, and when Studio has been in the background for more than 12 hours."],
+          [Mail, "Sign in with an email code", "A 6-digit code (or the link in the same email) each time. No password, no extra app."],
+          [Timer, "Signs out by itself", "After 30 minutes without use (with a 60-second warning), and when Studio has been in the background for more than 12 hours."],
         ].map(([I, t, h]) => (
           <div key={t} className="flex items-start gap-3 px-5 py-4">
             <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ink/[0.05] text-ink-soft"><I className="h-4 w-4" /></span>
             <div className="flex-1"><div className="text-body font-semibold">{t}</div><div className="text-[12.5px] text-ink-mute">{h}</div></div>
           </div>
         ))}
-        <Row label="Sign out everywhere" hint="Ends every session on every device and browser, including this one.">
+        <Row label="Sign out everywhere" hint="Signs you out on every phone and computer, this one too.">
           <Button variant="danger" icon={MonitorSmartphone} onClick={() => setConfirm(true)} loading={busy === "global"}>Sign out everywhere</Button>
         </Row>
       </Card>
@@ -306,7 +323,7 @@ function SecuritySection() {
         open={confirm}
         onClose={() => setConfirm(false)}
         title="Sign out everywhere?"
-        description="Every device signed in to Studio is signed out within an hour at most (immediately on this one). You'll need a new email code to come back."
+        description="Every phone and computer signed in to Studio is signed out within an hour (this one right away). You'll need a new email code to come back."
         confirmLabel="Sign out everywhere"
         tone="danger"
         onConfirm={() => run("global")}

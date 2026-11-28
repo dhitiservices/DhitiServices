@@ -37,9 +37,9 @@ export function CommandPalette({ open, onClose }) {
     const out = [];
     const pages = NAV.map((n) => ({ id: `nav:${n.to}`, group: "Go to", label: n.label, icon: n.icon, run: () => navigate(n.to), s: score(n.label, q) }));
     const acts = [
-      { id: "act:run", group: "Actions", label: "Run weekly pipeline now", icon: Play, run: () => data.actions.runWeekly(), s: score("run weekly pipeline now generate", q) },
-      { id: "act:light", group: "Actions", label: "Switch to light appearance", icon: Sun, run: () => setTheme("light"), s: score("light theme appearance", q) },
-      { id: "act:dark", group: "Actions", label: "Switch to dark appearance", icon: Moon, run: () => setTheme("dark"), s: score("dark theme appearance", q) },
+      { id: "act:run", group: "Actions", label: "Make this week's blogs now", icon: Play, run: () => data.actions.runWeekly(), s: score("make this week blogs now run weekly", q) },
+      { id: "act:light", group: "Actions", label: "Use the light look", icon: Sun, run: () => setTheme("light"), s: score("light theme appearance", q) },
+      { id: "act:dark", group: "Actions", label: "Use the dark look", icon: Moon, run: () => setTheme("dark"), s: score("dark theme appearance", q) },
     ];
     const items = data.items
       .filter((i) => i.status !== "rejected")
@@ -47,7 +47,7 @@ export function CommandPalette({ open, onClose }) {
         const topic = data.topicById.get(i.topic_id);
         const label = itemTitle(i, topic);
         return {
-          id: `item:${i.id}`, group: "Content", label, icon: TYPE_META[i.type]?.icon,
+          id: `item:${i.id}`, group: "Blogs and posts", label, icon: TYPE_META[i.type]?.icon,
           hint: `${TYPE_META[i.type]?.label} · ${ITEM_STATUS[i.status]?.label || i.status}`,
           run: () => navigate(`/review/${i.id}`),
           s: q ? score(`${label} ${i.type} ${topic?.title || ""} ${i.status}`, q) : 0,
@@ -100,7 +100,7 @@ export function CommandPalette({ open, onClose }) {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={onKey}
-                placeholder="Search content, pages and actions…"
+                placeholder="Search blogs, posts and pages"
                 className="h-[54px] flex-1 bg-transparent text-[16px] tracking-[-0.01em] text-ink outline-none placeholder:text-ink-faint focus-visible:outline-none"
                 aria-label="Search"
                 role="combobox"
@@ -143,7 +143,7 @@ export function CommandPalette({ open, onClose }) {
               })}
             </div>
             <div className="hairline-t hidden items-center gap-4 px-4 py-2.5 text-[11.5px] text-ink-mute sm:flex">
-              <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
+              <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
               <span className="flex items-center gap-1.5"><Kbd>↵</Kbd> open</span>
               <span className="ml-auto flex items-center gap-1.5">Review shortcuts: <Kbd>J</Kbd><Kbd>K</Kbd><Kbd>A</Kbd><Kbd>R</Kbd></span>
             </div>

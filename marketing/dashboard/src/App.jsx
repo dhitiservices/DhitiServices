@@ -66,7 +66,7 @@ function Splash({ error, onRetry, onSignOut }) {
       {error ? (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="glass-card relative mt-8 max-w-[340px] rounded-[22px] px-6 py-5 text-center">
           <div className="text-headline font-semibold text-ink">Couldn't reach Studio</div>
-          <p className="mt-1 text-callout text-ink-mute">Check your connection. Nothing is shown until your access is confirmed.</p>
+          <p className="mt-1 text-callout text-ink-mute">Check your internet. Nothing shows until we know it's you.</p>
           <div className="mt-5 flex justify-center gap-2">
             <Button variant="ghost" onClick={onSignOut}>Sign out</Button>
             <Button variant="primary" onClick={onRetry}>Try again</Button>
@@ -217,18 +217,18 @@ function LoadError({ error, onRetry, onSignOut }) {
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-warn/[0.12] text-warn shadow-[inset_0_0_0_1px_rgb(var(--warn)/0.18)]">
           <CloudOff className="h-6 w-6" strokeWidth={1.9} />
         </span>
-        <h1 className="mt-5 text-title-2 font-bold text-ink">Couldn't load your studio</h1>
+        <h1 className="mt-5 text-title-2 font-bold text-ink">Couldn't load your work</h1>
         <p className="mt-2 text-body text-ink-mute">
-          {offline ? "You're offline. Reconnect, then try again." : "The data didn't arrive, so nothing is shown rather than an empty queue. Your drafts are safe."}
+          {offline ? "You're offline. Connect to the internet, then try again." : "Nothing came through, so we show nothing instead of an empty page. Your work is safe."}
         </p>
         {error?.message && (
           <p className="tnum mx-auto mt-4 max-w-full break-words rounded-xl bg-ink/[0.04] px-3.5 py-2.5 text-left text-[12.5px] leading-[18px] text-ink-soft">
-            <span className="font-semibold text-ink">Error: </span>{error.message}
+            <span className="font-semibold text-ink">Details: </span>{error.message}
           </p>
         )}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">
           <Button variant="ghost" icon={LogOut} onClick={onSignOut}>Sign out</Button>
-          <Button variant="primary" icon={RotateCw} onClick={retry} loading={busy} disabled={busy}>{busy ? "Retrying…" : "Retry"}</Button>
+          <Button variant="primary" icon={RotateCw} onClick={retry} loading={busy} disabled={busy}>{busy ? "Trying again…" : "Try again"}</Button>
         </div>
       </motion.div>
     </div>
