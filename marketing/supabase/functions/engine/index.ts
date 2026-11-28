@@ -297,7 +297,7 @@ const actions: Record<string, Handler> = {
     const patch: Obj = { status, finished_at: status === "running" ? null : new Date().toISOString() };
     if (p.error !== undefined) patch.error = p.error === null ? null : truncateTail(p.error, 8000);
     if (p.log !== undefined) patch.log = truncateTail(p.log, 1_000_000);
-    if (p.usage !== undefined) patch.usage = isObj(p.usage) ? p.usage : { value: p.usage };
+    if (p.usage !== undefined && p.usage !== null) patch.usage = isObj(p.usage) ? p.usage : { value: p.usage };
     return single("finish_run", db().from("runs").update(patch).eq("id", id).select().maybeSingle(), `run ${id} not found`);
   },
 
@@ -446,6 +446,46 @@ const actions: Record<string, Handler> = {
     const { data, error } = await db().storage.from(BUCKET).createSignedUrl(path, expiresIn);
     if (error || !data) throw dbError("sign_download", error as never);
     return { signedUrl: data.signedUrl, path, expiresIn };
+  },
+
+  /**
+   * Deletes stored files of an item: every object under items/<content_item_id>/, or only `paths` (each under that
+   * prefix). Session tokens only. Refused while the item is approved or published (human-approved content is kept);
+   * allowed for orphaned prefixes whose item row no longer exists. Returns { deleted: [paths] }.
+   */
+  async delete_files(p) {
+    const id = uuid(p.content_item_id, "content_item_id");
+    const item = await run("delete_files.item", db().from("content_items").select("id, status").eq("id", id).maybeSingle());
+    if (item && LOCKED_FOR_SESSION.includes(item.status)) throw new ApiError(409, `item ${id} is ${item.status}; its files are kept`);
+    const prefix = `items/${id}/`;
+    let paths: string[];
+    if (p.paths !== undefined) {
+      if (!Array.isArray(p.paths) || p.paths.length > 500) throw bad("paths must be an array (max 500)");
+      paths = p.paths.map((x) => storagePath(x));
+      if (paths.some((x) => !x.toLowerCase().startsWith(prefix))) throw bad(`every path must be under ${prefix}`);
+    } else {
+      paths = [];
+      const walk = async (dir: string, depth: number): Promise<void> => {
+        for (let offset = 0; ; offset += 1000) {
+          const { data, error } = await db().storage.from(BUCKET).list(dir, { limit: 1000, offset });
+          if (error) throw dbError("delete_files.list", error as never);
+          for (const e of data ?? []) {
+            const full = `${dir}/${e.name}`;
+            if (e.id) paths.push(full); // files have an id, folders do not
+            else if (depth < 4) await walk(full, depth + 1);
+          }
+          if (!data || data.length < 1000) break;
+        }
+      };
+      await walk(`items/${id}`, 0);
+    }
+    const deleted: string[] = [];
+    for (let i = 0; i < paths.length; i += 100) {
+      const { data, error } = await db().storage.from(BUCKET).remove(paths.slice(i, i + 100));
+      if (error) throw dbError("delete_files", error as never);
+      deleted.push(...(data ?? []).map((o) => o.name));
+    }
+    return { deleted };
   },
 
   // ---- jobs ----

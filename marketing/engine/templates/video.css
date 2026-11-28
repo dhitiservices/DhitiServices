@@ -1,0 +1,109 @@
+/* Reel overlays, 1080 x 1920. Rendered to transparent PNGs and composited by ffmpeg.
+   Safe area for text: x 90..990, y 280..1500 (keeps clear of Instagram / LinkedIn UI). */
+
+.v { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+
+/* ---------- Scrim layer (static) ---------- */
+.v-scrim::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8, 9, 12, 0.62) 0px, rgba(8, 9, 12, 0.36) 300px, rgba(8, 9, 12, 0.0) 620px),
+    linear-gradient(0deg, rgba(8, 9, 12, 0.90) 0px, rgba(8, 9, 12, 0.80) 420px, rgba(8, 9, 12, 0.60) 800px, rgba(8, 9, 12, 0.26) 1100px, rgba(8, 9, 12, 0.0) 1380px);
+}
+.v-brand {
+  position: absolute; left: 90px; top: 288px;
+  display: flex; align-items: center; gap: 18px;
+}
+.v-brand img { height: 50px; width: auto; filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.35)); }
+.v-count {
+  position: absolute; right: 90px; top: 300px;
+  font-size: 26px; font-weight: 600; letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.82);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+.v-count b { color: #fff; font-weight: 700; }
+.v-count i { font-style: normal; opacity: 0.5; padding: 0 0.3em; }
+
+/* ---------- Text layer (animated in) ---------- */
+.v-safe {
+  position: absolute; left: 90px; right: 90px; top: 380px; bottom: 420px; /* bottom edge = y 1500 */
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.v-kicker {
+  display: inline-flex; align-items: center; gap: 14px; align-self: flex-start;
+  margin-bottom: calc(34px * var(--fit, 1));
+  font-size: calc(28px * var(--fit, 1)); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
+}
+.v-kicker::before { content: ''; width: 48px; height: 6px; border-radius: 3px; background: var(--red); box-shadow: none; }
+.v-text {
+  margin: 0;
+  font-size: calc(92px * var(--fit, 1));
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -0.024em;
+  color: #fff;
+  text-wrap: balance;
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.32);
+}
+.v-text.hook { font-size: calc(108px * var(--fit, 1)); line-height: 1.02; letter-spacing: -0.028em; }
+.v-text .hl {
+  color: #fff;
+  background: var(--red);
+  padding: 0 0.14em 0.02em;
+  margin: 0 -0.04em;
+  border-radius: 0.1em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  text-shadow: none;
+}
+.v-rule { width: 120px; height: 10px; border-radius: 5px; background: var(--red); margin-top: calc(44px * var(--fit, 1)); flex: none; }
+
+/* ---------- Outro card ---------- */
+.v-outro-bg { background: var(--red); }
+.v-outro-bg::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(1100px 1000px at 0% 0%, rgba(255, 51, 34, 0.95), transparent 62%),
+    radial-gradient(1000px 1100px at 100% 100%, rgba(110, 0, 0, 0.5), transparent 62%);
+}
+.v-outro-bg .watermark {
+  position: absolute; right: -260px; bottom: -120px;
+  width: 1100px; height: 1100px; opacity: 0.08;
+}
+.v-outro {
+  position: absolute; left: 90px; right: 90px; top: 280px; bottom: 420px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  color: #fff;
+}
+.v-outro .logo { width: 620px; height: auto; }
+.v-outro .tag {
+  margin-top: 72px;
+  font-size: 54px; font-weight: 700; letter-spacing: -0.018em; line-height: 1.18;
+  text-wrap: balance;
+  max-width: 820px;
+}
+.v-outro .pill {
+  margin-top: 64px;
+  display: inline-flex; align-items: center; gap: 18px;
+  padding: 28px 44px;
+  border-radius: 999px;
+  background: #fff; color: var(--red);
+  font-size: 40px; font-weight: 750; letter-spacing: -0.01em;
+  box-shadow: 0 30px 60px -28px rgba(60, 0, 0, 0.6);
+}
+
+/* ---------- Fallback background (scene without clip or photo) ---------- */
+.v-fallback { background: var(--ink); }
+.v-fallback::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(1200px 1100px at 100% 0%, rgba(238, 8, 0, 0.42), transparent 62%),
+    radial-gradient(1000px 1000px at 0% 100%, rgba(255, 51, 34, 0.14), transparent 60%),
+    linear-gradient(180deg, #1c1d22 0%, var(--ink) 100%);
+}

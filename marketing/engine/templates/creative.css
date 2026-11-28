@@ -131,6 +131,7 @@ img { display: block; }
 }
 .on-red .rule { background: var(--white); }
 
+.note, .attrib, .body { text-wrap: pretty; }
 .tnum { font-variant-numeric: tabular-nums; font-feature-settings: var(--features), 'tnum'; }
 
 /* Fit box: flex child that must not grow past its slot; overflow measured by the renderer. */

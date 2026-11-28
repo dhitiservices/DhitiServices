@@ -302,10 +302,21 @@ const SETTLE_AND_FIT = async () => {
   await Promise.all([400, 500, 600, 700, 800].map((w) => document.fonts.load(`${w} 64px "${fam}"`).catch(() => null)));
   await Promise.all([...document.images].map((img) => (img.complete && img.naturalWidth ? img.decode().catch(() => null) : new Promise((r) => { img.onload = img.onerror = r; }).then(() => img.decode?.().catch(() => null)))));
   const report = { fonts: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family), overflow: [], fits: [] };
+  // Overflow = content past the box on any side. scrollHeight alone misses overflow at the top of
+  // flex-end / centred boxes (unscrollable direction), so direct children's rects are checked too.
   const overflows = (box) => {
-    if (box.dataset.fitAxis !== 'x' && box.scrollHeight > box.clientHeight + 1) return true;
+    const xOnly = box.dataset.fitAxis === 'x';
+    if (!xOnly && box.scrollHeight > box.clientHeight + 1) return true;
+    if (box.scrollWidth > box.clientWidth + 1) return true;
+    const b = box.getBoundingClientRect();
+    for (const el of box.children) {
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) continue;
+      if (r.left < b.left - 1 || r.right > b.right + 1) return true;
+      if (!xOnly && (r.top < b.top - 1 || r.bottom > b.bottom + 1)) return true;
+    }
     for (const el of box.querySelectorAll('[data-fit-line]')) if (el.scrollWidth > el.clientWidth + 1) return true;
-    return box.scrollWidth > box.clientWidth + 1;
+    return false;
   };
   for (const box of document.querySelectorAll('[data-fit-box]')) {
     const min = Number(box.dataset.fitMin || 0.5);
