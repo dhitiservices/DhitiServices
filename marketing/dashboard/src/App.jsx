@@ -13,7 +13,7 @@ import { useHotkeys } from "./lib/hotkeys.js";
 import { useLocation, match, navigate } from "./lib/router.jsx";
 import { demoRequested, setDemo } from "./lib/config.js";
 import { page } from "./lib/motion.js";
-import { Login } from "./pages/Auth.jsx";
+import { Login, AuroraBackdrop } from "./pages/Auth.jsx";
 import { AuthContext } from "./lib/auth.js";
 import {
   staleReason, markActive, lastActive, clearActivity, clearPending, REASON_TEXT, urlErrorText,
@@ -56,13 +56,14 @@ function fontsReady(timeout = 900) {
 
 function Splash({ error, onRetry, onSignOut }) {
   return (
-    <div className="aurora flex min-h-dvh flex-col items-center justify-center px-6" aria-busy={!error} aria-live="polite">
+    <div className="relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6" aria-busy={!error} aria-live="polite">
+      <AuroraBackdrop />
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }} className="relative">
-        <span className="splash-halo absolute -inset-6 rounded-[32px]" aria-hidden />
-        <AppMark size={60} className="relative shadow-lift" />
+        <span className="splash-halo absolute -inset-8 rounded-[36px]" aria-hidden />
+        <AppMark size={64} className="relative shadow-lift" />
       </motion.div>
       {error ? (
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-8 max-w-[320px] text-center">
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="glass-card relative mt-8 max-w-[340px] rounded-[22px] px-6 py-5 text-center">
           <div className="text-headline font-semibold text-ink">Couldn't reach Studio</div>
           <p className="mt-1 text-callout text-ink-mute">Check your connection. Nothing is shown until your access is confirmed.</p>
           <div className="mt-5 flex justify-center gap-2">
@@ -71,7 +72,7 @@ function Splash({ error, onRetry, onSignOut }) {
           </div>
         </motion.div>
       ) : (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.4 }} className="mt-8 h-[3px] w-28 overflow-hidden rounded-full bg-ink/[0.07]">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.4 }} className="relative mt-9 h-[3px] w-28 overflow-hidden rounded-full bg-ink/[0.08]">
           <div className="progress-indeterminate h-full w-1/3 rounded-full bg-gradient-to-r from-brand-bright to-brand-deep" />
         </motion.div>
       )}

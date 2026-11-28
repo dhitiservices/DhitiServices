@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
-import { ArrowRight, ArrowLeft, Mail, ShieldCheck, FileText, ImagePlay, FlaskConical, Info, RotateCw } from "lucide-react";
-import { Button, AppMark, Spinner, cx } from "../components/ui.jsx";
+import { ArrowRight, ArrowLeft, Mail, ShieldCheck, FileText, ImagePlay, FlaskConical, Info, RotateCw, Lock } from "lucide-react";
+import { Button, AppMark, Logo, Spinner, cx } from "../components/ui.jsx";
 import { DEMO_AVAILABLE } from "../lib/config.js";
 import { ease } from "../lib/motion.js";
 import {
@@ -14,44 +14,57 @@ const FEATURES = [
   { icon: ShieldCheck, title: "Nothing goes live without you", body: "Approve, edit or send back. Blogs publish on the days you choose." },
 ];
 
-function BrandPanel() {
+/** Animated Dhiti aurora behind the login (transform-only drift; still under prefers-reduced-motion). */
+export function AuroraBackdrop({ className }) {
   return (
-    <div className="mesh-ink grain relative hidden overflow-hidden lg:flex lg:w-[46%] xl:w-[50%]">
-      <div className="relative z-[1] flex w-full flex-col justify-between p-12 xl:p-16">
-        <img src="/brand/dhiti-logo-dark.webp" alt="Dhiti" className="h-8 w-auto self-start" />
-        <div className="max-w-[520px]">
-          <motion.h1
-            initial={{ opacity: 0, y: 12 }}
+    <div className={cx("login-aurora pointer-events-none absolute inset-0 overflow-hidden", className)} aria-hidden>
+      <span className="aurora-blob aurora-blob-1" />
+      <span className="aurora-blob aurora-blob-2" />
+      <span className="aurora-blob aurora-blob-3" />
+      <span className="aurora-blob aurora-blob-4" />
+      <span className="aurora-grid" />
+      <span className="aurora-grain" />
+    </div>
+  );
+}
+
+function Hero() {
+  return (
+    <div className="hidden max-w-[520px] lg:block">
+      <motion.p
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, ease }}
+        className="mb-5 inline-flex items-center gap-2 rounded-full bg-surface/60 px-3 py-1 text-[12.5px] font-semibold text-ink-soft shadow-[0_0_0_1px_var(--hairline)] backdrop-blur-md"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-brand-bright to-brand-deep" /> Dhiti Marketing Studio
+      </motion.p>
+      <motion.h1
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease, delay: 0.04 }}
+        className="text-[52px] font-bold leading-[1.02] tracking-[-0.04em] text-ink xl:text-[60px]"
+      >
+        Your marketing,<br />on autopilot.<br /><span className="text-gradient-brand">Approved by you.</span>
+      </motion.h1>
+      <div className="mt-10 space-y-5">
+        {FEATURES.map((f, i) => (
+          <motion.div
+            key={f.title}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease }}
-            className="text-[44px] font-bold leading-[1.05] tracking-[-0.034em] text-white xl:text-[52px]"
+            transition={{ duration: 0.6, ease, delay: 0.18 + i * 0.07 }}
+            className="flex gap-4"
           >
-            Your marketing,<br />on autopilot.<br /><span className="bg-gradient-to-r from-[#FF5C48] to-[#FF9A7A] bg-clip-text text-transparent">Approved by you.</span>
-          </motion.h1>
-          <div className="mt-10 space-y-5">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease, delay: 0.15 + i * 0.08 }}
-                className="flex gap-4"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.08] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)]">
-                  <f.icon className="h-[18px] w-[18px] text-[#FF7A66]" strokeWidth={2} />
-                </div>
-                <div>
-                  <div className="text-[15px] font-semibold tracking-[-0.01em] text-white">{f.title}</div>
-                  <div className="mt-0.5 text-[14px] leading-5 text-white/55">{f.body}</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center justify-between text-[12.5px] text-white/40">
-          <span>Dhiti Services · Rural operations from Pune district</span>
-          <span>Studio</span>
-        </div>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface/70 text-brand-ink shadow-[0_0_0_1px_var(--hairline),0_1px_2px_rgb(var(--shadow)/0.05)] backdrop-blur-md">
+              <f.icon className="h-[18px] w-[18px]" strokeWidth={2} />
+            </div>
+            <div className="pt-0.5">
+              <div className="text-[15px] font-semibold tracking-[-0.012em] text-ink">{f.title}</div>
+              <div className="mt-0.5 max-w-[400px] text-[14px] leading-5 text-ink-mute">{f.body}</div>
+            </div>
+          </motion.div>
+        ))}
       </div>
     </div>
   );
@@ -104,34 +117,36 @@ function CodeInput({ value, onChange, onComplete, disabled, invalid }) {
   useEffect(() => { if (!disabled) focus(Math.max(0, digits.findIndex((d) => !d))); }, [disabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex justify-between gap-2 sm:gap-2.5" role="group" aria-label="6-digit code">
+    <div className="flex items-center justify-center gap-2 sm:gap-2.5" role="group" aria-label="6-digit code">
       {digits.map((d, i) => (
-        <input
-          key={i}
-          ref={(el) => (refs.current[i] = el)}
-          value={d}
-          disabled={disabled}
-          inputMode="numeric"
-          pattern="[0-9]*"
-          autoComplete={i === 0 ? "one-time-code" : "off"}
-          enterKeyHint={i === CODE_LENGTH - 1 ? "done" : "next"}
-          aria-label={`Digit ${i + 1} of ${CODE_LENGTH}`}
-          aria-invalid={invalid || undefined}
-          onFocus={(e) => e.target.select()}
-          onKeyDown={(e) => onKeyDown(i, e)}
-          onPaste={(e) => { e.preventDefault(); fill(i, e.clipboardData.getData("text")); }}
-          onChange={(e) => {
-            const v = e.target.value.replace(/\D/g, "");
-            if (!v) return;
-            // Typing over a filled box gives two characters: keep the new one.
-            fill(i, v.length === 2 && d ? v.replace(d, "") || v[1] : v);
-          }}
-          className={cx(
-            "code-box tnum h-[58px] w-full min-w-0 rounded-[14px] bg-surface text-center text-[26px] font-semibold text-ink caret-brand outline-none transition-[box-shadow,background-color] duration-150 sm:h-[62px]",
-            invalid ? "code-box-invalid" : d ? "code-box-filled" : "",
-            disabled && "opacity-60",
-          )}
-        />
+        <Fragment key={i}>
+          {i === CODE_LENGTH / 2 && <span className="mx-0.5 h-[2px] w-3 shrink-0 rounded-full bg-ink/20 sm:mx-1" aria-hidden />}
+          <input
+            ref={(el) => (refs.current[i] = el)}
+            value={d}
+            disabled={disabled}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete={i === 0 ? "one-time-code" : "off"}
+            enterKeyHint={i === CODE_LENGTH - 1 ? "done" : "next"}
+            aria-label={`Digit ${i + 1} of ${CODE_LENGTH}`}
+            aria-invalid={invalid || undefined}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => onKeyDown(i, e)}
+            onPaste={(e) => { e.preventDefault(); fill(i, e.clipboardData.getData("text")); }}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "");
+              if (!v) return;
+              // Typing over a filled box gives two characters: keep the new one.
+              fill(i, v.length === 2 && d ? v.replace(d, "") || v[1] : v);
+            }}
+            className={cx(
+              "code-box tnum h-[60px] w-full min-w-0 max-w-[54px] rounded-[14px] bg-surface text-center text-[26px] font-semibold tracking-[-0.02em] text-ink caret-brand outline-none transition-[box-shadow,background-color,transform] duration-200 ease-apple sm:h-[64px]",
+              invalid ? "code-box-invalid" : d ? "code-box-filled" : "",
+              disabled && "opacity-60",
+            )}
+          />
+        </Fragment>
       ))}
     </div>
   );
@@ -244,27 +259,40 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
   const signingIn = busy && step === "code";
 
   return (
-    <div className="flex min-h-dvh bg-canvas">
-      <BrandPanel />
-      <div className="aurora relative flex flex-1 items-center justify-center px-4 py-12 sm:px-8">
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease }} className="w-full max-w-[400px]">
+    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden bg-canvas">
+      <AuroraBackdrop />
+      <header className="relative z-[1] flex items-center justify-between px-5 pt-[calc(20px+env(safe-area-inset-top))] sm:px-10 sm:pt-8">
+        <Logo className="h-[26px]" />
+        <span className="hidden items-center gap-1.5 text-[12.5px] font-medium text-ink-mute sm:flex">
+          <Lock className="h-3.5 w-3.5" strokeWidth={2.2} /> Private workspace
+        </span>
+      </header>
+      <main className="relative z-[1] flex flex-1 items-center justify-center px-4 py-10 sm:px-10">
+        <div className="flex w-full max-w-[1120px] items-center justify-center gap-16 lg:justify-between">
+        <Hero />
+        <motion.div
+          initial={{ opacity: 0, y: 16, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 30, mass: 1 }}
+          className="glass-card w-full max-w-[440px] rounded-[28px] p-6 sm:p-9"
+        >
           <AnimatePresence mode="wait" initial={false}>
             {step === "email" ? (
               <motion.div key="email" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.28, ease }}>
-                <div className="mb-8 flex flex-col items-center text-center lg:items-start lg:text-left">
-                  <AppMark size={52} className="mb-6 shadow-lift" />
-                  <h2 className="text-title-1 font-bold text-ink">Sign in to Studio</h2>
+                <div className="mb-7 flex flex-col items-center text-center">
+                  <AppMark size={56} className="mb-6 shadow-lift" />
+                  <h2 className="text-[28px] font-bold leading-[34px] tracking-[-0.03em] text-ink">Sign in to Studio</h2>
                   <p className="mt-2 text-body text-ink-mute">We'll email you a 6-digit code. No password needed.</p>
                 </div>
                 <form onSubmit={submitEmail} className="space-y-3" noValidate>
                   <AnimatePresence initial={false}>{notice && !error && <Notice key="notice" tone="info">{notice}</Notice>}</AnimatePresence>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-ink-faint" />
+                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-faint" />
                     <input
                       ref={emailRef}
                       type="email"
                       name="email"
-                      autoComplete="username email"
+                      autoComplete="email"
                       inputMode="email"
                       autoCapitalize="none"
                       autoCorrect="off"
@@ -273,13 +301,13 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
                       placeholder="you@company.com"
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); if (error) setError(null); }}
-                      className="input h-12 pl-10"
+                      className="input h-[50px] rounded-[14px] pl-11 text-[16px]"
                       aria-label="Email"
                       aria-invalid={!!error || undefined}
                     />
                   </div>
                   <AnimatePresence initial={false}>{error && <Notice key="err" tone="error">{error}</Notice>}</AnimatePresence>
-                  <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy} iconRight={busy ? undefined : ArrowRight}>
+                  <Button type="submit" variant="primary" size="lg" className="h-[50px] w-full rounded-[14px] text-[16px]" loading={busy} iconRight={busy ? undefined : ArrowRight}>
                     {busy ? "Sending…" : "Email me a code"}
                   </Button>
                   {DEMO_AVAILABLE && !demo && (
@@ -295,24 +323,24 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
               </motion.div>
             ) : (
               <motion.div key="code" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={{ duration: 0.28, ease }}>
-                <div className="mb-7 flex flex-col items-center text-center lg:items-start lg:text-left">
-                  <span className="mb-6 flex h-[52px] w-[52px] items-center justify-center rounded-[14px] bg-gradient-to-b from-[#FF4A33] to-[#C20600] text-white shadow-glow">
-                    <Mail className="h-6 w-6" strokeWidth={2} />
+                <div className="mb-7 flex flex-col items-center text-center">
+                  <span className="mail-badge mb-6 flex h-14 w-14 items-center justify-center rounded-[16px] text-white">
+                    <Mail className="h-[26px] w-[26px]" strokeWidth={1.9} />
                   </span>
-                  <h2 className="text-title-1 font-bold text-ink">Check your email</h2>
+                  <h2 className="text-[28px] font-bold leading-[34px] tracking-[-0.03em] text-ink">Check your email</h2>
                   <p className="mt-2 text-body text-ink-mute">{NEUTRAL_SENT}</p>
-                  <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full bg-ink/[0.05] px-3 py-1 text-callout">
+                  <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full bg-surface/70 px-3 py-1 text-callout shadow-[0_0_0_1px_var(--hairline)]">
                     <Mail className="h-3.5 w-3.5 shrink-0 text-ink-mute" />
                     <span className="truncate font-semibold text-ink" data-testid="login-email">{email}</span>
                   </div>
                 </div>
 
                 <form onSubmit={(e) => { e.preventDefault(); if (code.length === CODE_LENGTH) verify(code); }} noValidate>
-                  <label className="mb-2.5 block text-callout font-semibold text-ink-soft">Enter the 6-digit code</label>
+                  <label className="mb-3 block text-center text-callout font-semibold text-ink-soft">Enter the 6-digit code</label>
                   <motion.div animate={shake}>
                     <CodeInput value={code} onChange={(v) => { setCode(v); if (error) setError(null); }} onComplete={verify} disabled={signingIn || verifying} invalid={!!error} />
                   </motion.div>
-                  <div className="mt-3 min-h-[60px]">
+                  <div className="mt-3 min-h-[44px]">
                     <AnimatePresence mode="wait" initial={false}>
                       {signingIn || verifying ? (
                         <motion.div key="busy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 py-2.5 text-callout font-medium text-ink-mute" role="status">
@@ -344,7 +372,7 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
                   </button>
                 </div>
 
-                <p className="mt-6 rounded-xl bg-ink/[0.035] px-3.5 py-3 text-[12.5px] leading-[18px] text-ink-mute">
+                <p className="mt-5 rounded-2xl bg-ink/[0.035] px-4 py-3 text-[12.5px] leading-[18px] text-ink-mute">
                   The email also has a sign-in link. Opening it in this browser signs you in without the code. The code expires after an hour; only the newest one works.
                   {demo && <span className="mt-1 block font-semibold text-violet">Demo code: 123456</span>}
                 </p>
@@ -352,11 +380,16 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
             )}
           </AnimatePresence>
 
-          <p className="mt-8 flex items-center justify-center gap-1.5 text-center text-[12.5px] leading-[18px] text-ink-faint lg:justify-start lg:text-left">
-            <ShieldCheck className="h-3.5 w-3.5" /> Private workspace. Only approved accounts can sign in.
+          <p className="hairline-t mt-7 flex items-center justify-center gap-1.5 pt-5 text-center text-[12.5px] leading-[18px] text-ink-mute">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Private workspace. Only approved accounts can sign in.
           </p>
         </motion.div>
-      </div>
+        </div>
+      </main>
+      <footer className="relative z-[1] flex items-center justify-center gap-2 px-5 pb-[calc(20px+env(safe-area-inset-bottom))] text-[12px] text-ink-mute sm:justify-between sm:px-10 sm:pb-7">
+        <span>Dhiti Services · Rural operations from Pune district</span>
+        <span className="hidden sm:inline">Studio</span>
+      </footer>
     </div>
   );
 }

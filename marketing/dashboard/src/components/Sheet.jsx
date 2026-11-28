@@ -79,7 +79,7 @@ export function Sheet({ open, onClose, title, description, children, footer, wid
       {open && (
         <motion.div className="fixed inset-0 z-[70]" initial="closed" animate="open" exit="closed">
           <motion.div
-            className="absolute inset-0 bg-[#0b0c0f]/40 backdrop-blur-[2px] dark:bg-black/60"
+            className="absolute inset-0 bg-[#120d0c]/40 backdrop-blur-[3px] dark:bg-black/60"
             variants={{ open: { opacity: 1 }, closed: { opacity: 0 } }}
             transition={{ duration: 0.22 }}
             onClick={onClose}

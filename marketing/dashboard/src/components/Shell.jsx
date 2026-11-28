@@ -32,7 +32,7 @@ const darkMq = typeof window !== "undefined" ? window.matchMedia("(prefers-color
 function applyTheme() {
   const dark = themeValue === "dark" || (themeValue === "system" && darkMq?.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#0E0F12" : "#FAF7F2"));
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#100C0C" : "#FAF7F2"));
 }
 darkMq?.addEventListener("change", applyTheme);
 function setThemeValue(t) {
@@ -191,13 +191,13 @@ export function MobileHeader({ title, onSearch }) {
   );
 }
 
-function Item({ active, icon: Icon, label, count, onClick, to }) {
+function Item({ active, icon: Icon, label, count, urgent, onClick, to }) {
   const inner = (
     <>
       <span className="relative">
         {active && <motion.span layoutId="tab-active" transition={spring} className="absolute -inset-x-3.5 -inset-y-1 rounded-full bg-brand/[0.1]" />}
         <Icon className={cx("relative h-[22px] w-[22px] transition-colors", active ? "text-brand-ink" : "text-ink-mute")} strokeWidth={active ? 2.3 : 2} />
-        {count > 0 && <span className="tnum absolute -right-2.5 -top-1.5 min-w-[17px] rounded-full bg-brand-deep px-1 text-center text-[10px] font-bold leading-[17px] text-white ring-2 ring-canvas">{count}</span>}
+        {count > 0 && <span className={cx("tnum absolute -right-2.5 -top-1.5 min-w-[17px] rounded-full px-1 text-center text-[10px] font-bold leading-[17px] ring-2 ring-canvas", urgent ? "bg-brand-deep text-white" : "bg-ink text-canvas")}>{count}</span>}
       </span>
       <span className={cx("mt-1 text-[10.5px] font-semibold tracking-[-0.005em]", active ? "text-brand-ink" : "text-ink-mute")}>{label}</span>
     </>
@@ -219,7 +219,7 @@ export function TabBar({ onSignOut, demo }) {
     <>
       <nav className="glass glass-strong fixed inset-x-0 bottom-0 z-40 flex shadow-[0_-1px_0_var(--hairline)] pb-[var(--safe-bottom)] lg:hidden">
         {tabs.map((t) => (
-          <Item key={t.to} to={t.to} icon={t.icon} label={t.short || t.label} active={isActive(t.to, pathname)} count={t.badge ? data[t.badge] : 0} />
+          <Item key={t.to} to={t.to} icon={t.icon} label={t.short || t.label} active={isActive(t.to, pathname)} count={t.badge ? data[t.badge] : 0} urgent={t.badge === "reviewCount"} />
         ))}
         <Item icon={MoreHorizontal} label="More" active={inMore} onClick={() => setMore(true)} />
       </nav>

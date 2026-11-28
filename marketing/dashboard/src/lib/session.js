@@ -66,17 +66,22 @@ export const validEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
 /* ---- error mapping: never reveals whether an email is allowed ---- */
 const status = (e) => Number(e?.status) || 0;
 const msg = (e) => String(e?.message || "");
-const isNetwork = (e) => e?.name === "AuthRetryableFetchError" || /fetch|network|load failed/i.test(msg(e)) && !status(e);
+// No HTTP response at all (offline, DNS, blocked). supabase-js reports it as AuthRetryableFetchError with status 0.
+const isNetwork = (e) => !status(e) && (e?.name === "AuthRetryableFetchError" || /fetch|network|load failed/i.test(msg(e)));
+// The gateway in front of Supabase Auth is down (same for every address, so safe to say).
+const isOutage = (e) => status(e) >= 502 && status(e) <= 599;
 
 /**
- * Outcome of signInWithOtp. Anything that is not a network problem, a malformed address or a rate limit counts as
- * "sent": a stranger's sign-up is rejected inside the database (500), and that must look exactly like success.
+ * Outcome of signInWithOtp. Anything that is not a network problem, a gateway outage, a malformed address or a rate
+ * limit counts as "sent": a stranger's sign-up is rejected inside the database (HTTP 500 "Database error saving new
+ * user"; 422 once sign-ups are turned off), and that must look exactly like success.
  *  -> { kind: 'sent' } | { kind: 'sent', wait } (a code was requested for this address moments ago)
  *   | { kind: 'rate', text } | { kind: 'network', text } | { kind: 'invalid', text }
  */
 export function classifySendError(e) {
   if (!e) return { kind: "sent" };
   if (isNetwork(e)) return { kind: "network", text: "Couldn't reach the sign-in service. Check your connection and try again." };
+  if (isOutage(e)) return { kind: "network", text: "The sign-in service is busy. Try again in a minute." };
   const m = msg(e);
   const after = m.match(/after (\d+) seconds?/i);
   if (after) return { kind: "sent", wait: Math.max(1, Number(after[1])) };
@@ -89,6 +94,7 @@ export function classifySendError(e) {
 
 export function verifyErrorText(e) {
   if (isNetwork(e)) return "Couldn't reach the sign-in service. Check your connection and try again.";
+  if (isOutage(e)) return "The sign-in service is busy. Try the code again in a minute.";
   if (status(e) === 429 || /rate limit|too many/i.test(msg(e))) return "Too many attempts. Wait a minute, then try the code again.";
   return "That code is incorrect or has expired. Check the latest email, or send a new code.";
 }

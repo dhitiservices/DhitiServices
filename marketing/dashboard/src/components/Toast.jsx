@@ -6,7 +6,7 @@ import { spring } from "../lib/motion.js";
 const ToastContext = createContext(() => {});
 export const useToast = () => useContext(ToastContext);
 
-// Toasts are always dark, so their icons use fixed colours that keep 3:1+ contrast on #1d1e23 in both themes.
+// Toasts are always dark, so their icons use fixed colours that keep 3:1+ contrast on #1f1918 in both themes.
 const TONE = {
   ok: { icon: CheckCircle2, cls: "text-[#3DD68C]" },
   warn: { icon: AlertTriangle, cls: "text-[#FFB340]" },
@@ -68,7 +68,7 @@ export function ToastProvider({ children }) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 12, scale: 0.97, transition: { duration: 0.16 } }}
                 transition={spring}
-                className="pointer-events-auto flex w-full max-w-[440px] items-start gap-3 rounded-2xl bg-[#1d1e23]/95 px-4 py-3 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_16px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl dark:bg-[#2a2b31]/95"
+                className="pointer-events-auto flex w-full max-w-[440px] items-start gap-3 rounded-2xl bg-[#1f1918]/95 px-4 py-3 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_16px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl dark:bg-[#2c2423]/95"
                 role="status"
                 onPointerEnter={() => pause(t.id)}
                 onPointerLeave={() => resume(t.id)}

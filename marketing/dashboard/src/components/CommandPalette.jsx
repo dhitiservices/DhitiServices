@@ -80,7 +80,7 @@ export function CommandPalette({ open, onClose }) {
         <div className="fixed inset-0 z-[75] flex items-start justify-center px-3 pt-[12vh] sm:px-6">
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}
-            className="absolute inset-0 bg-[#0b0c0f]/30 dark:bg-black/55"
+            className="absolute inset-0 bg-[#120d0c]/30 dark:bg-black/55"
             onClick={onClose}
           />
           <motion.div
@@ -101,7 +101,7 @@ export function CommandPalette({ open, onClose }) {
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={onKey}
                 placeholder="Search content, pages and actions…"
-                className="h-[54px] flex-1 bg-transparent text-[16px] tracking-[-0.01em] text-ink outline-none placeholder:text-ink-faint"
+                className="h-[54px] flex-1 bg-transparent text-[16px] tracking-[-0.01em] text-ink outline-none placeholder:text-ink-faint focus-visible:outline-none"
                 aria-label="Search"
                 role="combobox"
                 aria-expanded={results.length > 0}

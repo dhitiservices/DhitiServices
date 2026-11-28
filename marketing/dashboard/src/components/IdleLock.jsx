@@ -80,7 +80,7 @@ export function IdleLock({ onExpire }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 12, scale: 0.97, transition: { duration: 0.16 } }}
           transition={spring}
-          className="fixed inset-x-0 z-[90] mx-auto flex w-[calc(100%-32px)] max-w-[440px] items-center gap-3 rounded-2xl bg-[#1d1e23]/95 px-4 py-3 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_16px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl bottom-[calc(88px+var(--safe-bottom))] lg:bottom-6 dark:bg-[#2a2b31]/95"
+          className="fixed inset-x-0 z-[90] mx-auto flex w-[calc(100%-32px)] max-w-[440px] items-center gap-3 rounded-2xl bg-[#1f1918]/95 px-4 py-3 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_16px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl bottom-[calc(88px+var(--safe-bottom))] lg:bottom-6 dark:bg-[#2c2423]/95"
         >
           <span className="relative flex h-10 w-10 shrink-0 items-center justify-center">
             <svg viewBox="0 0 40 40" className="absolute inset-0 -rotate-90" aria-hidden>

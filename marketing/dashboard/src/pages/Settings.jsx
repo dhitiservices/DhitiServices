@@ -101,13 +101,13 @@ export default function Settings() {
   const daysMismatch = form.publish_days.length !== form.blogs_per_week;
 
   return (
-    <div className="mx-auto max-w-[860px] px-4 py-6 sm:px-8 lg:py-10">
-      <PageHeader title="Settings" subtitle="What the weekly run makes, who it writes for, and when blogs go live." />
+    <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
+      <PageHeader className="max-w-[860px]" title="Settings" subtitle="What the weekly run makes, who it writes for, and when blogs go live." />
 
       {loading ? (
-        <div className="space-y-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>
+        <div className="max-w-[860px] space-y-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>
       ) : (
-        <div className="space-y-8">
+        <div className="max-w-[860px] space-y-8">
           <section>
             <h2 className="mb-3 text-headline font-semibold">Weekly output</h2>
             <Card className="divide-y divide-[color:var(--hairline)]">
@@ -133,12 +133,12 @@ export default function Settings() {
                       key={day}
                       whileTap={{ scale: 0.94 }}
                       onClick={() => set("publish_days")(on ? form.publish_days.filter((x) => x !== day) : DAYS.filter((x) => x === day || form.publish_days.includes(x)))}
-                      className={cx("relative flex h-14 flex-col items-center justify-center rounded-xl text-callout font-semibold transition-colors", on ? "text-white" : "bg-ink/[0.04] text-ink-mute hover:bg-ink/[0.07]")}
+                      className={cx("relative flex h-14 flex-col items-center justify-center rounded-xl text-callout font-semibold transition-colors", on ? "text-ink" : "bg-ink/[0.04] text-ink-mute hover:bg-ink/[0.07]")}
                       aria-pressed={on}
                     >
-                      {on && <motion.span layoutId={`day-${day}`} transition={spring} className="absolute inset-0 rounded-xl bg-gradient-to-b from-[#E30700] to-[#C20600] shadow-glow" />}
+                      {on && <motion.span layoutId={`day-${day}`} transition={spring} className="absolute inset-0 rounded-xl bg-surface shadow-[0_0_0_1.5px_rgb(var(--brand)/0.75),0_0_0_4px_rgb(var(--brand)/0.1),0_2px_8px_-2px_rgb(var(--shadow)/0.12)] dark:bg-surface-raised" />}
                       <span className="relative">{day.slice(0, 3)}</span>
-                      {on && <Check className="relative mt-0.5 h-3 w-3" strokeWidth={3} />}
+                      {on ? <span className="relative mt-1 flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-b from-brand-bright to-brand-deep text-white"><Check className="h-2.5 w-2.5" strokeWidth={3.5} /></span> : <span className="relative mt-1 h-4 w-4 rounded-full shadow-[inset_0_0_0_1.5px_rgb(var(--ink)/0.18)]" />}
                     </motion.button>
                   );
                 })}
@@ -257,7 +257,7 @@ function RunsLog() {
                       {logs[r.id] == null ? (
                         <div className="space-y-1.5 rounded-xl bg-ink/[0.035] p-3"><Skeleton className="h-3 w-3/4" /><Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" /></div>
                       ) : (
-                        <pre className="tnum max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl bg-[#15161A] p-4 font-sans text-[12px] leading-[19px] text-white/80 dark:bg-black/40">{logs[r.id]}</pre>
+                        <pre className="tnum max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl bg-[#161110] p-4 font-sans text-[12px] leading-[19px] text-white/80 dark:bg-black/40">{logs[r.id]}</pre>
                       )}
                     </div>
                   </motion.div>

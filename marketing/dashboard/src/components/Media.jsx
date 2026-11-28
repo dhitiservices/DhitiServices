@@ -27,7 +27,7 @@ export function SignedImage({ path, src, alt = "", className, imgClassName, fit 
     <div className={cx("relative overflow-hidden bg-ink/[0.05]", className)} style={style}>
       {!loaded && !broken && <div className="skeleton absolute inset-0 rounded-none" />}
       {broken ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a1512] via-[#1c1c21] to-[#15161a] text-white/40">
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#2a1512] via-[#1d1716] to-[#161110] text-white/40">
           <ImageOff className="h-5 w-5" strokeWidth={1.8} />
         </div>
       ) : url ? (
@@ -58,7 +58,9 @@ export function SignedVideo({ path, posterPath, className, ...rest }) {
   const ref = useRef(null);
   const resumeAt = useRef(0);
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [path]);
+  // Until the first play the frame stays clean (poster plus one glass play button); native controls appear after.
+  const [started, setStarted] = useState(false);
+  useEffect(() => { setFailed(false); setStarted(false); }, [path]);
   // An expired URL (after sleep) fails on the next range request: re-sign once and continue where it stopped.
   const onError = () => {
     resumeAt.current = ref.current?.currentTime || 0;
@@ -79,14 +81,27 @@ export function SignedVideo({ path, posterPath, className, ...rest }) {
           ref={ref}
           src={v.url}
           poster={p.url || undefined}
-          controls
+          controls={started}
           playsInline
+          onPlay={() => setStarted(true)}
           preload="metadata"
           onError={onError}
           onLoadedMetadata={(e) => { if (resumeAt.current) { e.currentTarget.currentTime = resumeAt.current; resumeAt.current = 0; } }}
           className="h-full w-full object-cover"
           {...rest}
         />
+      )}
+      {v.url && !broken && !started && (
+        <button
+          type="button"
+          aria-label="Play video"
+          onClick={() => { setStarted(true); ref.current?.play?.().catch(() => {}); }}
+          className="group absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/35 via-transparent to-transparent"
+        >
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-white shadow-[inset_0_0_0_1px_rgb(255_255_255/0.35),0_8px_24px_-6px_rgb(0_0_0/0.5)] backdrop-blur-xl transition-transform duration-200 ease-apple group-hover:scale-105 group-active:scale-95">
+            <Play className="ml-1 h-7 w-7 fill-current" strokeWidth={0} />
+          </span>
+        </button>
       )}
     </div>
   );

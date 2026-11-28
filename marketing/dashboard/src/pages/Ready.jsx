@@ -55,7 +55,7 @@ export default function Ready() {
                     <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={spring} className="card flex flex-col overflow-hidden">
                       <button onClick={() => navigate(`/review/${item.id}?filter=approved`)} aria-label={`Open ${T.label.toLowerCase()} for ${topic?.title || "this topic"}`} className="group relative block bg-ink/[0.03] p-4">
                         <ItemThumb item={item} className={cx("mx-auto shadow-lift", item.type === "graphic" ? "aspect-square w-[62%]" : "aspect-[4/5] w-[52%]")} />
-                        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur-md transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"><Eye className="h-3 w-3" /> Open</span>
+                        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur-md transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"><Eye className="h-3 w-3" /> Open</span>
                       </button>
                       <div className="flex flex-1 flex-col p-4">
                         <div className="flex items-center gap-2">

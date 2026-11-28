@@ -35,29 +35,30 @@
     --brand-bright: 255 51 34; /* #FF3322 */
     --brand-tint: 255 236 233;
     --brand-ink: 194 6 0;      /* #C20600: brand-coloured text, 6.4:1 on white (WCAG AA) */
+    --focus: 194 6 0;
 
-    --ink: 21 22 26;           /* #15161A */
-    --ink-soft: 58 61 69;      /* #3a3d45 */
-    --ink-mute: 98 102 112;    /* #626670, 4.5:1+ on tinted chips */
-    --ink-faint: 104 108 117;  /* #686C75, 4.5:1+ on canvas and white */
+    --ink: 22 17 16;           /* #161110 Dhiti warm ink */
+    --ink-soft: 74 64 62;      /* #4A403E */
+    --ink-mute: 107 96 93;     /* #6B605D, the brand mute #857A77 darkened to 5.2:1 on tinted chips (WCAG AA) */
+    --ink-faint: 115 104 101;  /* #736865, 5.0:1 on canvas, 5.7:1 on white */
 
     --canvas: 250 247 242;     /* #FAF7F2 warm off-white */
     --surface: 255 255 255;
     --surface-raised: 255 255 255;
     --surface-sunken: 244 240 233;
-    --line: 232 227 219;       /* hairline as an opaque warm grey */
-    --line-strong: 214 208 199;
-    --shadow: 40 28 20;
+    --line: 232 226 218;       /* hairline as an opaque warm grey */
+    --line-strong: 214 206 197;
+    --shadow: 46 26 20;
 
-    --ok: 12 112 66;           /* #0C7042, 4.5:1+ on its own 10% tint */
-    --warn: 154 91 0;          /* #9A5B00 */
-    --info: 38 110 230;
-    --violet: 104 70 204;
+    --ok: 11 106 62;           /* #0B6A3E, 4.5:1+ on its own tint */
+    --warn: 134 78 0;          /* #864E00 */
+    --info: 28 92 200;         /* #1C5CC8 */
+    --violet: 98 64 196;
 
     --glass: 250 247 242;
     --glass-alpha: 0.72;
-    --hairline: rgb(21 22 26 / 0.08);
-    --hairline-strong: rgb(21 22 26 / 0.14);
+    --hairline: rgb(22 17 16 / 0.08);
+    --hairline-strong: rgb(22 17 16 / 0.14);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     color-scheme: light;
   }
@@ -68,29 +69,30 @@
     --brand-bright: 255 92 72;
     --brand-tint: 60 18 16;
     --brand-ink: 255 112 94;
+    --focus: 255 92 72;
 
-    --ink: 244 242 238;
-    --ink-soft: 196 197 203;
-    --ink-mute: 140 143 153;
-    --ink-faint: 128 131 140;
+    --ink: 246 241 236;        /* warm white */
+    --ink-soft: 206 197 192;
+    --ink-mute: 160 150 146;   /* 5.2:1+ on raised surfaces */
+    --ink-faint: 150 140 136;  /* 4.6:1+ on raised surfaces */
 
-    --canvas: 14 15 18;
-    --surface: 24 25 30;
-    --surface-raised: 31 32 38;
-    --surface-sunken: 19 20 24;
-    --line: 44 46 53;
-    --line-strong: 60 62 70;
+    --canvas: 16 12 12;        /* #100C0C, the dhitiservices.com dark band family */
+    --surface: 26 21 20;
+    --surface-raised: 34 28 27;
+    --surface-sunken: 20 16 15;
+    --line: 46 39 38;
+    --line-strong: 64 55 53;
     --shadow: 0 0 0;
 
     --ok: 52 199 123;
     --warn: 255 179 64;
-    --info: 96 160 255;
-    --violet: 165 140 255;
+    --info: 110 168 255;
+    --violet: 172 150 255;
 
-    --glass: 18 19 23;
-    --glass-alpha: 0.7;
-    --hairline: rgb(255 255 255 / 0.07);
-    --hairline-strong: rgb(255 255 255 / 0.12);
+    --glass: 20 15 15;
+    --glass-alpha: 0.72;
+    --hairline: rgb(255 240 235 / 0.075);
+    --hairline-strong: rgb(255 240 235 / 0.13);
     color-scheme: dark;
   }
 
@@ -110,10 +112,14 @@
   }
   ::selection { background: rgb(var(--brand) / 0.18); }
   button, input, textarea, select { font: inherit; color: inherit; letter-spacing: inherit; }
+  /* SF Pro Display only: keyboard hints and code never fall back to the UA monospace font. */
+  kbd, code, pre, samp { font-family: inherit; }
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
   button { -webkit-tap-highlight-color: transparent; }
   :focus { outline: none; }
-  :focus-visible { outline: 2px solid rgb(var(--brand-deep)); outline-offset: 2px; }
-  :root[data-theme="dark"] :focus-visible { outline-color: rgb(var(--brand-bright)); }
+  /* One focus colour per theme through a variable, so utilities like outline-none still win (no specificity fight). */
+  :focus-visible { outline: 2px solid rgb(var(--focus)); outline-offset: 2px; }
   img, video { -webkit-user-drag: none; }
   .tnum { font-variant-numeric: tabular-nums; }
 
@@ -176,13 +182,17 @@
 
   /* Hero mesh: ink to Dhiti red, for the week-at-a-glance card and the login panel */
   .mesh-ink {
-    background-color: #15161a;
+    background-color: #161110;
     background-image:
       radial-gradient(38rem 22rem at 100% 0%, rgb(238 8 0 / 0.55), transparent 60%),
-      radial-gradient(30rem 20rem at 78% 120%, rgb(255 51 34 / 0.35), transparent 60%),
-      radial-gradient(26rem 18rem at -10% 110%, rgb(194 6 0 / 0.28), transparent 60%),
-      linear-gradient(180deg, #1b1c21, #121317);
+      radial-gradient(30rem 20rem at 78% 120%, rgb(255 51 34 / 0.32), transparent 60%),
+      radial-gradient(26rem 18rem at -10% 110%, rgb(194 6 0 / 0.26), transparent 60%),
+      linear-gradient(180deg, #1d1716, #120e0d);
   }
+  /* A slow light sweep across hero cards. Transform-only; off under reduced motion. */
+  .mesh-sheen { position: absolute; inset: -40%; pointer-events: none; background: radial-gradient(closest-side, rgb(255 90 60 / 0.16), transparent 70%); animation: sheen 18s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
+  @keyframes sheen { from { transform: translate3d(-18%, 8%, 0); } to { transform: translate3d(22%, -10%, 0); } }
+  @media (prefers-reduced-motion: reduce) { .mesh-sheen { animation: none; } }
   .grain::after {
     content: "";
     position: absolute; inset: 0; pointer-events: none; border-radius: inherit; opacity: 0.07; mix-blend-mode: overlay;
@@ -204,12 +214,74 @@
   .progress-indeterminate { animation: indeterminate 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
   @keyframes indeterminate { from { transform: translateX(-110%); } to { transform: translateX(320%); } }
 
+  /* ---------------------------------------------------------------- Login: animated Dhiti aurora + glass card */
+  .login-aurora { background: rgb(var(--canvas)); }
+  .aurora-blob {
+    position: absolute; border-radius: 9999px; will-change: transform;
+    animation: drift 26s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  }
+  .aurora-blob-1 { width: 62vmax; height: 62vmax; left: -18vmax; top: -30vmax; background: radial-gradient(closest-side, rgb(238 8 0 / 0.22), rgb(238 8 0 / 0) 72%); }
+  .aurora-blob-2 { width: 54vmax; height: 54vmax; right: -16vmax; top: -12vmax; background: radial-gradient(closest-side, rgb(255 140 100 / 0.26), rgb(255 140 100 / 0) 70%); animation-duration: 32s; animation-delay: -9s; }
+  .aurora-blob-3 { width: 58vmax; height: 58vmax; right: 4vmax; bottom: -38vmax; background: radial-gradient(closest-side, rgb(194 6 0 / 0.16), rgb(194 6 0 / 0) 70%); animation-duration: 38s; animation-delay: -17s; }
+  .aurora-blob-4 { width: 36vmax; height: 36vmax; left: 18vmax; bottom: -14vmax; background: radial-gradient(closest-side, rgb(255 51 34 / 0.12), rgb(255 51 34 / 0) 70%); animation-duration: 30s; animation-delay: -4s; }
+  :root[data-theme="dark"] .aurora-blob-1 { background: radial-gradient(closest-side, rgb(238 8 0 / 0.42), rgb(238 8 0 / 0) 72%); }
+  :root[data-theme="dark"] .aurora-blob-2 { background: radial-gradient(closest-side, rgb(255 90 60 / 0.22), rgb(255 90 60 / 0) 70%); }
+  :root[data-theme="dark"] .aurora-blob-3 { background: radial-gradient(closest-side, rgb(194 6 0 / 0.36), rgb(194 6 0 / 0) 70%); }
+  :root[data-theme="dark"] .aurora-blob-4 { background: radial-gradient(closest-side, rgb(255 51 34 / 0.18), rgb(255 51 34 / 0) 70%); }
+  @keyframes drift {
+    0% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(4vmax, 3vmax, 0) scale(1.08); }
+    100% { transform: translate3d(-3vmax, 5vmax, 0) scale(0.96); }
+  }
+  /* A faint engineering grid that fades out toward the edges (Stripe-like detail, never competes with content). */
+  .aurora-grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgb(var(--ink) / 0.045) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--ink) / 0.045) 1px, transparent 1px);
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 20%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 20%, transparent 75%);
+  }
+  .aurora-grain {
+    position: absolute; inset: 0; opacity: 0.05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  @media (prefers-reduced-motion: reduce) { .aurora-blob { animation: none; } }
+
+  .glass-card {
+    position: relative;
+    background: rgb(var(--surface) / 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(28px);
+    backdrop-filter: saturate(180%) blur(28px);
+    box-shadow:
+      0 0 0 1px var(--hairline-strong),
+      inset 0 1px 0 rgb(255 255 255 / 0.7),
+      0 2px 4px rgb(var(--shadow) / 0.04),
+      0 24px 64px -20px rgb(var(--shadow) / 0.28);
+  }
+  :root[data-theme="dark"] .glass-card {
+    background: rgb(var(--surface-raised) / 0.62);
+    box-shadow: 0 0 0 1px var(--hairline-strong), inset 0 1px 0 rgb(255 255 255 / 0.06), 0 24px 64px -16px rgb(0 0 0 / 0.6);
+  }
+
+  /* Large display text in the Dhiti red family (decorative headline only; body text stays solid). */
+  .text-gradient-brand {
+    background-image: linear-gradient(100deg, #C20600 0%, #EE0800 45%, #FF5A3C 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  :root[data-theme="dark"] .text-gradient-brand { background-image: linear-gradient(100deg, #FF3322 0%, #FF6A50 55%, #FFA285 100%); }
+
+  .mail-badge {
+    background: linear-gradient(160deg, #FF4A33 0%, #EE0800 45%, #C20600 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 0 0 1px rgb(194 6 0 / 0.9), 0 10px 24px -8px rgb(238 8 0 / 0.55);
+  }
+
   /* Login code boxes */
-  .code-box { box-shadow: 0 0 0 1px var(--hairline-strong), 0 1px 2px rgb(var(--shadow) / 0.05), 0 1px 2px rgb(var(--shadow) / 0.04) inset; }
+  .code-box { box-shadow: 0 0 0 1px var(--hairline-strong), 0 1px 2px rgb(var(--shadow) / 0.05); }
   .code-box:hover { box-shadow: 0 0 0 1px rgb(var(--ink) / 0.24), 0 1px 2px rgb(var(--shadow) / 0.05); }
-  .code-box:focus { box-shadow: 0 0 0 1.5px rgb(var(--brand) / 0.8), 0 0 0 5px rgb(var(--brand) / 0.13); }
-  .code-box-filled { background: rgb(var(--surface-raised)); box-shadow: 0 0 0 1px rgb(var(--ink) / 0.2), 0 2px 6px -2px rgb(var(--shadow) / 0.12); }
-  .code-box-invalid { box-shadow: 0 0 0 1.5px rgb(var(--brand) / 0.75), 0 0 0 4px rgb(var(--brand) / 0.1); }
+  .code-box:focus { box-shadow: 0 0 0 1.5px rgb(var(--brand) / 0.85), 0 0 0 5px rgb(var(--brand) / 0.14), 0 6px 16px -6px rgb(var(--brand) / 0.3); transform: translateY(-1px); }
+  .code-box-filled { background: rgb(var(--surface-raised)); box-shadow: 0 0 0 1px rgb(var(--ink) / 0.22), 0 2px 6px -2px rgb(var(--shadow) / 0.14); }
+  .code-box-invalid { box-shadow: 0 0 0 1.5px rgb(var(--brand) / 0.8), 0 0 0 4px rgb(var(--brand) / 0.1); }
+  @media (prefers-reduced-motion: reduce) { .code-box:focus { transform: none; } }
 
   /* Splash: a slow breathing halo behind the app mark */
   .splash-halo { background: radial-gradient(closest-side, rgb(var(--brand) / 0.22), transparent); animation: halo 2.4s ease-in-out infinite; }

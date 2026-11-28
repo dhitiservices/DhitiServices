@@ -216,10 +216,10 @@ export function buildFixtures() {
   });
 
   const bA = blog(tA, { status: "pending_review", cover: "office.jpg", body: blogBody(tA, { slug: "second-check-desk-airline-adm", description: "A two-person second-check desk reviews every ticket within hours and can halve airline debit memos. Here is how to set one up in two weeks.", md: ADM_MD, image: "office" }) });
-  const bB = blog(tB, { status: "approved", approved_at: ago(180), approved_by: "owner@dhitiservices.com", cover: "manager.jpg", body: blogBody(tB, { slug: "group-rooming-list-checklist", description: "The 48-hour rooming list checklist our group desk uses to stop check-in surprises for wedding and MICE groups.", md: ROOMING_MD, image: "manager" }) });
+  const bB = blog(tB, { status: "approved", approved_at: ago(180), approved_by: "demo-owner@example.com", cover: "manager.jpg", body: blogBody(tB, { slug: "group-rooming-list-checklist", description: "The 48-hour rooming list checklist our group desk uses to stop check-in surprises for wedding and MICE groups.", md: ROOMING_MD, image: "manager" }) });
   const bC = blog(tC, { status: "changes_requested", feedback: "Open with a real scenario from an OTA, and cite one external source on repeat contacts.", cover: "phone.jpg", body: blogBody(tC, { slug: "support-quality-without-cost", description: "Support quality is a process problem before it is a people problem. How rural teams keep quality high and costs steady.", md: SUPPORT_MD, image: "phone" }) });
   const pub = (topic, slug, cover, daysAgo) => {
-    const it = blog(topic, { status: "published", cover, approved_at: ago(60 * 24 * (daysAgo + 1)), approved_by: "owner@dhitiservices.com", published_at: ago(60 * 24 * daysAgo), published_url: `https://www.dhitiservices.com/blog/${slug}/`, scheduled_for: ago(60 * 24 * daysAgo), body: blogBody(topic, { slug, description: "Published last week.", md: ROOMING_MD, image: cover }) });
+    const it = blog(topic, { status: "published", cover, approved_at: ago(60 * 24 * (daysAgo + 1)), approved_by: "demo-owner@example.com", published_at: ago(60 * 24 * daysAgo), published_url: `https://www.dhitiservices.com/blog/${slug}/`, scheduled_for: ago(60 * 24 * daysAgo), body: blogBody(topic, { slug, description: "Published last week.", md: ROOMING_MD, image: cover }) });
     return it;
   };
   const pL1 = pub(tL1, "corporate-hotel-rate-loading", "manager.jpg", 5);
@@ -280,7 +280,7 @@ export function buildFixtures() {
   graphicFor(bA, tA, "pending_review", { kind: "tip", headline: "Check tickets issued after 4 pm first", body: "That is when most fare errors happen." });
   videoFor(bA, tA, "awaiting_voiceover");
 
-  carouselFor(bB, tB, "approved", { approved_at: ago(170), approved_by: "owner@dhitiservices.com" });
+  carouselFor(bB, tB, "approved", { approved_at: ago(170), approved_by: "demo-owner@example.com" });
   graphicFor(bB, tB, "approved", { kind: "quote", headline: "Check twice, send once, confirm in writing.", body: "", attribution: "Dhiti group desk" }, { approved_at: ago(160) });
   graphicFor(bB, tB, "changes_requested", { kind: "stat", stat: "72h", headline: "is the new rooming list cut-off", body: "at large Rajasthan properties" }, { feedback: "Use 48h to match the blog." });
   videoFor(bB, tB, "pending_review");
@@ -290,17 +290,17 @@ export function buildFixtures() {
   graphicFor(pL1, tL1, "approved", { kind: "tip", headline: "Load corporate rates the day the contract lands", body: "Not the day before the first booking." }, { approved_at: ago(60 * 30) });
 
   const jobs = [
-    { id: id("job"), kind: "regenerate", payload: { content_item_id: bC.id, feedback: bC.feedback }, status: "queued", requested_by: "owner@dhitiservices.com", error: null, created_at: ago(40), started_at: null, finished_at: null },
-    { id: id("job"), kind: "publish_now", payload: {}, status: "done", requested_by: "owner@dhitiservices.com", error: null, created_at: ago(60 * 30), started_at: ago(60 * 29), finished_at: ago(60 * 29) },
+    { id: id("job"), kind: "regenerate", payload: { content_item_id: bC.id, feedback: bC.feedback }, status: "queued", requested_by: "demo-owner@example.com", error: null, created_at: ago(40), started_at: null, finished_at: null },
+    { id: id("job"), kind: "publish_now", payload: {}, status: "done", requested_by: "demo-owner@example.com", error: null, created_at: ago(60 * 30), started_at: ago(60 * 29), finished_at: ago(60 * 29) },
     { id: id("job"), kind: "run_weekly", payload: {}, status: "done", requested_by: "schedule", error: null, created_at: ago(60 * 26), started_at: ago(60 * 26), finished_at: ago(60 * 25) },
   ];
 
   const library = [
-    { id: id("lib"), kind: "photo", storage_path: "demo/office.jpg", mime: "image/jpeg", title: "Team at the Saswad office", notes: "Shot in October. OK for covers.", tags: ["team", "office"], content_item_id: null, used_count: 3, uploaded_by: "owner@dhitiservices.com", created_at: ago(60 * 24 * 12) },
-    { id: id("lib"), kind: "photo", storage_path: "demo/manager.jpg", mime: "image/jpeg", title: "Operations lead on a call", notes: "", tags: ["people"], content_item_id: null, used_count: 1, uploaded_by: "owner@dhitiservices.com", created_at: ago(60 * 24 * 9) },
-    { id: id("lib"), kind: "photo", storage_path: "demo/phone.jpg", mime: "image/jpeg", title: "Support desk close-up", notes: "", tags: ["support"], content_item_id: null, used_count: 0, uploaded_by: "owner@dhitiservices.com", created_at: ago(60 * 24 * 6) },
-    { id: id("lib"), kind: "video", storage_path: "demo/departures.mp4", mime: "video/mp4", title: "Departures board b-roll", notes: "", tags: ["airport"], content_item_id: null, used_count: 2, uploaded_by: "owner@dhitiservices.com", created_at: ago(60 * 24 * 5) },
-    { id: id("lib"), kind: "voiceover", storage_path: "demo/voiceover.mp3", mime: "audio/mpeg", title: "Anika · rooming list reel", notes: "Duration 27.4 s", tags: ["voiceover"], content_item_id: null, used_count: 1, uploaded_by: "owner@dhitiservices.com", created_at: ago(60 * 20) },
+    { id: id("lib"), kind: "photo", storage_path: "demo/office.jpg", mime: "image/jpeg", title: "Team at the Saswad office", notes: "Shot in October. OK for covers.", tags: ["team", "office"], content_item_id: null, used_count: 3, uploaded_by: "demo-owner@example.com", created_at: ago(60 * 24 * 12) },
+    { id: id("lib"), kind: "photo", storage_path: "demo/manager.jpg", mime: "image/jpeg", title: "Operations lead on a call", notes: "", tags: ["people"], content_item_id: null, used_count: 1, uploaded_by: "demo-owner@example.com", created_at: ago(60 * 24 * 9) },
+    { id: id("lib"), kind: "photo", storage_path: "demo/phone.jpg", mime: "image/jpeg", title: "Support desk close-up", notes: "", tags: ["support"], content_item_id: null, used_count: 0, uploaded_by: "demo-owner@example.com", created_at: ago(60 * 24 * 6) },
+    { id: id("lib"), kind: "video", storage_path: "demo/departures.mp4", mime: "video/mp4", title: "Departures board b-roll", notes: "", tags: ["airport"], content_item_id: null, used_count: 2, uploaded_by: "demo-owner@example.com", created_at: ago(60 * 24 * 5) },
+    { id: id("lib"), kind: "voiceover", storage_path: "demo/voiceover.mp3", mime: "audio/mpeg", title: "Anika · rooming list reel", notes: "Duration 27.4 s", tags: ["voiceover"], content_item_id: null, used_count: 1, uploaded_by: "demo-owner@example.com", created_at: ago(60 * 20) },
   ];
 
   const settings = {

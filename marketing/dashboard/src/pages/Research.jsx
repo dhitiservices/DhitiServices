@@ -46,7 +46,7 @@ export default function Research({ id }) {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-8 lg:py-10">
+      <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
         <Skeleton className="h-4 w-28" /><Skeleton className="mt-3 h-10 w-80" /><Skeleton className="mt-8 h-40 rounded-2xl" />
         <div className="mt-8 grid gap-3 md:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>
       </div>
@@ -54,7 +54,7 @@ export default function Research({ id }) {
   }
   if (!brief) {
     return (
-      <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-8 lg:py-10">
+      <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
         <PageHeader title="Research" />
         <Card><EmptyState icon={Telescope} title="No research briefs yet">Every weekly run starts by reading the news, forums and competitors, then writes a brief here before planning topics.</EmptyState></Card>
       </div>
@@ -62,7 +62,7 @@ export default function Research({ id }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-8 lg:py-10">
+    <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader
         eyebrow={`Research brief · ${relative(brief.created_at)}`}
         title={`Week of ${formatDate(dateOnly(brief.week_start), { day: "numeric", month: "long" })}`}
@@ -86,9 +86,10 @@ export default function Research({ id }) {
 
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={brief.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-          <div className="mesh-ink grain relative overflow-hidden rounded-[20px] p-6 text-white shadow-lift sm:p-8">
+          <div className="mesh-ink grain relative overflow-hidden rounded-[22px] p-6 text-white shadow-lift sm:p-8">
+            <span className="mesh-sheen" aria-hidden />
             <div className="relative z-[1]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/50">Summary</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60">Summary</div>
               <p className="mt-3 max-w-3xl text-[19px] leading-[1.55] tracking-[-0.012em] text-white/90 sm:text-[21px]">{brief.summary}</p>
               <div className="mt-6 flex flex-wrap gap-2 text-[12.5px] text-white/60">
                 <span>{plural(brief.trends?.length || 0, "trend")}</span><span>·</span>
@@ -103,14 +104,14 @@ export default function Research({ id }) {
             <Section icon={CalendarDays} title="Topics planned from this brief" count={topics.length} tone="brand">
               <div className="grid gap-3 md:grid-cols-3">
                 {topics.map((t) => (
-                  <button key={t.id} onClick={() => navigate("/calendar")} className="card p-4 text-left transition-shadow hover:card-lift">
+                  <button key={t.id} onClick={() => navigate("/calendar")} className="card flex flex-col p-5 text-left transition-shadow hover:card-lift">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-brand-ink">{t.category}</span>
                       <StatusChip map={TOPIC_STATUS} status={t.status} size="sm" />
                     </div>
                     <div className="mt-2 text-body font-semibold leading-5">{t.title}</div>
                     {t.rationale && <p className="mt-1.5 line-clamp-2 text-[12.5px] text-ink-mute">{t.rationale}</p>}
-                    <div className="mt-3 text-[12px] font-medium text-ink-mute">{t.planned_publish_date ? formatDate(dateOnly(t.planned_publish_date), { weekday: "short", day: "numeric", month: "short" }) : "Unscheduled"}</div>
+                    <div className="mt-auto pt-3 text-[12px] font-medium text-ink-mute">{t.planned_publish_date ? formatDate(dateOnly(t.planned_publish_date), { weekday: "short", day: "numeric", month: "short" }) : "Unscheduled"}</div>
                   </button>
                 ))}
               </div>

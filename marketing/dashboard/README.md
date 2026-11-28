@@ -100,8 +100,14 @@ Type: **SF Pro Display** for everything, from the owner's licensed OTF files in 
 BlinkMacSystemFont, system-ui, sans-serif`. CSP `font-src 'self'`. The splash waits up to 0.9 s for the font so the
 first screen does not swap fonts. Creatives (carousel, graphics, reel, covers) use Inter, embedded by the engine.
 
-Dhiti colours as CSS variables (`src/index.css`) with a dark theme (Auto/Light/Dark).
-Motion animates transform/opacity only and honours `prefers-reduced-motion`.
+Dhiti colours as CSS variables (`src/index.css`) with a dark theme (Auto/Light/Dark): brand red `#EE0800` (deep
+`#C20600` for text, bright `#FF3322`), warm ink `#161110` / `#4A403E`, off-white canvas `#FAF7F2`, and a warm
+near-black dark theme from the website's dark bands. Muted text is the brand mute darkened just enough for WCAG AA.
+Gradients are used with restraint: the animated aurora behind sign-in and the splash, the ink-to-red hero cards
+(week at a glance, research summary), primary buttons and focus rings. Everything else is flat surfaces, hairlines
+and soft shadows on an 8 pt grid.
+Motion animates transform/opacity only (springs, 150 to 300 ms for UI, slow 18 to 38 s drifts for the aurora) and
+honours `prefers-reduced-motion` (drifts and sheens stop, transitions become fades).
 
 ## Testing locally
 

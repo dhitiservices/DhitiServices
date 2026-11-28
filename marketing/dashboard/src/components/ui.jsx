@@ -1,6 +1,6 @@
 import { forwardRef, useId, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Minus, Plus } from "lucide-react";
 import { spring, snappy } from "../lib/motion.js";
 import { copyText } from "../lib/media.js";
 
@@ -10,7 +10,7 @@ export const cx = (...a) => a.filter(Boolean).join(" ");
 const VARIANTS = {
   primary:
     "text-white bg-gradient-to-b from-[#E30700] to-[#C20600] shadow-glow hover:from-[#EE0800] hover:to-[#CC0700] active:from-[#C20600] active:to-[#A80500] disabled:opacity-50",
-  dark: "text-white bg-ink dark:text-[#15161A] hover:bg-ink/90 shadow-[0_1px_2px_rgb(0_0_0/0.2),0_4px_12px_-4px_rgb(0_0_0/0.3)] disabled:opacity-50",
+  dark: "text-white bg-ink dark:text-[#161110] hover:bg-ink/90 shadow-[0_1px_2px_rgb(0_0_0/0.2),0_4px_12px_-4px_rgb(0_0_0/0.3)] disabled:opacity-50",
   secondary:
     "text-ink bg-surface shadow-[0_0_0_1px_var(--hairline-strong),0_1px_2px_rgb(var(--shadow)/0.06)] hover:bg-surface-sunken disabled:opacity-50",
   ghost: "text-ink-soft hover:text-ink hover:bg-ink/[0.05] disabled:opacity-40",
@@ -191,7 +191,7 @@ export function Segmented({ value, onChange, options, className, size = "md", la
               <motion.span
                 layoutId={layoutId || `seg-${id}`}
                 transition={spring}
-                className="absolute inset-0 rounded-[8px] bg-surface-raised shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.1),0_2px_6px_-2px_rgb(0_0_0/0.06)] dark:bg-[#3a3b42]"
+                className="absolute inset-0 rounded-[8px] bg-surface-raised shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.1),0_2px_6px_-2px_rgb(0_0_0/0.06)] dark:bg-[#3b3331]"
               />
             )}
             <span className="relative z-[1] flex items-center gap-1.5">
@@ -272,9 +272,9 @@ export function Switch({ checked, onChange, label }) {
 export function Stepper({ value, onChange, min = 0, max = 10, label = "" }) {
   return (
     <div className="inline-flex h-9 items-center rounded-xl bg-surface shadow-[0_0_0_1px_var(--hairline-strong)]">
-      <button className="h-full w-9 rounded-l-xl text-[18px] text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Decrease ${label}`.trim()}>−</button>
+      <button className="flex h-full w-9 items-center justify-center rounded-l-xl text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Decrease ${label}`.trim()}><Minus className="h-3.5 w-3.5" strokeWidth={2.4} /></button>
       <motion.span key={value} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="tnum w-8 text-center text-body font-semibold">{value}</motion.span>
-      <button className="h-full w-9 rounded-r-xl text-[18px] text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label={`Increase ${label}`.trim()}>+</button>
+      <button className="flex h-full w-9 items-center justify-center rounded-r-xl text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label={`Increase ${label}`.trim()}><Plus className="h-3.5 w-3.5" strokeWidth={2.4} /></button>
     </div>
   );
 }

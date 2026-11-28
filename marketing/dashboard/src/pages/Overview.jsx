@@ -94,7 +94,7 @@ export default function Overview() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <WeekHero loading={loading} weekStart={focusWeek} topics={weekTopics} items={weekItems} className="lg:col-span-3" />
         <ResearchCard loading={loading} brief={brief} className="lg:col-span-2" />
       </div>
@@ -108,8 +108,8 @@ export default function Overview() {
         <Stat loading={loading} icon={Globe2} tone="info" label="Published · 30 days" value={stats.published} to="/published" />
       </motion.div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-5">
-        <section className="lg:col-span-3">
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-5">
+        <section className="min-w-0 lg:col-span-3">
           <SectionTitle action={<Link to="/calendar" className="text-callout font-semibold text-brand-ink hover:underline">Calendar</Link>}>Upcoming publishes</SectionTitle>
           <Card className="p-2">
             {loading ? (
@@ -126,7 +126,7 @@ export default function Overview() {
           </Card>
         </section>
 
-        <section className="lg:col-span-2">
+        <section className="min-w-0 lg:col-span-2">
           <SectionTitle action={<Link to="/settings#runs" className="text-callout font-semibold text-brand-ink hover:underline">All runs</Link>}>Recent activity</SectionTitle>
           <Card className="divide-y divide-[color:var(--hairline)]">
             {loading ? (
@@ -177,14 +177,15 @@ function WeekHero({ loading, weekStart, topics, items, className }) {
   const blogs = items.filter((i) => i.type === "blog");
 
   return (
-    <div className={cx("mesh-ink grain relative overflow-hidden rounded-[20px] p-6 text-white shadow-lift sm:p-7", className)}>
+    <div className={cx("mesh-ink grain relative overflow-hidden rounded-[22px] p-6 text-white shadow-lift sm:p-7", className)}>
+      <span className="mesh-sheen" aria-hidden />
       <div className="relative z-[1]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/50">Week at a glance</div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="shrink-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60">Week at a glance</div>
             <div className="mt-1 text-title-2 font-bold tracking-[-0.02em]">Week of {formatDate(dateOnly(weekStart), { day: "numeric", month: "long" })}</div>
           </div>
-          <span className="rounded-full bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white/80 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12)]">
+          <span className="mt-0.5 shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white/85 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12)] backdrop-blur-sm">
             {plural(topics.length, "topic")} · {plural(items.length, "piece")}
           </span>
         </div>
@@ -284,13 +285,13 @@ function TimelineRow({ row, last }) {
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1 truncate text-body font-semibold text-ink">{blog?.body?.frontmatter?.title || topic.title}</div>
+            <div className="line-clamp-2 min-w-0 flex-1 text-body font-semibold text-ink sm:line-clamp-1">{blog?.body?.frontmatter?.title || topic.title}</div>
             {blog ? <StatusChip map={ITEM_STATUS} status={blog.status} size="sm" /> : <Chip size="sm" tone="neutral">Planned</Chip>}
           </div>
           <div className="mt-0.5 text-[12.5px] text-ink-mute">
             {topic.category}{blog?.scheduled_for ? ` · ${formatTime(blog.scheduled_for)} IST` : ""}{topic.primary_keyword ? ` · “${topic.primary_keyword}”` : ""}
           </div>
-          <div className="pointer-events-auto relative mt-2 w-fit"><ContentChips items={children} size="sm" onOpen={(i) => navigate(`/review/${i.id}`)} /></div>
+          <div className="pointer-events-auto relative mt-2 w-fit max-w-full"><ContentChips items={children} size="sm" onOpen={(i) => navigate(`/review/${i.id}`)} /></div>
         </div>
       </div>
     </motion.li>

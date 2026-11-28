@@ -63,7 +63,7 @@ export default function Calendar() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: dir * -24, transition: { duration: 0.12 } }}
           transition={spring}
-          className="grid gap-2.5 md:grid-cols-[repeat(5,minmax(0,1fr))_repeat(2,minmax(0,0.6fr))]"
+          className="grid gap-2.5 md:grid-cols-[repeat(5,minmax(0,1fr))_repeat(2,minmax(0,0.5fr))]"
         >
           {days.map((day) => {
             const topics = weekTopics.filter((t) => t.planned_publish_date === day.ymd);
@@ -137,7 +137,7 @@ function TopicCard({ topic, onSkip }) {
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[10.5px] font-bold uppercase tracking-[0.07em] text-brand-ink">{topic.category || "Topic"}</div>
+          <div className="truncate pr-5 text-[11.5px] font-semibold tracking-[-0.003em] text-brand-ink" title={topic.category || undefined}>{topic.category || "Topic"}</div>
           <button
             onClick={() => blog && navigate(`/review/${blog.id}`)}
             className={cx("mt-1 text-left text-[13.5px] font-semibold leading-[18px] tracking-[-0.008em] text-ink", blog && "hover:underline", skipped && "line-through")}
@@ -145,17 +145,19 @@ function TopicCard({ topic, onSkip }) {
             {blog?.body?.frontmatter?.title || topic.title}
           </button>
         </div>
+        <div className="absolute right-1.5 top-1.5">
         {!skipped ? (
           <Menu
             items={[
               blog && { label: "Open blog", icon: FileText, onClick: () => navigate(`/review/${blog.id}`) },
               { label: "Skip topic", icon: SkipForward, danger: true, onClick: onSkip },
             ]}
-            trigger={({ toggle, open, triggerProps }) => <IconButton icon={MoreHorizontal} label="Topic actions" size="sm" onClick={toggle} active={open} {...triggerProps} className="-mr-1.5 -mt-1 h-7 w-7 opacity-60 group-hover:opacity-100" />}
+            trigger={({ toggle, open, triggerProps }) => <IconButton icon={MoreHorizontal} label="Topic actions" size="sm" onClick={toggle} active={open} {...triggerProps} className="h-7 w-7 opacity-60 group-hover:opacity-100 focus-visible:opacity-100" />}
           />
         ) : (
-          <IconButton icon={Undo2} label="Restore topic" size="sm" className="-mr-1.5 -mt-1 h-7 w-7" onClick={() => d.actions.restoreTopic(topic)} />
+          <IconButton icon={Undo2} label="Restore topic" size="sm" className="h-7 w-7" onClick={() => d.actions.restoreTopic(topic)} />
         )}
+        </div>
       </div>
       {topic.primary_keyword && (
         <div className="mt-2 flex items-center gap-1 text-[11.5px] text-ink-mute"><Target className="h-3 w-3 shrink-0" /><span className="truncate">{topic.primary_keyword}</span></div>

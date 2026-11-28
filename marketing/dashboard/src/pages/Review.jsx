@@ -187,7 +187,7 @@ export default function Review({ id }) {
         ) : (
           groups.map((g) => (
             <div key={g.key} className="mb-3">
-              <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-[1] -mx-0.5 flex items-center gap-2 bg-canvas/90 px-3 pb-1.5 pt-3 backdrop-blur-md lg:top-0 lg:bg-transparent lg:backdrop-blur-none">
+              <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-[1] -mx-2.5 flex items-center gap-2 bg-canvas/85 px-5 pb-1.5 pt-3 backdrop-blur-xl backdrop-saturate-150 sm:-mx-3 sm:px-6 lg:top-0 lg:mx-0 lg:bg-transparent lg:px-3 lg:backdrop-blur-none">
                 <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-soft">{g.topic?.title || "Other"}</span>
                 {g.topic?.planned_publish_date && <span className="tnum shrink-0 text-[11.5px] text-ink-faint">{formatDate(dateOnly(g.topic.planned_publish_date), { weekday: "short", day: "numeric", month: "short" })}</span>}
               </div>
@@ -294,7 +294,9 @@ function QueueRow({ item, topic, active, onClick }) {
         />
       )}
       {!active && <span className="absolute inset-0 rounded-xl transition-colors group-hover:bg-ink/[0.035]" />}
-      <ItemThumb item={item} className={cx("relative", item.type === "graphic" ? "h-12 w-12" : item.type === "blog" ? "h-12 w-[68px]" : "h-[54px] w-[44px]")} />
+      <span className="relative flex w-[68px] shrink-0 justify-center">
+        <ItemThumb item={item} className={cx(item.type === "graphic" ? "h-12 w-12" : item.type === "blog" ? "h-12 w-[68px]" : "h-[54px] w-[44px]")} />
+      </span>
       <div className="relative min-w-0 flex-1">
         <div className="line-clamp-2 text-[13.5px] font-semibold leading-[18px] tracking-[-0.006em] text-ink">{T.label === "Blog" ? itemTitle(item, topic) : `${T.label}${item.body?.kind ? ` · ${item.body.kind}` : ""}`}</div>
         <div className="mt-1 flex items-center gap-1.5">
@@ -398,7 +400,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
 
       {/* body */}
       <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-y-auto">
+        <div className="min-w-0 flex-1 overflow-y-auto focus-visible:outline-offset-[-2px]" tabIndex={0} role="region" aria-label={`${T.label} preview`}>
           <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 10 }}
@@ -481,7 +483,7 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
     <div className="flex items-center gap-2">
       {s === "awaiting_voiceover" && !compact && (() => {
         const rendering = voiceoverState(item, d.jobs).state === "rendering";
-        return <Chip tone="violet" pulse={rendering} className="mr-1">{!rendering && <Mic className="h-3 w-3" />}{rendering ? "Rendering with your voice" : "Record and upload your voiceover"}</Chip>;
+        return <Chip tone="violet" pulse={rendering} className={cx("mr-1", rendering ? "hidden xl:inline-flex" : "hidden 2xl:inline-flex")}>{!rendering && <Mic className="h-3 w-3" />}{rendering ? "Rendering with your voice" : "Awaiting your recording"}</Chip>;
       })()}
       {primary}
       {cleanMore.length > 0 && (

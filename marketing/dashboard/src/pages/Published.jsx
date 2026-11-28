@@ -21,7 +21,7 @@ export default function Published() {
   const counts = { blog: d.items.filter((i) => i.status === "published" && i.type === "blog").length, social: d.items.filter((i) => i.status === "published" && i.type !== "blog").length };
 
   return (
-    <div className="mx-auto max-w-[1000px] px-4 py-6 sm:px-8 lg:py-10">
+    <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader
         title="Published"
         subtitle="Everything that is live on dhitiservices.com or has been posted to social."
