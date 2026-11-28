@@ -99,6 +99,20 @@ export function createSupabaseBackend() {
         const data = authMust(await sb.auth.verifyOtp({ email, token, type: "email" }));
         return data.session;
       },
+      /** Sign in with the link copied from the email (works even when the link would open the wrong page). */
+      async verifyLink(link) {
+        let u;
+        try { u = new URL(String(link).trim()); } catch { throw new Error("That does not look like the sign-in link. Copy the whole link from the email."); }
+        const expected = new URL(SUPABASE_URL).host;
+        const tokenHash = u.searchParams.get("token") || u.searchParams.get("token_hash");
+        const type = u.searchParams.get("type") || "magiclink";
+        if (u.host !== expected || !tokenHash || !["magiclink", "signup", "email", "invite"].includes(type)) {
+          throw new Error("That does not look like the sign-in link. Copy the whole link from the email.");
+        }
+        freshSignIn();
+        const data = authMust(await sb.auth.verifyOtp({ token_hash: tokenHash, type: type === "signup" ? "signup" : "email" }));
+        return data.session;
+      },
       /** scope: 'local' (this browser) or 'global' (every device: revokes all refresh tokens). */
       async signOut(scope = "local") {
         const { error } = await sb.auth.signOut({ scope });

@@ -358,6 +358,26 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
                   <button type="submit" className="sr-only" tabIndex={-1}>Verify code</button>
                 </form>
 
+                {backend.auth.verifyLink && (
+                  <form
+                    className="mt-1"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const link = new FormData(e.currentTarget).get("link");
+                      if (!link || busy || verifying) return;
+                      setError(null); setInfo(null); setBusy(true);
+                      try { await backend.auth.verifyLink(link); }
+                      catch (err) { setBusy(false); setError(err?.message?.startsWith("That does not") ? err.message : verifyErrorText(err)); }
+                    }}
+                  >
+                    <label htmlFor="login-link" className="mb-1.5 block text-footnote font-medium text-ink-mute">Got a link instead of a code? Press and hold the link in the email, copy it, and paste it here.</label>
+                    <div className="flex gap-2">
+                      <input id="login-link" name="link" type="url" inputMode="url" autoComplete="off" placeholder="Paste the link from the email" className="min-w-0 flex-1 rounded-xl border border-line bg-white/80 px-3 py-2.5 text-callout text-ink outline-none focus:border-brand" disabled={signingIn || verifying} />
+                      <button type="submit" disabled={signingIn || verifying} className="rounded-xl bg-ink px-4 py-2.5 text-callout font-semibold text-white disabled:opacity-50">Sign in</button>
+                    </div>
+                  </form>
+                )}
+
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <button type="button" onClick={differentEmail} disabled={signingIn} className="inline-flex items-center gap-1.5 rounded-lg py-1.5 text-callout font-semibold text-ink-soft transition-colors hover:text-ink disabled:opacity-50">
                     <ArrowLeft className="h-4 w-4" /> Use a different email
