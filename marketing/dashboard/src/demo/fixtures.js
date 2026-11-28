@@ -113,7 +113,7 @@ A second-check desk is cheap, calm work. Done every day, inside the void window,
 
 Dhiti supports travel agencies with ticketing, finance and reporting, with more than 200 trained specialists. If debit memos are quietly eating your margin, we would be glad to help you set up a second-check desk.`;
 
-const ROOMING_MD = `The group lands in Jaipur at 11 am. The hotel has 22 rooms blocked. The rooming list says 24. Two couples are standing in the lobby with their luggage, and somebody is going to spend the afternoon on the phone.
+const ROOMING_MD = `Illustrative example: the group lands in Jaipur at 11 am. The hotel has 22 rooms blocked. The rooming list says 24. Two couples are standing in the lobby with their luggage, and somebody is going to spend the afternoon on the phone.
 
 **A rooming list is only as good as the last time someone checked it against the hotel.**
 
@@ -178,7 +178,7 @@ After checkout, send the hotel a short thank-you with two or three notes on what
 
 Check twice, send once, and confirm in writing. One owner, one list, one comparison against the hotel's own version at 72 hours, 48 hours and the night before. That routine turns check-in from a scramble into a welcome.`;
 
-const SUPPORT_MD = `A customer writes in at 9 pm asking why their refund has not arrived. The answer is in three systems. The agent who knows all three has gone home, and the agent on shift sends a polite holding reply. The customer writes again the next morning, a little less politely.
+const SUPPORT_MD = `Illustrative example: a customer writes in at 9 pm asking why their refund has not arrived. The answer is in three systems. The agent who knows all three has gone home, and the agent on shift sends a polite holding reply. The customer writes again the next morning, a little less politely.
 
 **Support quality is a process problem long before it is a people problem.**
 
@@ -258,13 +258,13 @@ const ADM_CLAIMS = [
   { id: "e1", kind: "illustrative", verified: true, claim_text: "Illustrative example: an agency issuing 1,800 tickets a month with a 0.6% ADM rate and an average memo of ₹9,500 receives about 11 memos and loses roughly ₹1.03 lakh a month." },
 ];
 const ROOMING_CLAIMS = [
-  { id: "r0", kind: "illustrative", verified: true, claim_text: "The group lands in Jaipur at 11 am." },
+  { id: "r0", kind: "illustrative", verified: true, claim_text: "Illustrative example: the group lands in Jaipur at 11 am." },
   C("r1", "Most hotel group desks want final names 48 to 72 hours before arrival.", "Sample: hotel group booking guide", "https://www.ahla.com/", "Final rooming lists are typically due 48 to 72 hours before arrival."),
   C("r2", "Hotel associations such as the American Hotel and Lodging Association publish group booking guidance that says the same thing in different words: one source of truth, one owner, and written confirmation of every change.", "Sample: hotel group booking guide", "https://www.ahla.com/", "Keep one master list, designate one point of contact, and confirm every change in writing."),
   { id: "r3", kind: "illustrative", verified: true, claim_text: "Illustrative example: a 40-room wedding group with six late changes and no change log can easily lose an hour at check-in." },
 ];
 const SUPPORT_CLAIMS = [
-  { id: "s0", kind: "illustrative", verified: true, claim_text: "A customer writes in at 9 pm asking why their refund has not arrived." },
+  { id: "s0", kind: "illustrative", verified: true, claim_text: "Illustrative example: a customer writes in at 9 pm asking why their refund has not arrived." },
   C("s1", "Research from groups such as Gartner's customer service practice has shown for years that customers value low effort more than delight.", "Sample: customer service research summary", "https://www.gartner.com/en/customer-service-support", "Customer effort is a stronger driver of loyalty than delight."),
   C("s2", "Each repeat contact costs roughly as much as the first one and earns nothing.", "Sample: customer service research summary", "https://www.gartner.com/en/customer-service-support", "", { verified: false, match: null }),
   C("s3", "When these costs are added up, the true price of a weak support process is often twice the line in the budget.", "Travel trade forum thread", "https://example.com/forum/support", "", { verified: false, fetched_at: null, match: null }),
@@ -295,7 +295,7 @@ const ROOMING_CAPTION = `Two couples standing in a hotel lobby with their bags i
 
 A rooming list is only as good as the last time someone checked it against the hotel.
 
-Our group desk runs the same short checklist at 72 hours, at 48 hours and the night before arrival. Each run ends the same way: ask the hotel for its version and compare it line by line.
+A good group desk runs the same short checklist at 72 hours, at 48 hours and the night before arrival. Each run ends the same way: ask the hotel for its version and compare it line by line.
 
 One named coordinator owns each group. Everyone else, sales included, sends changes to that person.
 
@@ -362,7 +362,7 @@ export function buildFixtures() {
   const oldBrief = { ...brief, id: id("brief"), week_start: thisMon, created_at: ago(60 * 24 * 8), summary: "Shoulder-season planning, corporate travel policy refreshes and hotel rate loading dominated the week.", trends: brief.trends.slice(0, 2), opportunities: brief.opportunities.slice(0, 2) };
 
   const T = (o) => ({ id: id("topic"), brief_id: brief.id, week_start: nextMon, angle: "", secondary_keywords: [], audience: "Travel agency owners", rationale: "", priority: 1, status: "ready", error: null, created_at: ago(60 * 25), ...o });
-  const tA = T({ title: "How a second-check desk cuts airline ADMs in half", primary_keyword: "airline ADM prevention", category: "Travel operations", planned_publish_date: nextMon, priority: 1, rationale: "Carrier audits tighten in January; owners are actively searching for ADM fixes.", angle: "Calm daily process beats heroic month-end clean-ups." });
+  const tA = T({ title: "A second-check desk for airline ADMs", primary_keyword: "airline ADM prevention", category: "Travel operations", planned_publish_date: nextMon, priority: 1, rationale: "Carrier audits tighten in January; owners are actively searching for ADM fixes.", angle: "Calm daily process beats heroic month-end clean-ups." });
   const tB = T({ title: "Group rooming lists: the 48-hour checklist", primary_keyword: "group rooming list checklist", category: "Hotel operations", planned_publish_date: addDays(nextMon, 2), priority: 2, status: "producing" });
   const tC = T({ title: "Support quality without the cost blow-out", primary_keyword: "travel customer support outsourcing", category: "Customer support", planned_publish_date: addDays(nextMon, 4), priority: 3, status: "planned" });
   const L = (o) => T({ brief_id: oldBrief.id, week_start: thisMon, status: "ready", ...o });
@@ -385,28 +385,35 @@ export function buildFixtures() {
     asset(it, "blog_cover", `demo/${o.cover}`, { mime: "image/webp", width: 1600, height: 900, meta: { stock: [{ provider: "magnific", id: "71829", title: o.cover.replace(".jpg", "") + " stock photo" }] } });
     return it;
   };
-  const blogBody = (topic, { slug, description, md, image, claims }) => ({
+  const blogBody = (topic, { slug, description, md, image, claims, keywords = [], sources = [], faq = [] }) => ({
     slug,
     frontmatter: { title: topic.title, description, category: topic.category, image: `${slug}.webp`, imageAlt: "Operations team at work", order: 15, date: topic.planned_publish_date },
     markdown: md,
     word_count: countWords(md),
-    meta: { primary_keyword: topic.primary_keyword, secondary_keywords: ["debit memo", "BSP", "ticketing audit"], faq: [{ q: "What is an ADM?", a: "An Agency Debit Memo is a charge an airline raises against an agency for a ticketing error." }] },
-    sources: [{ title: "IATA Billing and Settlement Plan", url: "https://www.iata.org/en/services/finance/bsp/" }, { title: "Ministry of Tourism statistics", url: "https://www.tourism.gov.in/" }],
+    meta: { primary_keyword: topic.primary_keyword, secondary_keywords: keywords, faq },
+    sources,
     checks: { passed: true, messages: [] },
     cover_stock: { id: "71829", title: image },
     ...(claims ? { claims } : {}),
   });
 
-  const bA = blog(tA, { status: "pending_review", cover: "office.jpg", body: blogBody(tA, { slug: "second-check-desk-airline-adm", description: "A two-person second-check desk reviews every ticket within hours and can halve airline debit memos. Here is how to set one up in two weeks.", md: ADM_MD, image: "office", claims: ADM_CLAIMS }) });
-  const bB = blog(tB, { status: "approved", approved_at: ago(180), approved_by: "demo-owner@example.com", cover: "manager.jpg", body: blogBody(tB, { slug: "group-rooming-list-checklist", description: "The 48-hour rooming list checklist our group desk uses to stop check-in surprises for wedding and MICE groups.", md: ROOMING_MD, image: "manager", claims: ROOMING_CLAIMS }) });
-  const bC = blog(tC, { status: "changes_requested", feedback: "Open with a real scenario from an OTA, and cite one external source on repeat contacts.", cover: "phone.jpg", body: blogBody(tC, { slug: "support-quality-without-cost", description: "Support quality is a process problem before it is a people problem. How rural teams keep quality high and costs steady.", md: SUPPORT_MD, image: "phone", claims: SUPPORT_CLAIMS }) });
-  const pub = (topic, slug, cover, daysAgo) => {
-    const it = blog(topic, { status: "published", cover, approved_at: ago(60 * 24 * (daysAgo + 1)), approved_by: "demo-owner@example.com", published_at: ago(60 * 24 * daysAgo), published_url: `https://www.dhitiservices.com/blog/${slug}/`, scheduled_for: ago(60 * 24 * daysAgo), body: blogBody(topic, { slug, description: "Published last week.", md: ROOMING_MD, image: cover }) });
+  const bA = blog(tA, { status: "pending_review", cover: "office.jpg", body: blogBody(tA, { slug: "second-check-desk-airline-adm", description: "A small second-check desk reviews every ticket on the day it is issued, while it can still be voided. Here is how to set one up in two weeks.", md: ADM_MD, image: "office", claims: ADM_CLAIMS,
+    keywords: ["debit memo", "BSP", "ticketing audit"],
+    sources: [{ title: "Sample: IATA, Billing and Settlement Plan", url: BSP }, { title: "Sample: IATA, ADM policy guidance", url: ADMP }],
+    faq: [{ q: "What is an ADM?", a: "An agency debit memo is a charge an airline raises against an agency after a sale is reported in BSP." }] }) });
+  const bB = blog(tB, { status: "approved", approved_at: ago(180), approved_by: "demo-owner@example.com", cover: "manager.jpg", body: blogBody(tB, { slug: "group-rooming-list-checklist", description: "The 48-hour rooming list checklist our group desk uses to stop check-in surprises for wedding and MICE groups.", md: ROOMING_MD, image: "manager", claims: ROOMING_CLAIMS,
+    keywords: ["rooming list", "group booking", "hotel check-in"],
+    sources: [{ title: "Sample: hotel group booking guide", url: "https://www.ahla.com/" }] }) });
+  const bC = blog(tC, { status: "changes_requested", feedback: "Open with a real scenario from an OTA, and cite one external source on repeat contacts.", cover: "phone.jpg", body: blogBody(tC, { slug: "support-quality-without-cost", description: "Support quality is a process problem before it is a people problem. How rural teams keep quality high and costs steady.", md: SUPPORT_MD, image: "phone", claims: SUPPORT_CLAIMS,
+    keywords: ["repeat contacts", "first-contact resolution", "support outsourcing"],
+    sources: [{ title: "Sample: customer service research summary", url: "https://www.gartner.com/en/customer-service-support" }, { title: "Travel trade forum thread", url: "https://example.com/forum/support" }] }) });
+  const pub = (topic, slug, cover, daysAgo, md) => {
+    const it = blog(topic, { status: "published", cover, approved_at: ago(60 * 24 * (daysAgo + 1)), approved_by: "demo-owner@example.com", published_at: ago(60 * 24 * daysAgo), published_url: `https://www.dhitiservices.com/blog/${slug}/`, scheduled_for: ago(60 * 24 * daysAgo), body: blogBody(topic, { slug, description: "Published last week.", md, image: cover }) });
     return it;
   };
-  const pL1 = pub(tL1, "corporate-hotel-rate-loading", "manager.jpg", 5);
-  const pL2 = pub(tL2, "corporate-travel-reporting", "office.jpg", 3);
-  pub(tL3, "first-operations-job-training", "phone.jpg", 1);
+  const pL1 = pub(tL1, "corporate-hotel-rate-loading", "manager.jpg", 5, "Load corporate hotel rates the day the contract lands, not the day before the first booking.\n\n## Why rates go wrong\n\nA rate loaded in a hurry is a rate loaded wrong. Give one person the job, and check every loaded rate against the contract before the first booking.");
+  const pL2 = pub(tL2, "corporate-travel-reporting", "office.jpg", 3, "A reporting pack that arrives on the same day every month earns more trust than a prettier one that arrives late.\n\n## What goes in it\n\nSpend by traveller, by route and by supplier, the bookings outside policy, and the savings against the agreed rates.");
+  pub(tL3, "first-operations-job-training", "phone.jpg", 1, "A first operations hire learns fastest from real cases with a patient colleague, not from a manual.\n\n## The first 30 days\n\nWeek one: shadow. Week two: do the work while someone checks it. Weeks three and four: do it alone, with a daily review.");
 
   const derived = (parent, type, o) => {
     const it = { id: id("item"), topic_id: parent.topic_id, parent_id: parent.id, type, version: 1, feedback: null, approved_at: null, approved_by: null, published_at: null, published_url: null, error: null, scheduled_for: null, created_at: ago(60 * 23), updated_at: ago(60 * 2), ...o };
