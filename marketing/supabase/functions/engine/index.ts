@@ -11,12 +11,13 @@
 //   - publisher tokens may only call PUBLISHER_ACTIONS;
 //   - insert/patch fields are whitelisted per table (ids, created_at, updated_at are never writable);
 //   - human-only transitions: session tokens cannot approve/reject/publish content or edit approved/published items;
-//   - storage paths must live under items/<uuid>/ in bucket `marketing`;
+//   - storage paths must live under items/<uuid>/ in bucket `marketing` (sign_download may also read the
+//     owner library, library/<uuid>/<file>, which the dashboard uploads to);
 //   - claim_jobs is race-safe (conditional UPDATE ... WHERE status = 'queued' RETURNING).
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 
-const VERSION = "2.2.0";
+const VERSION = "2.3.0";
 const BUCKET = "marketing";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -120,10 +121,12 @@ function nonEmpty(o: Obj, label: string): Obj {
   return o;
 }
 
-function storagePath(v: unknown): string {
+function storagePath(v: unknown, { library = false } = {}): string {
   if (typeof v !== "string") throw bad("path must be a string");
   const p = v.replace(/^\/+/, "");
   if (p.length > 512 || p.split("/").some((s) => s === "" || s === "." || s === "..")) throw bad(`invalid storage path "${v}"`);
+  // Owner library media (read only): library/<uuid>/<file>, uploaded by the dashboard.
+  if (library && /^library\/[0-9a-f-]{36}\/[^/]+$/i.test(p) && UUID.test(p.split("/")[1])) return p;
   if (!/^items\/[0-9a-f-]{36}\/[\w.\-/]+$/i.test(p) || !UUID.test(p.split("/")[1])) {
     throw bad(`storage path must look like items/<content_item_id>/v<version>/<file> (got "${v}")`);
   }
@@ -155,7 +158,8 @@ function weekStartIST() {
 const RUN_KINDS = ["weekly", "jobs", "publish", "manual"] as const;
 const RUN_FINISH = ["succeeded", "failed", "running"] as const;
 const ITEM_TYPES = ["blog", "carousel", "graphic", "video"] as const;
-const JOB_KINDS = ["run_weekly", "regenerate", "publish_now"] as const;
+const JOB_KINDS = ["run_weekly", "regenerate", "publish_now", "render_video"] as const;
+const JOB_STATUSES = ["queued", "running", "done", "failed"] as const;
 const JOB_FINISH = ["done", "failed", "queued"] as const;
 
 const BRIEF_FIELDS = ["run_id", "week_start", "summary", "trends", "pain_points", "competitor_notes", "opportunities", "sources"];
@@ -169,14 +173,14 @@ const ITEM_PATCH_PUBLISHER = ["status", "published_at", "published_url", "error"
 const ASSET_FIELDS = ["content_item_id", "kind", "storage_path", "mime", "width", "height", "position", "meta"];
 
 /** Statuses an engine session may set. approved / rejected / changes_requested / published are human or publisher only. */
-const SESSION_ITEM_STATUSES = ["generating", "pending_review", "failed"] as const;
+const SESSION_ITEM_STATUSES = ["generating", "awaiting_voiceover", "pending_review", "failed"] as const;
 const PUBLISHER_ITEM_STATUSES = ["published", "failed"] as const;
 /** Items a session may no longer touch, and the only items a publisher may touch. */
 const LOCKED_FOR_SESSION = ["approved", "published"];
 
 const PUBLISHER_ACTIONS = new Set([
   "get_settings", "list_items", "get_item", "list_assets", "sign_download", "update_item",
-  "create_run", "finish_run", "claim_jobs", "finish_job",
+  "create_run", "finish_run", "claim_jobs", "finish_job", "list_jobs",
 ]);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -258,7 +262,7 @@ function inList(v: unknown, allowed: readonly string[] | null, name: string): st
   return arr as string[];
 }
 
-const ITEM_STATUSES = ["generating", "pending_review", "changes_requested", "approved", "rejected", "published", "failed"];
+const ITEM_STATUSES = ["generating", "awaiting_voiceover", "pending_review", "changes_requested", "approved", "rejected", "published", "failed"];
 const TOPIC_STATUSES = ["planned", "producing", "ready", "skipped", "failed"];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -450,7 +454,7 @@ const actions: Record<string, Handler> = {
   },
 
   async sign_download(p) {
-    const path = storagePath(p.path);
+    const path = storagePath(p.path, { library: true });
     const expiresIn = int(p.expiresIn, "expiresIn", { min: 10, max: 7 * 24 * 3600, dflt: 600 });
     const { data, error } = await db().storage.from(BUCKET).createSignedUrl(path, expiresIn);
     if (error || !data) throw dbError("sign_download", error as never);
@@ -501,7 +505,7 @@ const actions: Record<string, Handler> = {
   async claim_jobs(p, caller) {
     const limit = int(p.limit, "limit", { min: 1, max: 50, dflt: 5 });
     // Defaults keep each worker on its own queue: the publisher handles publish_now, sessions handle the rest.
-    const dflt = caller.kind === "publisher" ? ["publish_now"] : ["run_weekly", "regenerate"];
+    const dflt = caller.kind === "publisher" ? ["publish_now"] : ["run_weekly", "regenerate", "render_video"];
     const kinds = inList(p.kinds, JOB_KINDS, "kinds") ?? dflt;
     if (caller.kind === "publisher" && kinds.some((k) => k !== "publish_now")) throw new ApiError(403, "publisher tokens may only claim publish_now jobs");
     const candidates = await run<{ id: string }[]>("claim_jobs.select", db().from("jobs").select("id")
@@ -512,6 +516,20 @@ const actions: Record<string, Handler> = {
       .update({ status: "running", started_at: new Date().toISOString(), finished_at: null, error: null })
       .in("id", candidates.map((c) => c.id)).eq("status", "queued").select());
     return (claimed ?? []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  },
+
+  /** Read-only job listing (lets the publisher see queued publish_now jobs without claiming them). */
+  list_jobs(p, caller) {
+    const limit = int(p.limit, "limit", { min: 1, max: 200, dflt: 50 });
+    const kinds = inList(p.kind ?? p.kinds, JOB_KINDS, "kind");
+    const statuses = inList(p.status, JOB_STATUSES, "status");
+    if (caller.kind === "publisher" && (!kinds || kinds.some((k) => k !== "publish_now"))) {
+      throw new ApiError(403, "publisher tokens may only list publish_now jobs (pass kind: 'publish_now')");
+    }
+    let q = db().from("jobs").select("*");
+    if (kinds) q = q.in("kind", kinds);
+    if (statuses) q = q.in("status", statuses);
+    return run("list_jobs", q.order("created_at", { ascending: true }).limit(limit));
   },
 
   finish_job(p) {

@@ -238,7 +238,7 @@ async function withRetry(label, fn, { retries = 4, baseMs = 800, maxMs = 15_000,
 /** Safe to repeat after an ambiguous failure (the server may or may not have applied the first attempt). */
 const IDEMPOTENT = new Set([
   'get_settings', 'context', 'get_brief', 'get_topic', 'list_topics', 'get_item', 'list_items', 'list_assets',
-  'sign_upload', 'sign_download', 'update_topic', 'update_item', 'finish_run', 'finish_job', 'delete_assets', 'delete_files',
+  'sign_upload', 'sign_download', 'update_topic', 'update_item', 'finish_run', 'finish_job', 'delete_assets', 'delete_files', 'list_jobs',
 ]);
 const RETRY_STATUS_ANY = new Set([408, 425, 429, 500, 502, 503, 504, 546]);
 const RETRY_STATUS_UNSENT = new Set([429, 503]); // the gateway refused before the function ran
@@ -303,10 +303,10 @@ const ENUMS = {
   runKind: ['weekly', 'jobs', 'publish', 'manual'],
   runFinish: ['succeeded', 'failed', 'running'],
   itemType: ['blog', 'carousel', 'graphic', 'video'],
-  itemStatus: ['generating', 'pending_review', 'changes_requested', 'approved', 'rejected', 'published', 'failed'],
+  itemStatus: ['generating', 'awaiting_voiceover', 'pending_review', 'changes_requested', 'approved', 'rejected', 'published', 'failed'],
   topicStatus: ['planned', 'producing', 'ready', 'skipped', 'failed'],
   assetKind: ['blog_cover', 'carousel_slide', 'carousel_pdf', 'graphic', 'video', 'video_poster'],
-  jobKind: ['run_weekly', 'regenerate', 'publish_now'],
+  jobKind: ['run_weekly', 'regenerate', 'publish_now', 'render_video'],
   jobStatus: ['queued', 'running', 'done', 'failed'],
   jobFinish: ['done', 'failed', 'queued'],
 };
@@ -318,10 +318,10 @@ const FIELDS = {
   itemPatchPublisher: ['status', 'published_at', 'published_url', 'error'],
   asset: ['content_item_id', 'kind', 'storage_path', 'mime', 'width', 'height', 'position', 'meta'],
 };
-const SESSION_ITEM_STATUSES = ['generating', 'pending_review', 'failed'];
+const SESSION_ITEM_STATUSES = ['generating', 'awaiting_voiceover', 'pending_review', 'failed'];
 const PUBLISHER_ITEM_STATUSES = ['published', 'failed'];
 const LOCKED_FOR_SESSION = ['approved', 'published'];
-const PUBLISHER_ACTIONS = new Set(['get_settings', 'list_items', 'get_item', 'list_assets', 'sign_download', 'update_item', 'create_run', 'finish_run', 'claim_jobs', 'finish_job']);
+const PUBLISHER_ACTIONS = new Set(['get_settings', 'list_items', 'get_item', 'list_assets', 'sign_download', 'update_item', 'create_run', 'finish_run', 'claim_jobs', 'finish_job', 'list_jobs']);
 
 const TABLE_DEFAULTS = {
   runs: () => ({ status: 'running', started_at: nowISO(), finished_at: null, log: '', usage: {}, error: null }),
@@ -360,10 +360,11 @@ function pick(input, allowed, label) {
   return out;
 }
 const nonEmpty = (o, label) => (Object.keys(o).length ? o : bad(`${label}: nothing to update`));
-function storagePathOf(v) {
+function storagePathOf(v, { library = false } = {}) {
   if (typeof v !== 'string') bad('path must be a string');
   const p = v.replace(/^\/+/, '');
   if (p.length > 512 || p.split('/').some((s) => s === '' || s === '.' || s === '..')) bad(`invalid storage path "${v}"`);
+  if (library && /^library\/[0-9a-f-]{36}\/[^/]+$/i.test(p) && UUID.test(p.split('/')[1])) return p;
   if (!/^items\/[0-9a-f-]{36}\/[\w.\-/]+$/i.test(p) || !UUID.test(p.split('/')[1])) bad(`storage path must look like items/<content_item_id>/v<version>/<file> (got "${v}")`);
   return p;
 }
@@ -589,7 +590,7 @@ const localActions = {
   },
 
   async sign_download(p) {
-    const sp = storagePathOf(p.path);
+    const sp = storagePathOf(p.path, { library: true });
     const expiresIn = int(p.expiresIn, 'expiresIn', { min: 10, max: 7 * 24 * 3600, dflt: 600 });
     const file = path.join(storageRoot(), sp);
     if (!(await fs.stat(file).catch(() => null))?.isFile()) fail(404, `sign_download: Object not found (${sp})`);
@@ -625,12 +626,20 @@ const localActions = {
 
   claim_jobs(p, kind, data) {
     const limit = int(p.limit, 'limit', { min: 1, max: 50, dflt: 5 });
-    const dflt = kind === 'publisher' ? ['publish_now'] : ['run_weekly', 'regenerate'];
+    const dflt = kind === 'publisher' ? ['publish_now'] : ['run_weekly', 'regenerate', 'render_video'];
     const kinds = inList(p.kinds, ENUMS.jobKind, 'kinds') ?? dflt;
     if (kind === 'publisher' && kinds.some((x) => x !== 'publish_now')) fail(403, 'publisher tokens may only claim publish_now jobs');
     const claimed = data.jobs.filter((j) => j.status === 'queued' && kinds.includes(j.kind)).sort(byCreated(true)).slice(0, limit);
     for (const j of claimed) Object.assign(j, { status: 'running', started_at: nowISO(), finished_at: null, error: null });
     return claimed;
+  },
+
+  list_jobs(p, kind, data) {
+    const limit = int(p.limit, 'limit', { min: 1, max: 200, dflt: 50 });
+    const kinds = inList(p.kind ?? p.kinds, ENUMS.jobKind, 'kind');
+    const statuses = inList(p.status, ENUMS.jobStatus, 'status');
+    if (kind === 'publisher' && (!kinds || kinds.some((x) => x !== 'publish_now'))) fail(403, "publisher tokens may only list publish_now jobs (pass kind: 'publish_now')");
+    return data.jobs.filter((j) => (!kinds || kinds.includes(j.kind)) && (!statuses || statuses.includes(j.status))).sort(byCreated(true)).slice(0, limit);
   },
 
   finish_job(p, k, data) {
@@ -933,7 +942,7 @@ export async function deleteFiles(itemId, paths) {
 /**
  * Atomically moves up to `limit` queued jobs to running and returns them (oldest first).
  * claimJobs(5) / claimJobs(5, ['regenerate']) / claimJobs({ limit, kinds }).
- * Default kinds: session => run_weekly + regenerate; publisher => publish_now.
+ * Default kinds: session => run_weekly + regenerate + render_video; publisher => publish_now.
  */
 export function claimJobs(limit = 5, kinds) {
   const o = isObj(limit) ? limit : { limit, kinds };
@@ -946,6 +955,15 @@ export function finishJob(id, { status = 'done', error } = {}) {
   const payload = { id: idOf(id), status };
   if (error !== undefined && error !== null) payload.error = String(error?.message || error).slice(0, 8000);
   return engineCall('finish_job', payload);
+}
+
+/** Jobs without claiming them: listJobs({ kind, status, limit }). Publisher tokens: kind 'publish_now' only. */
+export function listJobs({ kind, kinds, status, limit } = {}) {
+  const payload = {};
+  if (kind ?? kinds) payload.kind = kind ?? kinds;
+  if (status) payload.status = status;
+  if (limit) payload.limit = limit;
+  return engineCall('list_jobs', payload);
 }
 
 /** Queues a job. DRY_RUN only (live jobs come from the dashboard, or via SQL with the Supabase connector). */

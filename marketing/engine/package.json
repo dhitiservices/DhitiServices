@@ -1,16 +1,18 @@
 {
   "name": "dhiti-marketing-engine",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Autonomous research, blog and creative pipeline for Dhiti Services.",
+  "description": "Render, validate, upload and publish pipeline for the Dhiti marketing system (no AI APIs; Magnific stock only).",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "weekly": "node src/cli.js weekly",
-    "jobs": "node src/cli.js jobs",
-    "demo": "DRY_RUN=1 MOCK_AI=1 node src/cli.js produce-demo"
+    "help": "node src/cli.js help",
+    "context": "node src/cli.js context",
+    "check-blog": "node src/cli.js check-blog",
+    "publish-blogs": "node src/cli.js publish",
+    "smoke": "DRY_RUN=1 node src/cli.js context"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -19,5 +21,8 @@
     "marked": "15.0.12",
     "playwright": "1.56.0",
     "sharp": "^0.33.5"
+  },
+  "bin": {
+    "dhiti-engine": "src/cli.js"
   }
 }

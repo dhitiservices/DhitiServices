@@ -42,7 +42,7 @@ website build; root `npm run build` must keep passing.
 - Edge Function `engine` (verify_jwt **false**; it authenticates itself): header `x-engine-token: <token>`.
   Uses the auto-provided `SUPABASE_SERVICE_ROLE_KEY` inside the function. Rejects missing/expired/revoked tokens (401).
   `publisher` tokens may only call: get_settings, list_items, get_item, list_assets, sign_download, update_item,
-  create_run, finish_run, claim_jobs, finish_job.
+  create_run, finish_run, claim_jobs, finish_job, list_jobs.
 - URL: `https://yexxrcgxhwsopssfyylo.supabase.co/functions/v1/engine`. Also send headers
   `apikey: <publishable key>` and `Authorization: Bearer <publishable key>` (publishable key:
   `sb_publishable_eggopcLFltAS1Q3nTmGecQ_dUMTCIhR`, public by design).
@@ -70,6 +70,11 @@ website build; root `npm run build` must keep passing.
 | `sign_download` | `{path, expiresIn?}` | `{signedUrl}` |
 | `claim_jobs` | `{kinds?:[], limit?}` | jobs moved queued→running (conditional update) |
 | `finish_job` | `{id, status, error?}` | row |
+| `list_jobs` | `{kind?, status?, limit?}` (read-only; publisher: `kind:'publish_now'` only) | rows |
+
+v2.3.0 additions (v3): item status `awaiting_voiceover` (session-settable), job kind `render_video` (session default
+claim), `sign_download` also reads `library/<uuid>/<file>`. Extra session-only helpers: `get_topic`, `list_topics`,
+`get_brief`, `delete_files` (see `marketing/supabase/README.md`).
 
 Patch fields are whitelisted per table (never allow changing ids/created_at).
 
@@ -195,3 +200,22 @@ Every command prints a single JSON object to stdout (logs to stderr) and exits n
    otherwise the system SF stack. No other fonts.
 5. Cover images, carousel and graphic photos, and reel footage must be top-tier: authentic, high resolution,
    editorial, on-topic; never cheesy, never AI-generated (`ai_generated: "excluded"`).
+
+## v3.1 Security addendum (owner: "only I can access this portal") — binding
+
+Applied in migration `owner_only_security`:
+- `gate_signup` trigger on `auth.users`: any sign-up whose email is not in `allowed_users` is rejected inside the database. Email changes to a non-allowlisted address are rejected too (`gate_email_change`).
+- `is_team()` now requires ALL of: JWT `aal = 'aal2'` (two-factor session), `auth.uid()` row exists with `email_confirmed_at`, and the email is in `allowed_users`. Every RLS policy and storage policy uses `is_team()`, so a session without 2FA reads nothing.
+- `is_allowlisted()` (authenticated only) lets the dashboard show the 2FA step after the email-code step.
+- `is_team()` is not executable by `anon`.
+
+Dashboard login flow (must implement exactly):
+1. Email → `signInWithOtp({ email, options: { shouldCreateUser: true } })` (6-digit code; the trigger blocks strangers). Show the same neutral message for any email ("If this email has access, a code is on its way") — never reveal whether an email is allowed.
+2. `verifyOtp({ email, token, type: 'email' })`.
+3. `rpc('is_allowlisted')` false → sign out, neutral error.
+4. `mfa.listFactors()`: no verified TOTP factor → enrolment screen (QR + secret from `mfa.enroll({ factorType: 'totp', friendlyName: 'Dhiti Studio' })`, then `challengeAndVerify`). Verified factor → 6-digit authenticator challenge (`mfa.challenge` + `mfa.verify`).
+5. Only an `aal2` session (`mfa.getAuthenticatorAssuranceLevel().currentLevel === 'aal2'`) renders the app. On any `aal1` session, render the 2FA screen, never the app shell.
+6. Idle lock: after 30 min without input, sign out; on tab hidden > 12 h, sign out. "Sign out everywhere" in settings (`signOut({ scope: 'global' })`).
+7. Session stored by supabase-js in localStorage (default); no other secrets in the bundle (publishable key only).
+Netlify: strict CSP pinned to the project host, HSTS, frame-ancestors none, noindex, no third-party scripts or fonts.
+Owner action after first login (one-time, optional extra layer): Supabase → Authentication → Sign-ups off.

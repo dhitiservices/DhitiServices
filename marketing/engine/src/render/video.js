@@ -11,6 +11,9 @@
 //   4. Scenes + outro are joined with crossfades (xfade); if that fails, with hard cuts (concat demuxer). Final encode
 //      is a single libx264 pass with platform-friendly settings, BT.709 tagged.
 //   5. Poster = a frame from the first scene once its text is fully visible (JPEG).
+//   6. Voiceover (v3, optional body.voiceover_path): scenes are re-timed so the content matches the voiceover length,
+//      each scene's share proportional to the word count of its vo_line; the voiceover is loudness-normalised to
+//      -14 LUFS (true peak -1.5 dB) and becomes the only audio track (stock clip audio is always muted).
 // Stock only: inputs are local Magnific stock files. Nothing here generates imagery.
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -35,6 +38,9 @@ const RISE_PX = 48;
 const MIN_TOTAL = 20;
 const MAX_TOTAL = 40;
 const MAX_SCENES = 12;
+const MAX_TOTAL_VO = 90; // with a voiceover the reel follows the recording (up to this length)
+const VO_LEAD = 0.25; // voiceover starts this long after the first frame (s)
+const VO_TAIL = 0.45; // breathing room after the last word before the outro (s)
 const SITE = 'www.dhitiservices.com';
 const TRANSITIONS = new Set(['fade', 'fadeblack', 'dissolve', 'smoothleft', 'smoothup', 'slideleft', 'slideup', 'wipeleft', 'circleopen', 'cut']);
 
@@ -92,7 +98,9 @@ const fileOk = (p) => typeof p === 'string' && p.trim() && existsSync(path.resol
 // Scene planning
 // ---------------------------------------------------------------------------------------------
 
-function planScenes(body) {
+const words = (s) => String(s ?? '').replace(/\*\*?/g, '').split(/\s+/).filter(Boolean).length;
+
+function planScenes(body, voDuration = null) {
   const raw = Array.isArray(body?.scenes) ? body.scenes.filter(Boolean) : [];
   if (!raw.length) throw new Error('renderVideo: body.scenes must be a non-empty array');
   if (raw.length > MAX_SCENES) log.warn(`renderVideo: ${raw.length} scenes, keeping the first ${MAX_SCENES}`);
@@ -113,6 +121,30 @@ function planScenes(body) {
       focus: s.focus ?? null,
     };
   });
+  if (voDuration) {
+    // Re-time to the voiceover: content = lead + voiceover + tail, split by each scene's vo_line word count
+    // (scenes without a vo_line keep their relative duration as weight). Minimum 1.5 s per scene.
+    const want = Math.min(MAX_TOTAL_VO - OUTRO_SECONDS, VO_LEAD + voDuration + VO_TAIL);
+    const wc = raw.slice(0, MAX_SCENES).map((s) => words(s.vo_line));
+    const totalWords = wc.reduce((a, b) => a + b, 0);
+    const baseDur = scenes.reduce((a, s) => a + s.duration, 0);
+    const weights = scenes.map((s, i) => (totalWords > 0 ? (wc[i] || 0) / totalWords : s.duration / baseDur));
+    // Words-only weights would give a vo_line-less scene 0 s: give those a short beat instead.
+    const fixed = scenes.map((s, i) => (totalWords > 0 && !wc[i] ? 1.5 : 0));
+    const flexible = Math.max(0, want - fixed.reduce((a, b) => a + b, 0));
+    scenes.forEach((s, i) => {
+      s.duration = fixed[i] || Math.max(1.5, flexible * weights[i]);
+    });
+    const got = scenes.reduce((a, s) => a + s.duration, 0);
+    if (got > want + 0.01) {
+      // Minimums pushed us over: shrink the scenes above the minimum proportionally.
+      const over = got - want;
+      const room = scenes.reduce((a, s) => a + Math.max(0, s.duration - 1.5), 0);
+      if (room > 0) for (const s of scenes) s.duration -= (Math.max(0, s.duration - 1.5) / room) * Math.min(over, room);
+    }
+    for (const s of scenes) s.duration = frames(s.duration) / FPS;
+    return scenes;
+  }
   // Clamp the total (content + outro) to 20-40 s by scaling scene durations proportionally.
   const content = scenes.reduce((a, s) => a + s.duration, 0);
   const total = content + OUTRO_SECONDS;
@@ -318,15 +350,37 @@ async function joinConcat(parts, lens, out, dir) {
 // Public API
 // ---------------------------------------------------------------------------------------------
 
+/** Replaces the silent track with the voiceover: delayed by VO_LEAD, -14 LUFS, padded/trimmed to the reel length. */
+async function mixVoiceover(videoFile, voFile, total, out) {
+  const a = `[1:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay=${Math.round(VO_LEAD * 1000)}:all=1,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,apad,atrim=0:${r3(total)},afade=t=out:st=${r3(Math.max(0, total - 0.4))}:d=0.4[a]`;
+  await runFfmpeg([
+    '-y', '-loglevel', 'error', '-i', videoFile, '-i', voFile,
+    '-filter_complex', a, '-map', '0:v', '-map', '[a]',
+    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2',
+    '-movflags', '+faststart', '-t', String(r3(total)), out,
+  ], { label: 'voiceover mix' });
+  return out;
+}
+
 /**
  * renderVideo(body, {brand, workDir, keepWork}) ->
  *   { mp4: Buffer, poster: Buffer (JPEG 1080x1920), posterMime: 'image/jpeg', duration: seconds, width, height, fps, timeline }
  * body = { scenes: [{ duration, on_screen_text, clip|null, photo|null, eyebrow?, clip_start?, focus? }], transition?: 'fade'|'cut'|xfade name,
- *          outro_text?: tagline on the end card (default "Operations teams for the travel industry") }
+ *          outro_text?: tagline on the end card (default "Operations teams for the travel industry"),
+ *          voiceover_path?: local audio file (scenes are re-timed to it using scenes[].vo_line word counts) }
  * workDir: scratch directory (a unique subfolder is created inside and removed afterwards unless keepWork).
  */
 export async function renderVideo(body, { brand, workDir, keepWork = false } = {}) {
-  const scenes = planScenes(body);
+  let voFile = null;
+  let voDuration = null;
+  if (body?.voiceover_path) {
+    if (!fileOk(body.voiceover_path)) throw new Error(`renderVideo: voiceover not found: ${body.voiceover_path}`);
+    voFile = path.resolve(String(body.voiceover_path).trim());
+    const vi = await probeMedia(voFile);
+    if (!vi.hasAudio || !(vi.duration > 0)) throw new Error(`renderVideo: ${voFile} has no readable audio`);
+    voDuration = vi.duration;
+  }
+  const scenes = planScenes(body, voDuration);
   const resolved = await resolveBrand(brand);
   const base = workDir ? path.resolve(workDir) : os.tmpdir();
   await fs.mkdir(base, { recursive: true });
@@ -352,7 +406,7 @@ export async function renderVideo(body, { brand, workDir, keepWork = false } = {
     }
     parts.push(await encodeOutro(OUTRO_SECONDS, overlays, dir));
 
-    const outFile = path.join(dir, 'reel.mp4');
+    const outFile = path.join(dir, voFile ? 'reel-silent.mp4' : 'reel.mp4');
     let joinedWith = cut ? 'cut' : transition;
     if (cut) await joinConcat(parts, lens, outFile, dir);
     else {
@@ -365,7 +419,12 @@ export async function renderVideo(body, { brand, workDir, keepWork = false } = {
       }
     }
 
-    const info = await probeMedia(outFile);
+    let finalFile = outFile;
+    if (voFile) {
+      const silent = await probeMedia(outFile);
+      finalFile = await mixVoiceover(outFile, voFile, silent.duration, path.join(dir, 'reel.mp4'));
+    }
+    const info = await probeMedia(finalFile);
     if (info.width !== W || info.height !== H) throw new Error(`renderVideo: unexpected output size ${info.width}x${info.height}`);
 
     // Timeline (output seconds) for captions / review.
@@ -380,11 +439,11 @@ export async function renderVideo(body, { brand, workDir, keepWork = false } = {
     // Poster: first scene once its text has fully landed.
     const posterAt = Math.min(TEXT_IN_AT + TEXT_IN_DUR + 0.5, Math.max(0.1, scenes[0].duration - 0.5));
     const posterPng = path.join(dir, 'poster.png');
-    await runFfmpeg(['-y', '-loglevel', 'error', '-ss', String(r3(posterAt)), '-i', outFile, '-frames:v', '1', '-update', '1', posterPng], { label: 'poster' });
+    await runFfmpeg(['-y', '-loglevel', 'error', '-ss', String(r3(posterAt)), '-i', finalFile, '-frames:v', '1', '-update', '1', posterPng], { label: 'poster' });
     const poster = await sharp(posterPng).jpeg({ quality: 88, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
-    const mp4 = await fs.readFile(outFile);
-    log(`renderVideo: ${scenes.length} scenes + outro, ${info.duration.toFixed(2)}s, ${(mp4.length / 1e6).toFixed(1)} MB, ${joinedWith}, ${((Date.now() - started) / 1000).toFixed(1)}s`);
-    return { mp4, poster, posterMime: 'image/jpeg', duration: r3(info.duration), width: W, height: H, fps: FPS, transition: joinedWith, timeline };
+    const mp4 = await fs.readFile(finalFile);
+    log(`renderVideo: ${scenes.length} scenes + outro, ${info.duration.toFixed(2)}s, ${(mp4.length / 1e6).toFixed(1)} MB, ${joinedWith}${voFile ? `, voiceover ${voDuration.toFixed(2)}s` : ''}, ${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return { mp4, poster, posterMime: 'image/jpeg', duration: r3(info.duration), width: W, height: H, fps: FPS, transition: joinedWith, timeline, voiceover_duration: voDuration ? r3(voDuration) : null };
   } finally {
     if (!keepWork) await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   }

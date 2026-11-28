@@ -109,7 +109,7 @@ async function revertFiles(repoRoot, rels) {
 }
 
 async function pullRebase(repoRoot) {
-  const r = await git(repoRoot, ['pull', '--rebase', '--no-edit', config.gitRemote, config.gitBranch], { allowFail: true, timeoutMs: 180_000 });
+  const r = await git(repoRoot, ['pull', '--rebase', '--autostash', '--no-edit', config.gitRemote, config.gitBranch], { allowFail: true, timeoutMs: 180_000 });
   if (r.code !== 0) {
     await git(repoRoot, ['rebase', '--abort'], { allowFail: true });
     throw new Error(`git pull --rebase failed: ${(r.stderr || r.stdout).trim().split('\n').slice(-4).join(' ')}`);

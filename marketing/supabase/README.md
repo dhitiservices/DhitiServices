@@ -58,8 +58,10 @@ Issuing a new token also deletes tokens that expired more than 7 days ago.
 
 ## Actions
 
-The table below lists every action in the contract, plus three read helpers and `delete_files`. Those four extra
-actions are additive and work with session tokens only.
+The table below lists every action in the contract, plus three read helpers, `delete_files` and `list_jobs`. These
+extra actions are additive. All but `list_jobs` work with session tokens only. Version 2.3.0 (v3 addendum) also added
+the `awaiting_voiceover` item status, the `render_video` job kind, `list_jobs`, and read access to the owner library
+(`library/<uuid>/<file>`) through `sign_download`.
 
 | action | payload | data | publisher |
 |---|---|---|---|
@@ -81,9 +83,10 @@ actions are additive and work with session tokens only.
 | `list_assets` | `{content_item_id}` | rows (position asc) | yes |
 | `delete_assets` | `{content_item_id}` | `{deleted}` (count of rows) | no |
 | `sign_upload` | `{path}` | `{signedUrl, token, path}` (bucket `marketing`, upsert) | no |
-| `sign_download` | `{path, expiresIn?=600}` (10 s to 7 days) | `{signedUrl, path, expiresIn}` | yes |
+| `sign_download` | `{path, expiresIn?=600}` (10 s to 7 days); `path` may also be `library/<uuid>/<file>` | `{signedUrl, path, expiresIn}` | yes |
 | `delete_files` | `{content_item_id, paths?}` | `{deleted:[paths]}` | no |
 | `claim_jobs` | `{kinds?, limit?=5}` (max 50) | claimed jobs, oldest first | yes (`publish_now` only) |
+| `list_jobs` | `{kind?, status?, limit?=50}` (kind/status may be arrays; max 200) | jobs, oldest first, nothing is claimed | yes (`kind: 'publish_now'` only) |
 | `finish_job` | `{id, status?='done', error?}` (`done`\|`failed`\|`queued`, where `queued` re-queues the job) | row | yes |
 
 ### Whitelisted fields
@@ -103,7 +106,7 @@ A field that is not on the list is rejected with 400 rather than silently droppe
 Only a person in the dashboard approves content. The function enforces that:
 
 - **Session tokens:**
-  - They may set an item's status only to `generating`, `pending_review` or `failed`. They can never set
+  - They may set an item's status only to `generating`, `awaiting_voiceover`, `pending_review` or `failed`. They can never set
     `approved`, `rejected`, `changes_requested`, `published`, `approved_*` or `published_*`.
   - They cannot update an item that is `approved` or `published` (409).
   - They cannot run `delete_files` on such an item (409).
@@ -119,7 +122,7 @@ Two workers that claim at the same moment therefore get disjoint sets of jobs.
 
 If `kinds` is omitted, each worker gets its own queue:
 
-- A **session** claims `run_weekly` and `regenerate`.
+- A **session** claims `run_weekly`, `regenerate` and `render_video`.
 - A **publisher** claims `publish_now`. It is not allowed to claim any other kind.
 
 Jobs are created by the dashboard under RLS, which allows queued jobs only. There is no `insert_job` action.
@@ -130,6 +133,7 @@ For tests, insert a job through the Supabase connector:
 
 - Bucket `marketing` is private.
 - Paths must match `items/<uuid>/<more>/<file>`, using only `[A-Za-z0-9_.-/]` with no `.` or `..` segments.
+  `sign_download` (read only) also accepts `library/<uuid>/<file>`, the owner media the dashboard uploads.
 - Upload: call `sign_upload`, then `PUT <signedUrl>` with the raw bytes, `content-type` and `x-upsert: true`.
   The signed upload URL is valid for 2 hours.
 - `delete_files` with no `paths` removes everything under `items/<id>/`. You can also call it after the item row
@@ -173,7 +177,7 @@ logged.
 | `signUpload(path)`, `signDownload(path, expiresIn)` | `sign_upload`, `sign_download` |
 | `uploadFile(path, buffer, mime)` (returns the path), `downloadFile(path)` (returns a Buffer) | sign, then PUT or GET |
 | `deleteFiles(itemId, paths?)` | `delete_files` |
-| `claimJobs(limit, kinds)` or `claimJobs({limit, kinds})`, `finishJob(id, {status, error})` | job actions |
+| `claimJobs(limit, kinds)` or `claimJobs({limit, kinds})`, `finishJob(id, {status, error})`, `listJobs({kind, status, limit})` | job actions (`listJobs` never claims) |
 | `insertJob(kind, payload, by)` | DRY_RUN only |
 | `engineCall(action, payload)`, `httpRequest(url, opts)`, `backendName()` ("dry-run"|"edge"), `weekStartIST()`, `EngineError` (alias `StoreError`) | low level |
 
