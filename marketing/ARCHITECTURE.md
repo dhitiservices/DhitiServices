@@ -260,3 +260,10 @@ OTP expiry to 600 s and tighten the OTP send/verify rate limits (README "Owner s
   Mitigations: the address is never written in the repo; OTP expiry 600 s; tight OTP send/verify rate limits; sign-ups
   off after the first login. Supabase CAPTCHA (Turnstile) would add more, but needs a CSP exception for
   `challenges.cloudflare.com`, so it is the owner's call against the "no third-party scripts" rule.
+
+## v3.2 App language and ease of use (owner, binding for every dashboard change)
+- All app text is in very simple English: short words, short sentences, plain verbs ("Approve", "Ask for changes", "Upload voice", "Posts this Friday at 10:00"). No jargon or internal words in the UI (never show: item, asset, job, run, revision, slug, status codes, UUIDs, "pending_review", "awaiting_voiceover"). Map every status to a friendly label, e.g. "Ready for you", "Needs your voice", "Making it", "Scheduled", "Live", "Something went wrong".
+- Every screen answers one question: "What do I need to do now?" The home screen shows the next action first (e.g. "2 blogs are ready for you", "1 reel needs your voice") with one big button.
+- Review in as few taps as possible: open, look, Approve (or Ask for changes with a short note). Destructive or public actions get a clear confirm in plain words ("This will post to LinkedIn now").
+- Helpful empty states, errors that say what to do next, no dead ends. Works perfectly on iPhone (the owner often uses the phone).
+- Look and feel: Apple x Stripe x Notion — calm, premium, generous space, SF Pro Display, subtle premium gradients, smooth motion.
