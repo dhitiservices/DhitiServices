@@ -10,6 +10,8 @@ Contract: `marketing/ARCHITECTURE.md` (v2 with the v3 addendum). Detailed rubric
 | File | Read it |
 |---|---|
 | `playbook/quality-bar.md` | **At the start of every run.** Dhiti facts, audience, voice, banned phrases, good vs bad examples, definition of done. |
+| `playbook/voice.md` | **At the start of every run.** Human voice rules for every word (blog, slides, reel, captions). |
+| `playbook/seo.md` | **At the start of every run.** Keyword and SERP checks, topic clusters, on-page checklist, refreshes. |
 | `playbook/research.md` | Before step 2 |
 | `playbook/planning.md` | Before step 3 |
 | `playbook/blog-writing.md`, `playbook/blog-editing.md` | Before step 4 |

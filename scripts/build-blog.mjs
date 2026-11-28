@@ -32,13 +32,22 @@ function meta(p,home,blog) {
   const title = p ? `${p.title} | Dhiti` : 'Dhiti Blog | People, Process & Better Work';
   const description = p?.description || 'Practical guides to better operations, customer support, quality and careers. Clear thinking for the people doing the work.';
   const image = `${origin}/blog/images/${p?.image || posts[0].image}`;
-  const schema = p ? {
+  let schema = p ? {
     '@context':'https://schema.org','@type':'BlogPosting',headline:p.title,description,
-    datePublished:p.date,dateModified:p.date,author:{'@type':'Organization',name:'Dhiti Services',url:origin},
+    datePublished:p.date,dateModified:p.updated||p.date,author:{'@type':'Organization',name:'Dhiti Services',url:origin},
     publisher:{'@type':'Organization',name:'Dhiti Services',logo:{'@type':'ImageObject',url:`${origin}/blog/images/logo.webp`}},
     image:[image],mainEntityOfPage:url,wordCount:p.words,articleSection:p.category,inLanguage:'en'
   } : {'@context':'https://schema.org','@type':'Blog',name:'Dhiti Blog',url,description,
     blogPost:posts.map(x=>({'@type':'BlogPosting',headline:x.title,url:`${origin}/blog/${x.slug}/`}))};
+  if (p) {
+    const crumbs={'@type':'BreadcrumbList',itemListElement:[
+      {'@type':'ListItem',position:1,name:'Home',item:`${origin}/`},
+      {'@type':'ListItem',position:2,name:'Blog',item:`${origin}/blog/`},
+      {'@type':'ListItem',position:3,name:p.title,item:url}]};
+    const faq=faqFrom(p.html);
+    const article={...schema}; delete article['@context'];
+    schema={'@context':'https://schema.org','@graph':[article,crumbs,...(faq.length?[{'@type':'FAQPage',mainEntity:faq}]:[])]};
+  }
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};(function(){var c=null;try{c=localStorage.getItem('dhiti_analytics_consent')}catch(e){}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:c==='denied'?'denied':'granted',functionality_storage:'granted',security_storage:'granted',wait_for_update:500})})();</script>
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f)})(window,document,'script','dataLayer','GTM-MN4H87CM');</script>
@@ -52,6 +61,21 @@ function meta(p,home,blog) {
     <link rel="stylesheet" href="${home}blog.css"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script>
     <script src="${home}blog.js" defer></script><script src="/consent.js" defer></script></head><body class="db"><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MN4H87CM" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>${header(home,blog)}`;
 }
+/** FAQ rich data: a "## Frequently asked questions" (or "## FAQ") section whose questions are ### headings. */
+function faqFrom(html) {
+  const m = html.match(/<h2[^>]*>(?:Frequently asked questions|FAQs?|Questions buyers ask)[^<]*<\/h2>([\s\S]*?)(?=<h2|$)/i);
+  if (!m) return [];
+  const strip = (x) => x.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const out = [];
+  const re = /<h3[^>]*>([\s\S]*?)<\/h3>([\s\S]*?)(?=<h3|$)/g;
+  let q;
+  while ((q = re.exec(m[1]))) {
+    const name = strip(q[1]); const text = strip(q[2]);
+    if (name && text) out.push({ '@type': 'Question', name, acceptedAnswer: { '@type': 'Answer', text } });
+  }
+  return out;
+}
+
 function card(p,blog,index) {
   return `<article class="db-card" data-category="${esc(p.category)}" data-search="${esc(`${p.title} ${p.description} ${p.category}`.toLowerCase())}">
     <a class="db-card-image" href="${blog}${p.slug}/" tabindex="-1" aria-hidden="true"><img src="${blog}images/${p.image}" alt="" loading="lazy" width="640" height="420"><span class="db-card-number">${String(index+1).padStart(2,'0')}</span></a>
