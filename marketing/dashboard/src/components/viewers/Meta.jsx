@@ -1,7 +1,7 @@
 import { Linkedin } from "lucide-react";
 import { useData } from "../../lib/store.jsx";
 import { navigate } from "../../lib/router.jsx";
-import { autoPostOf, socialStatus } from "../../lib/linkedin.js";
+import { autoPostOf, autoPostWords } from "../../lib/linkedin.js";
 import { cx } from "../ui.jsx";
 
 /** `aside`: a right-aligned value next to the title, in normal case (durations like "28 s" must not become "28 S"). */
@@ -57,12 +57,11 @@ export function useAutoPost(item) {
 export function AutoPostNote({ item, post }) {
   const { itemById } = useData();
   const blog = itemById.get(item.parent_id);
-  const st = socialStatus(post, blog);
   return (
     <MetaSection title="LinkedIn">
       <div className="rounded-xl bg-info/[0.07] px-3 py-2.5 text-[12.5px] text-ink-soft" data-testid="auto-post-note">
-        <div className="flex items-center gap-1.5 font-semibold text-ink"><Linkedin className="h-3.5 w-3.5 text-info" />Posts on LinkedIn by itself after the blog is live</div>
-        <div className="mt-0.5">Now: {st.label}. Its text is in the blog's LinkedIn post. Don't post it there by hand.</div>
+        <div className="flex items-start gap-1.5 font-semibold text-ink"><Linkedin className="mt-px h-3.5 w-3.5 shrink-0 text-info" />{autoPostWords(post)}.</div>
+        <div className="mt-0.5">Its text is in the blog's LinkedIn post. Don't post it on LinkedIn by hand.</div>
         {blog && <button type="button" onClick={() => navigate(`/review/${blog.id}?filter=all`)} className="mt-1.5 font-semibold text-info hover:underline">Open the blog's LinkedIn post</button>}
       </div>
     </MetaSection>

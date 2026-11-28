@@ -69,7 +69,7 @@ export default function Ready() {
                         </div>
                         <p className="mt-2 line-clamp-3 flex-1 text-[13px] leading-[19px] text-ink-soft">{item.body?.caption_linkedin || item.body?.caption || "No text yet"}</p>
                         {otherPostOf(item, d.socialByBlog, d.items) && (
-                          <p className="mt-2 flex items-start gap-1.5 text-[12px] text-ink-mute"><Info className="mt-px h-3.5 w-3.5 shrink-0" />This blog already posts on LinkedIn as a {FORMAT_LABEL[otherPostOf(item, d.socialByBlog, d.items).format].toLowerCase()}. Post this one only if you want a second post.</p>
+                          <p className="mt-2 flex items-start gap-1.5 text-[12px] text-ink-mute"><Info className="mt-px h-3.5 w-3.5 shrink-0" />{otherPostOf(item, d.socialByBlog, d.items).status === "published" ? "This blog was already posted on LinkedIn as a " : "This blog posts on LinkedIn by itself as a "}{FORMAT_LABEL[otherPostOf(item, d.socialByBlog, d.items).format].toLowerCase()}. Post this one only if you want a second post.</p>
                         )}
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <Button size="sm" icon={Download} onClick={() => downloadMany(files)} disabled={!files.length}>Download{files.length > 1 ? ` ${files.length}` : ""}</Button>

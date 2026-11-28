@@ -3,9 +3,10 @@
 // validateCaption / validateFirstComment are the shared validator of section 5.3 (the engine function, the
 // social_posts trigger and the linkedin function apply the same rules; the first failing rule is reported).
 // captionHouseChecks adds the editorial policy of section 5.2 that only the engine checks (emoji, @mentions,
-// length aim, the "first comment" pointer, copying the blog's opening) and the claims rule: every number, date or
-// section in a caption must be backed by a verified sourced claim of the blog (body.claims).
-import { extractTokens, quoteEvidence, tokenCovered, tokenLabel, normText, SOURCED_KINDS, looseForm } from './claims.js';
+// length aim, the "first comment" pointer, copying the blog's opening). socialClaimsErrors is the claims rule
+// (claims-core.js derivedTextErrors, which the engine function runs too): every fact in the caption, the first
+// comment and the format reason must be backed by a verified claim of the blog, number by number, in context.
+import { normText, looseForm, derivedTextErrors, socialTextGroups } from './claims-core.js';
 
 export const SOCIAL_FORMATS = ['carousel', 'video', 'graphic'];
 export const CAPTION_MAX = 3000;
@@ -77,7 +78,6 @@ export function buildCommentary(caption) {
 }
 
 const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}]/u;
-const ILLUSTRATIVE = /\b(for example|for instance|illustrative|example:)/i;
 
 /**
  * Section 5.2 editorial rules plus the claims rule. Returns { errors, warnings }.
@@ -105,23 +105,8 @@ export function captionHouseChecks(caption, { blogBody } = {}) {
   if (!/first comment/i.test(prose.split('\n').slice(-2).join(' '))) warnings.push('end the caption with a pointer such as "Full guide in the first comment."');
   if (!hasTags) warnings.push('add 1 to 3 CamelCase hashtags on the last line (for example #TravelOperations)');
 
-  // claims rule: numbers/dates/sections must come from the blog's verified sourced claims
-  const claims = Array.isArray(blogBody?.claims) ? blogBody.claims : null;
-  const tokens = [];
-  for (const para of prose.split(/\n\s*\n/)) {
-    const labelled = ILLUSTRATIVE.test(para);
-    // list markers ("1. ", "2) ") are layout, not facts
-    const text = para.replace(/^\s*\d{1,2}[.)]\s+/gm, '');
-    for (const tok of extractTokens(normText(text))) if (!labelled) tokens.push(tok);
-  }
-  if (tokens.length) {
-    if (!claims) errors.push('the blog has no verified claims ledger yet (save it with --claims first); a caption with numbers or dates needs one');
-    else {
-      const ev = quoteEvidence(claims.filter((c) => SOURCED_KINDS.includes(c.kind) && c.verified).map((c) => c.claim_text));
-      const miss = tokens.filter((tok) => !tokenCovered(tok, ev));
-      if (miss.length) errors.push(`${[...new Set(miss.map(tokenLabel))].join(', ')} in the caption is not backed by a verified claim of the blog (use only numbers, dates and sections the blog cites, or label an example "For example")`);
-    }
-  }
+  // claims rule (caption only here; save-social also checks the first comment and the reason)
+  errors.push(...socialClaimsErrors({ caption: t }, blogBody));
   // do not copy the blog's opening word for word (12-word window)
   const md = String(blogBody?.markdown ?? '');
   const opening = md.split(/\n\s*\n/).find((p) => p.trim() && !p.startsWith('#')) || '';
@@ -134,6 +119,16 @@ export function captionHouseChecks(caption, { blogBody } = {}) {
     }
   }
   return { errors, warnings };
+}
+
+/**
+ * The claims rule for a LinkedIn post: caption paragraphs, first comment and format reason. The blog must carry a
+ * fact list verified by the engine server (claims_check.server); its verified claims are the only evidence.
+ */
+export function socialClaimsErrors({ caption = '', first_comment = '', recommendation_reason = '' } = {}, blogBody) {
+  const claims = Array.isArray(blogBody?.claims) ? blogBody.claims : null;
+  if (!claims || !claims.length) return ['the blog has no verified fact list yet (save it with save-blog --claims --factcheck first)'];
+  return derivedTextErrors(socialTextGroups({ caption, first_comment, recommendation_reason }), claims, { what: 'LinkedIn post' });
 }
 
 /** One-line recommendation reason the owner sees (LINKEDIN.md 5.1). */

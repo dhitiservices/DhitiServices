@@ -20,8 +20,8 @@ import { retry, istToUTC, todayIST, addDays, nextPublishDates, mimeFromPath, ext
 import * as store from './store.js';
 import { checkBlogText, checkBlogFile } from './blogcheck.js';
 import { getBrandContext } from './brand.js';
-import { verifyClaims, storedClaims, usedSources, defaultSourcesDir, recordSource, sha256 } from './claims.js';
-import { validateCaption, validateFirstComment, captionHouseChecks, validateReason, buildCommentary, commentText, normaliseCaption, SOCIAL_FORMATS } from './social.js';
+import { verifyClaims, storedClaims, defaultSourcesDir, recordSource, sha256, mergeFactcheck, factcheckSheet, derivedTextErrors, creativeTextGroups, sourcePaths, SHA_RE } from './claims.js';
+import { validateCaption, validateFirstComment, captionHouseChecks, validateReason, buildCommentary, commentText, normaliseCaption, socialClaimsErrors, SOCIAL_FORMATS } from './social.js';
 
 const HELP = `Dhiti marketing engine
 
@@ -31,10 +31,11 @@ const HELP = `Dhiti marketing engine
   run finish --id <id> --status succeeded|failed [--log <file>] [--error <msg>] [--usage <json|file>]
   save-brief <brief.json> [--run <runId>]   insert research brief -> {id}
   save-topics <topics.json>                 insert topics -> [{id,title,planned_publish_date}]
-  fetch-source <url> [<url> ...] [--dir <sources dir>]   fetch a source page/PDF for the claims ledger (sha256 + text)
-  restore-sources --item <blogId> [--dir <sources dir>]  bring back the verified source texts of a saved blog (revisions)
-  check-blog <draft.md> [--slug <slug>] [--claims <claims.json> --meta <meta.json>]   site rules (+ claims ledger)
-  save-blog --topic <id> --md <draft.md> --claims <claims.json> --cover <photo> --stock <stock.json> [--meta <meta.json>]
+  fetch-source <url> [<url> ...] [--dir <sources dir>]   the engine SERVER fetches a source page/PDF (sha256 + text); copied locally
+  restore-sources --item <blogId> [--dir <sources dir>]  bring back the server-fetched sources of a saved blog (revisions)
+  check-blog <draft.md> [--slug <slug>] [--claims <claims.json> --meta <meta.json>] [--factcheck <factcheck.json>]
+  factcheck-sheet --claims <claims.json> --out <sheet.json>   the sheet the independent fact-checker fills in (claim hashes)
+  save-blog --topic <id> --md <draft.md> --claims <claims.json> --factcheck <factcheck.json> --cover <photo> --stock <stock.json> [--meta <meta.json>]
             [--item <id>] [--focus x,y] [--sources-dir <dir>] [--owner-note "<text shown to the owner above the post>"]
   save-social --blog <id> --format carousel|video|graphic --source-item <id> --caption <caption.txt>
             --first-comment <comment.txt> --reason "<one line the owner sees>" [--item <socialPostId>] [--draft]
@@ -529,29 +530,50 @@ async function cmdCheckBlog({ pos, opts }) {
   const claimsFile = optStr(opts, 'claims');
   if (claimsFile) {
     const meta = await readMeta(optStr(opts, 'meta'));
-    const ledger = await checkLedger(claimsFile, { markdown: r.markdown, frontmatter: r.frontmatter, faq: meta.faq, sourcesDir: optStr(opts, 'sources-dir') });
+    const faq = faqOf(meta, r.frontmatter);
+    const ledger = await checkLedger(claimsFile, { markdown: r.markdown, frontmatter: r.frontmatter, faq, sourcesDir: optStr(opts, 'sources-dir'), factcheckFile: optStr(opts, 'factcheck') });
     out.claims = { passed: ledger.passed, messages: ledger.messages, warnings: ledger.warnings, stats: ledger.stats };
     out.passed = r.passed && ledger.passed;
   } else out.warnings = [...(out.warnings || []), 'no --claims given: save-blog will refuse the post until every factual sentence is in a verified claims.json'];
   return { result: out, exitCode: out.passed ? 0 : 2 };
 }
 
-/** Runs the claims ledger (claims.js) for a post. */
-async function checkLedger(claimsFile, { markdown, frontmatter, faq, sourcesDir }) {
-  const claims = await readJsonFile(claimsFile, 'claims');
+/** The FAQ the post carries: meta.json's faq wins, else the frontmatter's (check-blog and save-blog use the same). */
+function faqOf(meta, frontmatter) {
+  const src = Array.isArray(meta?.faq) ? meta.faq : frontmatter?.faq;
+  return Array.isArray(src) ? src.filter((f) => f && (f.q || f.question)).map((f) => ({ q: String(f.q ?? f.question), a: String(f.a ?? f.answer ?? '') })) : [];
+}
+
+/** Runs the claims ledger (claims.js) for a post; with a fact-check file, the verdicts are merged and required. */
+async function checkLedger(claimsFile, { markdown, frontmatter, faq, sourcesDir, factcheckFile }) {
+  let claims = await readJsonFile(claimsFile, 'claims');
+  if (!Array.isArray(claims)) claims = Array.isArray(claims?.claims) ? claims.claims : claims;
+  if (factcheckFile && Array.isArray(claims)) claims = mergeFactcheck(claims, await readJsonFile(factcheckFile, 'factcheck'));
   const dir = path.resolve(sourcesDir || defaultSourcesDir());
-  const ledger = await verifyClaims(claims, { markdown, frontmatter, faq, sourcesDir: dir });
+  const ledger = await verifyClaims(claims, { markdown, frontmatter, faq, sourcesDir: dir, requireFactcheck: Boolean(factcheckFile) });
   ledger.sourcesDir = dir;
+  ledger.input = claims;
   return ledger;
+}
+
+/** The sheet for the independent fact-checker (playbook/blog-editing.md step 4). */
+async function cmdFactcheckSheet({ opts }) {
+  let claims = await readJsonFile(need(opts, 'claims', 'claims.json'), 'claims');
+  if (!Array.isArray(claims)) claims = claims?.claims;
+  if (!Array.isArray(claims)) throw new UsageError('--claims must be a JSON array');
+  const sheet = factcheckSheet(claims);
+  const out = optStr(opts, 'out');
+  if (out) await fs.writeFile(path.resolve(out), JSON.stringify(sheet, null, 2));
+  return { claims: sheet.length, out: out ? path.resolve(out) : null, sheet: out ? undefined : sheet, how: 'for each row set verdict ("correct" | "wrong" | "unsure"), a short note on what you checked, and current: true for law claims once you searched for newer rules; keep id and claim_hash' };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Sources for the claims ledger
 // ---------------------------------------------------------------------------------------------
 
-const SOURCE_UA = 'Mozilla/5.0 (compatible; DhitiMarketingEngine/1.0; source check)';
 
 async function cmdFetchSource({ pos, opts }) {
+  ensureAuth();
   const urls = [...pos, ...[].concat(opts.url ?? [])].map(String).filter(Boolean);
   if (!urls.length) throw new UsageError('usage: fetch-source <url> [<url> ...] [--dir <sources dir>]');
   const dir = path.resolve(optStr(opts, 'dir') || defaultSourcesDir());
@@ -562,28 +584,17 @@ async function cmdFetchSource({ pos, opts }) {
       continue;
     }
     try {
-      const res = await retry(
-        async () => {
-          let r;
-          try {
-            r = await store.httpRequest(url, { method: 'GET', timeoutMs: 120_000, maxRedirects: 8, headers: { 'user-agent': SOURCE_UA, accept: 'text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8', 'accept-language': 'en-IN,en;q=0.9' } });
-          } catch (err) {
-            throw Object.assign(new Error(`network error: ${err.message}`), { retryable: !/ENOTFOUND|EAI_AGAIN/.test(err.code || err.message) });
-          }
-          if (r.status !== 200) throw Object.assign(new Error(`HTTP ${r.status}`), { retryable: r.status === 429 || r.status >= 500 });
-          return r;
-        },
-        { retries: 2, baseMs: 1500, label: `fetch-source ${url}`, shouldRetry: (e) => e.retryable === true },
-      );
-      if (!res.body?.length) throw new Error('empty response');
-      const h = res.headers?.['content-type'] ?? '';
-      const mime = String(Array.isArray(h) ? h[0] : h).split(';')[0].trim().toLowerCase();
-      const entry = await recordSource(dir, { url, finalUrl: res.url, buffer: res.body, mime });
+      // The engine SERVER fetches the page and keeps the bytes (sources/<sha256>/); a session cannot write there.
+      const meta = await store.fetchSource(url);
+      const buffer = await store.downloadFile(meta.raw_path);
+      if (sha256(buffer) !== meta.sha256) throw new Error('the downloaded copy does not match the sha256 the server recorded');
+      const entry = await recordSource(dir, { url, finalUrl: meta.final_url || undefined, buffer, mime: meta.mime, origin: 'server', fetchedAt: meta.fetched_at, server: meta });
+      if (meta.text_sha256 && entry.text_sha256 !== meta.text_sha256) throw new Error('the local text extraction differs from the server\'s; update the engine (claims-core.js must match the deployed function)');
       const warn = entry.text_chars < 400 ? 'almost no text was extracted: the page may need JavaScript. Find a static copy (for example the PDF) of the same document and cite that URL' : undefined;
       results.push({ ok: true, url, final_url: entry.final_url ?? null, sha256: entry.sha256, kind: entry.kind, mime: entry.mime, bytes: entry.bytes, pages: entry.pages ?? null, text_chars: entry.text_chars, title: entry.title, fetched_at: entry.fetched_at, text_file: path.join(dir, entry.text_file), ...(warn ? { warning: warn } : {}) });
-      log(`fetched source ${url} -> ${entry.text_file} (${entry.text_chars} chars)`);
+      log(`fetched source ${url} on the server -> ${entry.text_file} (${entry.text_chars} chars)`);
     } catch (err) {
-      results.push({ ok: false, url, error: errorMessage(err), hint: 'a source the engine cannot fetch cannot back a claim: cite another primary page that says the same thing, or drop the claim' });
+      results.push({ ok: false, url, error: errorMessage(err), hint: 'a source the engine server cannot fetch cannot back a claim: cite another primary page that says the same thing, or drop the claim' });
     }
   }
   const failed = results.filter((r) => !r.ok).length;
@@ -591,8 +602,8 @@ async function cmdFetchSource({ pos, opts }) {
 }
 
 /**
- * Revisions: brings back the source texts a saved blog was verified against (items/<id>/v<n>/sources/<sha>.txt),
- * checked against the text_sha256 recorded in body.claims, so the claims of unchanged sentences verify again.
+ * Revisions: brings back the server-fetched sources a saved blog was verified against (sources/<sha256>/ in storage),
+ * so the claims of unchanged sentences verify again. Fetch a source again (fetch-source) to check it for newer rules.
  */
 async function cmdRestoreSources({ opts }) {
   ensureAuth();
@@ -603,21 +614,23 @@ async function cmdRestoreSources({ opts }) {
   const claims = Array.isArray(item.body?.claims) ? item.body.claims : [];
   if (!claims.length) throw new UsageError(`item ${itemId} has no stored claims; fetch the sources again with fetch-source`);
   const seen = new Map();
-  for (const c of claims) for (const q of [c, ...(c.extra_quotes || [])]) if (q.source_text_path && q.sha256 && !seen.has(q.sha256)) seen.set(q.sha256, q);
+  for (const c of claims) for (const q of [c, ...(c.extra_quotes || [])]) if (q.sha256 && SHA_RE.test(q.sha256) && !seen.has(q.sha256)) seen.set(q.sha256, q);
   const restored = [];
   for (const q of seen.values()) {
     try {
-      const buf = await store.downloadFile(q.source_text_path);
-      if (q.text_sha256 && sha256(buf) !== q.text_sha256) throw new Error('stored text does not match its recorded sha256');
-      const entry = await recordSource(dir, { url: q.source_url, buffer: buf, mime: 'text/plain', origin: `stored:${q.source_text_path}`, fetchedAt: q.fetched_at, text: buf.toString('utf8'), title: q.source_title, sha: q.sha256 });
-      restored.push({ ok: true, url: q.source_url, sha256: entry.sha256, fetched_at: entry.fetched_at, from: q.source_text_path });
+      const meta = JSON.parse((await store.downloadFile(sourcePaths(q.sha256).meta)).toString('utf8'));
+      const buffer = await store.downloadFile(sourcePaths(q.sha256, meta.kind).raw);
+      if (sha256(buffer) !== q.sha256) throw new Error('stored source does not match its sha256');
+      const entry = await recordSource(dir, { url: q.source_url, finalUrl: meta.final_url || undefined, buffer, mime: meta.mime, origin: 'server', fetchedAt: meta.fetched_at, server: { ...meta, raw_path: sourcePaths(q.sha256, meta.kind).raw, text_path: meta.kind === 'pdf' ? sourcePaths(q.sha256, 'pdf').raw : sourcePaths(q.sha256).text } });
+      restored.push({ ok: true, url: q.source_url, sha256: entry.sha256, fetched_at: entry.fetched_at });
     } catch (err) {
-      restored.push({ ok: false, url: q.source_url, error: errorMessage(err) });
+      restored.push({ ok: false, url: q.source_url, error: `${errorMessage(err)} (older blogs kept their sources elsewhere: fetch the source again with fetch-source)` });
     }
   }
   const failed = restored.filter((r) => !r.ok).length;
-  return { result: { dir, restored: restored.length - failed, failed, sources: restored, note: 'restored texts keep their original fetched_at; fetch a source again (fetch-source) to check it for newer rules' }, exitCode: failed ? 1 : 0 };
+  return { result: { dir, restored: restored.length - failed, failed, sources: restored, note: 'restored sources keep their original fetched_at; fetch a source again (fetch-source) to check it for newer rules' }, exitCode: failed ? 1 : 0 };
 }
+
 
 /**
  * Sources = unique external https links in the post, in order of appearance. A title from meta.json's sources
@@ -671,6 +684,7 @@ async function cmdSaveBlog({ opts }) {
   const coverFile = path.resolve(need(opts, 'cover', 'a downloaded Magnific stock photo'));
   const stockFile = need(opts, 'stock', 'JSON with the Magnific id/title/url_preview of the cover');
   const claimsFile = need(opts, 'claims', 'claims.json: every factual sentence mapped to a source the engine fetched (playbook/blog-writing.md section 1)');
+  const factcheckFile = need(opts, 'factcheck', 'factcheck.json: the independent fact-checker\'s verdict for every claim (playbook/blog-editing.md step 4; cli.js factcheck-sheet)');
   const itemId = optStr(opts, 'item') ? needUuid(opts, 'item') : undefined;
   if (!existsSync(mdFile)) throw new UsageError(`--md not found: ${mdFile}`);
   if (!existsSync(coverFile)) throw new UsageError(`--cover not found: ${coverFile}`);
@@ -699,11 +713,11 @@ async function cmdSaveBlog({ opts }) {
     err.details = { passed: false, messages: check.messages, warnings: check.warnings, words: check.words, sections: check.sections, slug: check.slug };
     throw err;
   }
-  const faqSrc = Array.isArray(meta.faq) ? meta.faq : extra.faq;
-  const faq = Array.isArray(faqSrc) ? faqSrc.filter((f) => f && (f.q || f.question)).map((f) => ({ q: String(f.q ?? f.question), a: String(f.a ?? f.answer ?? '') })) : [];
+  const faq = faqOf(meta, extra);
 
-  // The claims ledger: no override. A wrong or unsourced fact never reaches the owner.
-  const ledger = await checkLedger(claimsFile, { markdown: check.markdown, frontmatter: check.frontmatter, faq, sourcesDir: optStr(opts, 'sources-dir') });
+  // The claims ledger: no override. A wrong or unsourced fact never reaches the owner. The engine server repeats
+  // this check with its own copies of the sources and refuses the save if anything differs.
+  const ledger = await checkLedger(claimsFile, { markdown: check.markdown, frontmatter: check.frontmatter, faq, sourcesDir: optStr(opts, 'sources-dir'), factcheckFile });
   if (!ledger.passed) {
     const err = new Error(`claims check failed with ${ledger.messages.length} problem(s); fix or remove each sentence: ${ledger.messages.slice(0, 3).join(' | ')}${ledger.messages.length > 3 ? ' | ...' : ''}`);
     err.details = { passed: false, claims: { messages: ledger.messages, warnings: ledger.warnings, stats: ledger.stats } };
@@ -724,14 +738,9 @@ async function cmdSaveBlog({ opts }) {
   const ctx = await openItem({ itemId, type: 'blog', topicId, title: frontmatter.title });
   try {
     if (!ctx.isNew && ctx.item.topic_id && ctx.item.topic_id !== topicId) throw new UsageError(`item ${ctx.item.id} belongs to topic ${ctx.item.topic_id}, not ${topicId}`);
-    // The exact source texts the claims were verified against, next to this version.
-    const textPaths = new Map();
-    for (const src of usedSources(ledger.claims)) {
-      const storagePath = `items/${ctx.item.id}/v${ctx.version}/sources/${src.sha256}.txt`;
-      await store.uploadFile(storagePath, await fs.readFile(src.local_text), 'text/plain');
-      textPaths.set(src.sha256, storagePath);
-    }
-    log(`stored ${textPaths.size} verified source text(s) under items/${ctx.item.id}/v${ctx.version}/sources/`);
+    // Every source must be one the engine server fetched (it keeps them under sources/<sha256>/).
+    const notServer = ledger.claims.flatMap((c) => [c, ...(c.extra_quotes || [])]).filter((q) => q.sha256 && !q.source_text_path);
+    if (notServer.length) throw new UsageError(`${new Set(notServer.map((q) => q.source_url)).size} source(s) were not fetched by the engine server (for example ${notServer[0].source_url}); run fetch-source for them and check again`);
     const assets = await replaceAssets(ctx.item.id, ctx.version, [
       {
         name: 'cover.webp',
@@ -755,7 +764,7 @@ async function cmdSaveBlog({ opts }) {
         faq,
       },
       sources: extractSources(check.markdown, meta.sources),
-      claims: storedClaims(ledger.claims, textPaths),
+      claims: storedClaims(ledger.claims),
       claims_check: { passed: true, stats: ledger.stats, warnings: ledger.warnings, checked_at: new Date().toISOString() },
       owner_note: ownerNote,
       checks: { passed: true, messages: [], warnings: check.warnings, sections: check.sections, minutes: check.minutes, checked_at: new Date().toISOString() },
@@ -782,7 +791,7 @@ async function cmdSaveBlog({ opts }) {
       sections: check.sections,
       warnings: [...check.warnings, ...ledger.warnings],
       claims: ledger.stats,
-      source_texts: [...textPaths.values()],
+      server_check: item.body?.claims_check?.server ?? null,
       assets: assetSummary(assets),
     };
   } catch (err) {
@@ -1062,6 +1071,15 @@ async function cmdMake(kind, { opts }) {
     if (missingStock.length) log.warn(`${missingStock.length} media file(s) have no stock metadata (add "stock": {"id","title","url_preview"} next to each photo/clip for the licence trail)`);
 
     await assertNoStockReuse(parent, itemId, stockAll);
+    // Every visible fact (slides, stats, captions, on-screen text, voiceover lines) must be backed by the blog's
+    // verified claims, number by number and in context. The engine server repeats this check on save.
+    if (!parent.body?.claims_check?.server?.passed) throw new UsageError(`the blog ${parentId} has no fact list verified by the engine server; save the blog with save-blog first`);
+    const factErrors = derivedTextErrors(creativeTextGroups(kind, body), parent.body.claims, { what: kind });
+    if (factErrors.length) {
+      const err = new UsageError(`${kind} not saved: ${factErrors.length} fact(s) are not backed by the blog's verified claims: ${factErrors.slice(0, 3).join(' | ')}${factErrors.length > 3 ? ' | ...' : ''}`);
+      err.details = { passed: false, messages: factErrors };
+      throw err;
+    }
     const warnings = dateWarnings(body, parent.scheduled_for || parent.body?.frontmatter?.date);
     for (const w of warnings) log.warn(`date check: ${w}`);
 
@@ -1272,6 +1290,7 @@ async function cmdSaveSocial({ opts }) {
   if (!slug) throw new UsageError(`blog ${blogId} has no slug yet`);
   const house = captionHouseChecks(caption, { blogBody: blog.body });
   problems.push(...house.errors);
+  problems.push(...socialClaimsErrors({ first_comment: firstComment, recommendation_reason: reason }, blog.body).filter((e) => !problems.includes(e)));
   const warnings = [...house.warnings];
 
   // The source creative: a child of this blog with the chosen format, and the newest one (the server derives it).
@@ -1378,8 +1397,23 @@ async function cmdSweep({ opts }) {
     const content = Object.fromEntries(Object.entries(r.body || {}).filter(([k]) => k !== 'generating'));
     const back = RESTORABLE.has(g.prev_status) ? g.prev_status : null;
     const prev = back && Object.keys(content).length ? { status: back, body: content } : { status: 'failed' };
-    await store.updateItem(r.id, { ...prev, error: 'The session ended before this was finished. Ask for changes to make it again.' }).catch((e) => log.warn(`sweep ${r.id}: ${e.message}`));
-    failed.push({ id: r.id, type: r.type, reason: why, status: prev.status });
+    const msg = 'The session ended before this was finished. Ask for changes to make it again.';
+    // conditional on the status read above: an item another session finished meanwhile is never overwritten
+    let status = prev.status;
+    try {
+      await store.updateItem(r.id, { ...prev, error: msg }, { expectStatus: 'generating' });
+    } catch (e) {
+      if (e.status === 409) {
+        kept.push({ id: r.id, type: r.type, reason: 'it changed meanwhile' });
+        continue;
+      }
+      // a restore the server refuses (for example an old fact list) fails the item instead
+      if (e.status === 400 && prev.status !== 'failed') {
+        status = 'failed';
+        await store.updateItem(r.id, { status: 'failed', error: `${msg} (${e.message.slice(0, 300)})` }, { expectStatus: 'generating' }).catch((e2) => log.warn(`sweep ${r.id}: ${e2.message}`));
+      } else log.warn(`sweep ${r.id}: ${e.message}`);
+    }
+    failed.push({ id: r.id, type: r.type, reason: why, status });
   }
   return { failed, kept, run_id: myRun };
 }
@@ -1526,6 +1560,7 @@ const COMMANDS = {
   'save-topics': cmdSaveTopics,
   'check-blog': cmdCheckBlog,
   'fetch-source': cmdFetchSource,
+  'factcheck-sheet': cmdFactcheckSheet,
   'restore-sources': cmdRestoreSources,
   'save-social': cmdSaveSocial,
   social: cmdSocial,

@@ -248,3 +248,16 @@ export function pagesWords(list) {
   if (run) return `pages ${p[0]} to ${p[p.length - 1]}`;
   return `pages ${p.slice(0, -1).join(", ")} and ${p[p.length - 1]}`;
 }
+
+/** One line for a creative that LinkedIn posts by itself, by the state of its post. */
+export function autoPostWords(post) {
+  switch (post?.status) {
+    case "draft":
+    case "pending_review": return "Posts on LinkedIn by itself once you approve the blog's LinkedIn post";
+    case "approved": return "Posts on LinkedIn by itself after the blog is live";
+    case "publishing": return "Posting on LinkedIn now";
+    case "published": return "Posted on LinkedIn by itself";
+    case "failed": return "The LinkedIn post didn't go out. Open the blog to try again";
+    default: return "Posts on LinkedIn by itself";
+  }
+}

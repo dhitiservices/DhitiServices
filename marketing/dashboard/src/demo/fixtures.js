@@ -49,7 +49,7 @@ function slideSvg({ w = 1080, h = 1350, kind, eyebrow, headline, body, stat, ind
 /* ---------- content ---------- */
 const ADM_MD = `Illustrative example: it is 6:40 pm on a Friday, and an airline debit memo lands in the inbox of a mid-sized agency. The fare was right when it was ticketed. The fare basis was not. Nobody noticed in time, and by then the ticket could not be voided.
 
-**Most ADMs are not caused by bad agents. They are caused by a missing second look.**
+**A second look, at the right time, catches what the first person misses.**
 
 ## Why ADMs keep coming back
 
@@ -273,7 +273,7 @@ const SUPPORT_CLAIMS = [
 
 const ADM_CAPTION = `An airline debit memo can land long after the ticket was issued, when it can no longer be voided.
 
-Most ADMs are not caused by bad agents. They are caused by a missing second look.
+A second look, at the right time, catches what the first person misses.
 
 A small second-check desk reviews every ticket on the day it is issued, while it can usually still be voided. The checks are boring on purpose:
 
@@ -302,6 +302,63 @@ One named coordinator owns each group. Everyone else, sales included, sends chan
 The full 48-hour checklist is in the first comment.
 
 #HotelOperations #GroupTravel #MICE`;
+
+/* ---------- creatives: each one says only what its own blog says ---------- */
+const CAROUSELS = {
+  adm: {
+    slides: [
+      { kind: "point", eyebrow: "Why memos come", headline: "Airlines can raise an ADM after a sale is reported", body: "Each airline follows its own ADM policy." },
+      { kind: "point", eyebrow: "Step 1", headline: "Check every ticket on the day it is issued", body: "While it can usually still be voided." },
+      { kind: "point", eyebrow: "Step 2", headline: "Write a checklist for your top five causes", body: "Fare basis, reissues, duplicates, tour codes, names." },
+      { kind: "quote", eyebrow: "The rule", headline: "A second look catches what the first person misses.", body: "" },
+    ],
+    linkedin: "A second look, at the right time, catches what the first person misses. The guide covers the five checks a second-check desk runs every day.",
+    instagram: "Save this for your ticketing team.",
+    hashtags: ["TravelOperations", "AirlineTicketing", "BackOffice"],
+  },
+  rooming: {
+    slides: [
+      { kind: "point", eyebrow: "The window", headline: "Final names are often due 48 to 72 hours out", body: "Check the list at 72 h, 48 h and the night before." },
+      { kind: "point", eyebrow: "Step 1", headline: "Check names, rooms and dates for every guest", body: "Not just the room count." },
+      { kind: "point", eyebrow: "Step 2", headline: "Ask the hotel for its copy and compare it", body: "Line by line, every time." },
+      { kind: "quote", eyebrow: "The rule", headline: "Check twice, send once, confirm in writing.", body: "" },
+    ],
+    linkedin: "A rooming list is only as good as the last time someone checked it against the hotel. Here is the checklist to run at 72 hours, 48 hours and the night before.",
+    instagram: "Save this for your group desk.",
+    hashtags: ["HotelOperations", "GroupTravel", "MICE"],
+  },
+  rates: {
+    slides: [
+      { kind: "point", eyebrow: "Step 1", headline: "Load rates the day the contract lands", body: "Not the day before the first booking." },
+      { kind: "point", eyebrow: "Step 2", headline: "Check each loaded rate against the contract", body: "One person owns the job." },
+    ],
+    linkedin: "A rate loaded in a hurry is a rate loaded wrong. Load it the day the contract lands, and check it.",
+    instagram: "Save this for your rates team.",
+    hashtags: ["HotelOperations", "CorporateTravel"],
+  },
+};
+const REELS = {
+  adm: {
+    caption: "A small desk, same-day checks, fewer avoidable memos.",
+    scenes: [
+      { duration: 4.5, on_screen_text: "Example: 6:40 pm. An ADM lands.", vo_line: "Picture this. It's six forty on a Friday, and an airline debit memo just landed." },
+      { duration: 6, on_screen_text: "One fare basis nobody checked", vo_line: "All for one fare basis that nobody checked in time." },
+      { duration: 7, on_screen_text: "Fix: a second-check desk", vo_line: "The fix is boring on purpose. A small desk checks every ticket on the day it is issued." },
+      { duration: 6.5, on_screen_text: "Catch it while you can void it", vo_line: "That way, a mistake is caught while the ticket can usually still be voided." },
+      { duration: 4, on_screen_text: "dhitiservices.com", vo_line: "Dhiti Services. Calm back-office work, done daily." },
+    ],
+  },
+  rooming: {
+    caption: "Check at 72 hours, 48 hours and the night before.",
+    scenes: [
+      { duration: 4.5, on_screen_text: "Example: two couples, no rooms", vo_line: "Picture this. Two couples in a hotel lobby, and no rooms for them." },
+      { duration: 5.5, on_screen_text: "The list changed. The hotel's didn't.", vo_line: "The rooming list changed. The hotel's copy did not." },
+      { duration: 7, on_screen_text: "Check at 72 h, 48 h, the night before", vo_line: "So check the list three times: at seventy two hours, at forty eight hours, and the night before." },
+      { duration: 6.5, on_screen_text: "Compare it with the hotel's copy", vo_line: "Each time, ask the hotel for its version and compare it line by line." },
+      { duration: 4, on_screen_text: "dhitiservices.com", vo_line: "Dhiti Services. Calm back-office work, done daily." },
+    ],
+  },
+};
 
 export function buildFixtures() {
   n = 0;
@@ -421,42 +478,29 @@ export function buildFixtures() {
     return it;
   };
 
-  const carouselFor = (parent, topic, status, extra = {}) => {
-    const slides = [
-      { kind: "cover", eyebrow: topic.category, headline: topic.title, body: "" },
-      { kind: "stat", eyebrow: "The cost", headline: "of ticket value lost to ADMs at a typical agency", stat: "0.6%", body: "" },
-      { kind: "point", eyebrow: "Step 1", headline: "Check every ticket within four hours", body: "Most errors can still be voided the same day." },
-      { kind: "point", eyebrow: "Step 2", headline: "Write a checklist for the top five causes", body: "Fare basis, reissues, duplicates, tour codes, endorsements." },
-      { kind: "quote", eyebrow: "The rule", headline: "Most ADMs are caused by a missing second look.", body: "" },
-      { kind: "cta", eyebrow: "Dhiti Services", headline: "Read the full guide on our blog", body: "dhitiservices.com/blog" },
-    ];
+  const carouselFor = (parent, topic, status, extra = {}, c = CAROUSELS.adm) => {
+    const slides = [{ kind: "cover", eyebrow: topic.category, headline: topic.title, body: "" }, ...c.slides,
+      { kind: "cta", eyebrow: "Dhiti Services", headline: "Read the full guide on our blog", body: "dhitiservices.com/blog" }];
     const it = derived(parent, "carousel", {
       status, title: `${topic.title} · carousel`, ...extra,
-      body: { caption_linkedin: `${topic.title}.\n\nMost ADMs are not caused by bad agents. They are caused by a missing second look. Here is the six-step desk we run for agencies.`, caption_instagram: `${topic.title} ✈️ Save this for your ticketing team.`, hashtags: ["TravelAgency", "AirlineOps", "BackOffice", "Dhiti"], slides },
+      body: { caption_linkedin: `${topic.title}.\n\n${c.linkedin}`, caption_instagram: `${topic.title}. ${c.instagram}`, hashtags: c.hashtags, slides },
     });
     slides.forEach((s, i) => asset(it, "carousel_slide", slideSvg({ ...s, index: i + 1, total: slides.length, dark: i === 0 || s.kind === "quote" || s.kind === "cta" }), { position: i, width: 1080, height: 1350, meta: { stock: [] } }));
     asset(it, "carousel_pdf", "demo/carousel.pdf", { mime: "application/pdf", position: 99, meta: {} });
     return it;
   };
   const graphicFor = (parent, topic, status, g, extra = {}) => {
-    const it = derived(parent, "graphic", { status, title: `${topic.title} · ${g.kind}`, ...extra, body: { ...g, caption: `${g.headline} ${g.body || ""}`.trim(), hashtags: ["TravelOps", "Dhiti"] } });
+    const it = derived(parent, "graphic", { status, title: `${topic.title} · ${g.kind}`, ...extra, body: { ...g, caption: [g.headline, g.body].filter(Boolean).map((t) => (/[.!?]$/.test(t) ? t : `${t}.`)).join(" "), hashtags: ["TravelOps", "Dhiti"] } });
     asset(it, "graphic", slideSvg({ w: 1080, h: 1080, kind: "point", eyebrow: g.kind === "stat" ? "By the numbers" : g.kind === "quote" ? "Field note" : "Ops tip", headline: g.headline, body: g.body, stat: g.stat, dark: g.kind !== "tip" }), { position: 0, width: 1080, height: 1080, meta: { variant: "square", stock: [] } });
     asset(it, "graphic", slideSvg({ w: 1200, h: 627, kind: "point", eyebrow: g.kind === "stat" ? "By the numbers" : "Ops tip", headline: g.headline, body: "", stat: "", dark: g.kind !== "tip" }), { position: 1, width: 1200, height: 627, meta: { variant: "landscape", stock: [] } });
     return it;
   };
-  const videoFor = (parent, topic, status, extra = {}) => {
-    const scenes = [
-      { duration: 4.5, on_screen_text: "6:40 pm. An ADM lands.", vo_line: "It's six forty on a Friday, and an airline debit memo just landed." },
-      { duration: 6, on_screen_text: "₹38,400 for one fare basis slip", vo_line: "Thirty eight thousand rupees, for one fare basis that nobody checked." },
-      { duration: 7, on_screen_text: "Fix: a second-check desk", vo_line: "The fix is boring on purpose. A small desk checks every ticket within four hours." },
-      { duration: 6.5, on_screen_text: "Half the ADMs. Every month.", vo_line: "Agencies that do this cut their debit memos roughly in half." },
-      { duration: 4, on_screen_text: "dhitiservices.com", vo_line: "Dhiti Services. Calm back-office work, done daily." },
-    ];
+  const videoFor = (parent, topic, status, extra = {}, r = REELS.adm) => {
     const it = derived(parent, "video", {
       status, title: `${topic.title} · reel`, ...extra,
       body: {
-        caption: `${topic.title}. A two-person desk, four-hour checks, half the ADMs.`, hashtags: ["TravelAgency", "Reels", "Dhiti"], scenes,
-        voiceover_script: scenes.map((s) => s.vo_line).join(" "), voiceover: status === "awaiting_voiceover" ? null : { library_asset_id: "lib-demo", duration: 27.4 },
+        caption: `${topic.title}. ${r.caption}`, hashtags: ["TravelOperations", "Dhiti"], scenes: r.scenes,
+        voiceover_script: r.scenes.map((s) => s.vo_line).join(" "), voiceover: status === "awaiting_voiceover" ? null : { library_asset_id: "lib-demo", duration: 27.4 },
       },
     });
     asset(it, "video", "demo/departures.mp4", { mime: "video/mp4", width: 1080, height: 1920, meta: { stock: [{ provider: "magnific", id: "553201", title: "Airport departures board" }] } });
@@ -465,17 +509,17 @@ export function buildFixtures() {
   };
 
   const cA = carouselFor(bA, tA, "pending_review");
-  graphicFor(bA, tA, "pending_review", { kind: "stat", stat: "₹1L", headline: "lost every month to avoidable ADMs", body: "at an agency issuing 1,800 tickets" });
-  graphicFor(bA, tA, "pending_review", { kind: "tip", headline: "Check tickets issued after 4 pm first", body: "That is when most fare errors happen." });
+  graphicFor(bA, tA, "pending_review", { kind: "stat", stat: "₹1.03L", headline: "a month in ADMs, in a worked example", body: "1,800 tickets, a 0.6% ADM rate, ₹9,500 a memo" });
+  graphicFor(bA, tA, "pending_review", { kind: "tip", headline: "Check late-day tickets first", body: "While there is still time to void them." });
   videoFor(bA, tA, "awaiting_voiceover");
 
-  const cB = carouselFor(bB, tB, "approved", { approved_at: ago(170), approved_by: "demo-owner@example.com" });
+  const cB = carouselFor(bB, tB, "approved", { approved_at: ago(170), approved_by: "demo-owner@example.com" }, CAROUSELS.rooming);
   graphicFor(bB, tB, "approved", { kind: "quote", headline: "Check twice, send once, confirm in writing.", body: "", attribution: "Dhiti group desk" }, { approved_at: ago(160) });
   graphicFor(bB, tB, "changes_requested", { kind: "stat", stat: "72h", headline: "is the new rooming list cut-off", body: "at large Rajasthan properties" }, { feedback: "Use 48h to match the blog." });
-  videoFor(bB, tB, "pending_review");
+  videoFor(bB, tB, "pending_review", {}, REELS.rooming);
 
   derived(bC, "carousel", { status: "generating", title: `${tC.title} · carousel`, body: {} });
-  const cL1 = carouselFor(pL1, tL1, "published", { published_at: ago(60 * 24 * 4), published_url: "https://www.linkedin.com/feed/" });
+  const cL1 = carouselFor(pL1, tL1, "published", { published_at: ago(60 * 24 * 4), published_url: "https://www.linkedin.com/feed/" }, CAROUSELS.rates);
   const gL2 = graphicFor(pL2, tL2, "published", { kind: "tip", headline: "One reporting pack, sent the same day every month", body: "Clients trust numbers that arrive on time." }, { published_at: ago(60 * 24 * 2) });
   graphicFor(pL1, tL1, "approved", { kind: "tip", headline: "Load corporate rates the day the contract lands", body: "Not the day before the first booking." }, { approved_at: ago(60 * 30) });
 

@@ -76,28 +76,40 @@ returns no data because every policy checks the allowlist).
 
 | Route | What it does |
 |---|---|
-| `/` Home | One "next step" card first (blogs ready for you, then reels that need your voice, posts to review, LinkedIn posts that need a look, anything that went wrong; the rest as "Also waiting" chips), or "You're all caught up. Next blog posts Monday at 10:00."; then Coming up, this week's research, Recently, and **Make this week's blogs now** (`jobs` insert `run_weekly`) |
+| `/` Home | One "next step" card first (blogs ready for you, then reels that need your voice, pictures and reels to check, LinkedIn posts that need a look, anything that went wrong; the rest as "Also waiting" chips), or "You're all caught up. Next blog posts Monday at 10:00 am."; then Coming up, this week's research, Recently, and **Make this week's blogs now** (`jobs` insert `run_weekly`) |
 | `/review/:id?` Review | Queue grouped by topic; blog article preview (marked + DOMPurify), inline edit (title, description with 160-char counter, Markdown), carousel slide viewer + PDF, graphic square/landscape, reel player. Reels in `awaiting_voiceover` show the voiceover studio: the script (large, copy button, word count,
 target seconds), the line for each scene, and a drop zone (or a take from the library); upload = `library_assets` row
 + `jobs` insert `render_video {content_item_id, library_asset_id}`, then "Rendering with your voice" until Realtime
-brings the item back as `pending_review`. Blogs also show **Facts checked** (`body.claims` from the engine's claims ledger:
-a green line "All 14 facts checked against the source" or a red warning, each fact with its source, check date and the
-exact quote; examples and advice are labelled, not counted as facts; approving a blog with an unchecked fact needs a
-tick "I checked them myself") and the **LinkedIn post** card (`social_posts`, LINKEDIN.md 2.4): a company-post preview
+brings the item back as `pending_review`. Blogs also show **Facts** (`body.claims` from the engine's claims ledger:
+a green line "8 facts have a quote from the source. Read each quote: does it say the same thing?" or a red warning; each
+fact with its source, the day the source was read and the quote. The words say only what the engine proves: the quote is
+in the source and the claim's numbers are in the quote, not that the quote means the same, so the owner reads each one.
+Examples and advice are labelled, not counted as facts. After the owner edits the text, a fact whose sentence is no
+longer in it (compared as the engine does) shows "Changed after the check" and counts as not checked. Every way to
+approve or put a blog live uses the same gate: with any unchecked fact, or no fact list at all, the approve sheet needs
+the tick "I checked them myself"; Shift+A then opens the sheet instead of approving; "Put live now" is offered only for
+an approved blog or a blog waiting for review whose facts all have a quote. A **Sent back** blog is read-only ("Sent
+back. We're fixing it."); "Approve this version instead" in More opens the same sheet and says it stops the fix (the
+revisions run never changes an approved item). Carousels, graphics and reels have no fact list yet, so their screens say
+"We check facts in the blog only. Check that every number here is the same as in the blog.") and the **LinkedIn post** card (`social_posts`, LINKEDIN.md 2.4): a company-post preview
 with the "...see more" cut, the media as document pages, video or picture, the first comment with the blog link,
 Carousel/Reel/Graphic switch (only formats made for that blog; recommended one marked "Best" with its reason), caption
 and first-comment editors with live checks (no link, 3 hashtags at most, no long dash, length), and the status in words
 ("Will post after the blog is live", "Posted", "Posted, comment failed" + Try again via `retry_comment`, Post now via
 `publish_now` with a confirm). Approve (blog: pick publish time, IST, plus "Also post on LinkedIn after the blog is
-live?", default yes, which approves the post and the creative it shows), Request changes (`changes_requested` + `feedback` and `jobs` insert `regenerate`), Reject, Publish now (`jobs` insert `publish_now`). Optimistic, with Undo |
+live?", default yes, which approves the post and, for a carousel or graphic still waiting for review, that creative:
+the switch stays off until every carousel page has been looked at, in the card or in the sheet; a reel is never approved
+this way. The approval always sends the caption, first comment and format exactly as shown. Undo puts back the blog,
+the post and that creative. After Approve the app moves to the next item that still needs the owner, at the top of the
+page), Request changes (`changes_requested` + `feedback` and `jobs` insert `regenerate`), Reject, Publish now (`jobs` insert `publish_now`). Optimistic, with Undo |
 | `/calendar` | Week columns, topics on planned dates, status and content chips, skip topic (with Undo) |
 | `/research/:id?` | Research briefs: summary, trends, pain points, opportunities, competitors, sources |
-| `/ready` | Approved carousels/graphics/reels: download all, copy caption, mark as posted (`published` + optional URL) |
+| `/ready` | Approved carousels/graphics/reels to post by hand: download all, copy caption, mark as posted (`published` + optional URL). A creative that its blog's LinkedIn post uses (a `social_posts` row that is not cancelled, same format, its `source_item_id` or the item it would pick) is listed apart under "Posts on LinkedIn by itself" with the post status, and has no "I posted it" or LinkedIn caption anywhere, so it can't be posted twice. A creative whose blog already posts another format says so |
 | `/published` | Live blogs and posted social pieces |
 | `/library` | Owner photos (JPG/PNG/WebP; HEIC refused with a how-to), voiceovers (MP3/M4A/WAV) and footage (MP4/MOV): drag-drop anywhere or browse, type checked by file content, upload progress, thumbnails and waveforms, title/tags/notes, delete. Storage `library/<uuid>/<file>` + a `library_assets` row |
-| `/settings` | **LinkedIn** (first section, `#linkedin`): the four setup steps with ticks (create the app, ask for access, paste your keys, connect the page); a Client ID + Client Secret form (secret masked, `autocomplete=off`, sent only in the body of `linkedin/save_app`, cleared right away, never shown again); **Connect LinkedIn** (`oauth/start`, then a top-level navigation to `www.linkedin.com/oauth/v2/authorization` only); the return (`?linkedin=connected` or `?linkedin=error&reason=`) as a banner; choose the page (`select_org`); "Connected to Dhiti Services" with the logo and "Reconnect needed in N days"; Pause (`linkedin_connection.paused`); Disconnect with a confirm (optionally also deleting the keys); `status.warnings` as plain-English banners. Then `settings.data` fields (cadence, publish days, audience, avoid topics, extra guidance; other keys are preserved), appearance, runs with expandable logs |
+| `/settings` | **LinkedIn** (first section, `#linkedin`): the five setup steps with ticks (create a new app with no other products, privacy link and redirect URL; verify the app with the Dhiti page; ask for the Community Management API with the work email and legal name; paste your keys; connect the page); a Client ID + Client Secret form (secret masked, `autocomplete=off`, sent only in the body of `linkedin/save_app`, cleared right away, never shown again); **Connect LinkedIn** (`oauth/start`, then a top-level navigation to `www.linkedin.com/oauth/v2/authorization` only); the return (`?linkedin=connected` or `?linkedin=error&reason=`) as a banner; choose the page (`select_org`); "Connected to Dhiti Services" with the logo and "The link works for N more days" (on a phone, Disconnect sits on its own row so the name is never cut); Pause (`linkedin_connection.paused`); Disconnect with a confirm (optionally also deleting the keys); `status.warnings` as plain-English banners. Then `settings.data` fields (cadence, publish days, audience, avoid topics, extra guidance; other keys are preserved), appearance, runs with expandable logs |
 
-Keyboard: `⌘K`/`Ctrl K` or `/` command menu · Review: `J`/`K` next/previous, `A` approve, `R` request changes, `U` upload voiceover (reels waiting for one),
+Keyboard: `⌘K`/`Ctrl K` or `/` command menu · Review: `J`/`K` next/previous, `A` approve, `Shift A` approve for the planned day (only when every fact has a quote; else it opens the approve sheet), `R` request changes, `U` upload voiceover (reels waiting for one),
 `E` edit blog, `⌘S` save, `Esc` close. Arrow keys move carousel slides.
 
 ## Data and writes
@@ -116,7 +128,10 @@ name the uploader; the bucket accepts only images, MP4/MOV/WebM video, PDF and M
 privileges at all.
 Media come from the private `marketing` bucket through batched `createSignedUrls` (1 h, cached, refreshed 5 min
 before expiry). Live updates: Realtime `postgres_changes` on `content_items`, `jobs`, `runs`, `topics`,
-`library_assets`, plus a 30 s poll and refresh on focus as a fallback. A failed first load shows "Couldn't load your studio"
+`library_assets`, `assets`, and (on their own channel) `social_posts` and `linkedin_connection`; all eight tables are in
+the `supabase_realtime` publication on the live project (checked in `pg_publication_tables`, 28 Nov 2026). The 30 s
+poll and the refresh on focus are only a fallback. A realtime row for an item or a LinkedIn post that has a write in
+flight is skipped, so an optimistic change never flickers back. A failed first load shows "Couldn't load your studio"
 with Retry and Sign out (never an empty queue); a failed background refresh keeps the data on screen and replaces the
 Live dot with an amber "Offline · synced N min ago" pill until the next refresh succeeds.
 

@@ -24,7 +24,7 @@ import { openSafe } from "../lib/safe.js";
 import { useToast } from "../components/Toast.jsx";
 import { fromISTInput, addDays, todayIST } from "../lib/format.js";
 import { claimSummary, factsClear } from "../lib/claims.js";
-import { autoPostOf, socialStatus } from "../lib/linkedin.js";
+import { autoPostOf, autoPostWords } from "../lib/linkedin.js";
 
 const FILTERS = {
   review: { label: "For you", test: (i) => i.status === "pending_review" || i.status === "awaiting_voiceover" },
@@ -433,7 +433,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
   return (
     <div className="flex h-full flex-col">
       {/* toolbar */}
-      <div className={cx("glass hairline-b z-20 flex shrink-0 items-center gap-2", desktop ? "h-[60px] px-4 xl:px-6" : "h-[calc(52px+env(safe-area-inset-top))] px-2 pt-[env(safe-area-inset-top)]")}>
+      <div className={cx("glass glass-strong hairline-b z-20 flex shrink-0 items-center gap-2", desktop ? "h-[60px] px-4 xl:px-6" : "h-[calc(52px+env(safe-area-inset-top))] px-2 pt-[env(safe-area-inset-top)]")}>
         {!desktop && <IconButton icon={ChevronLeft} label="Back" onClick={onBack} />}
         {desktop && (
           <div className="flex items-center">
@@ -497,7 +497,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
         )}
       </div>
 
-      {!desktop && <div className="glass fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(10px+var(--safe-bottom))] pt-2.5 shadow-[0_-1px_0_var(--hairline)]">{actions}</div>}
+      {!desktop && <div className="glass glass-strong fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(10px+var(--safe-bottom))] pt-2.5 shadow-[0_-1px_0_var(--hairline)]">{actions}</div>}
     </div>
   );
 }
@@ -566,11 +566,7 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
       );
     }
     if (s === "approved" && item.type === "blog") return <Button size={size} variant="dark" icon={Rocket} onClick={onPublish} className={grow}>Put live now</Button>;
-    if (s === "approved" && auto) {
-      const st = socialStatus(auto, blog);
-      const text = auto.status === "published" ? "Posted on LinkedIn by itself" : auto.status === "pending_review" || auto.status === "draft" ? "Posts on LinkedIn by itself once you approve the blog's LinkedIn post" : `Posts on LinkedIn by itself after the blog is live · ${st.label}`;
-      return note(Linkedin, text, "auto-post-state");
-    }
+    if (s === "approved" && auto) return note(Linkedin, autoPostWords(auto), "auto-post-state");
     if (s === "approved") return <Button size={size} variant="primary" icon={Send} onClick={onPosted} className={grow}>I posted it</Button>;
     if (s === "rejected") return <Button size={size} variant="secondary" icon={Undo2} onClick={() => d.actions.unapprove(item)} className={grow}>Bring it back</Button>;
     if (s === "published" && (item.published_url || item.type === "blog")) return <Button size={size} variant="secondary" icon={ExternalLink} onClick={() => openSafe(item.published_url || blogUrl(item))} className={grow}>See it live</Button>;

@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as cfg from './config.js';
 import * as logmod from './log.js';
 import * as socialRules from './social.js';
+import * as core from './claims-core.js';
 
 // =====================================================================================================================
 // Configuration
@@ -384,11 +385,14 @@ function pick(input, allowed, label) {
   return out;
 }
 const nonEmpty = (o, label) => (Object.keys(o).length ? o : bad(`${label}: nothing to update`));
+const SOURCE_FILE = /^sources\/[0-9a-f]{64}\/(meta\.txt|raw\.pdf|raw\.html|raw\.txt|text\.txt)$/;
 function storagePathOf(v, { library = false } = {}) {
   if (typeof v !== 'string') bad('path must be a string');
   const p = v.replace(/^\/+/, '');
   if (p.length > 512 || p.split('/').some((s) => s === '' || s === '.' || s === '..')) bad(`invalid storage path "${v}"`);
+  // read only: owner library media, and the sources the server fetched (only the server writes there)
   if (library && /^library\/[0-9a-f-]{36}\/[^/]+$/i.test(p) && UUID.test(p.split('/')[1])) return p;
+  if (library && SOURCE_FILE.test(p)) return p;
   if (!/^items\/[0-9a-f-]{36}\/[\w.\-/]+$/i.test(p) || !UUID.test(p.split('/')[1])) bad(`storage path must look like items/<content_item_id>/v<version>/<file> (got "${v}")`);
   return p;
 }
@@ -472,9 +476,98 @@ function socialTextChecks(row) {
     if (e) bad(e);
     row.first_comment = String(row.first_comment).trim();
   }
-  if (row.recommendation_reason != null && (typeof row.recommendation_reason !== 'string' || row.recommendation_reason.length > 500)) bad('recommendation_reason must be a string of at most 500 characters');
-  if (row.scheduled_for != null && Number.isNaN(Date.parse(row.scheduled_for))) bad('scheduled_for must be an ISO timestamp or null');
+  if (row.recommendation_reason != null && (typeof row.recommendation_reason !== 'string' || row.recommendation_reason.length > 500 || row.recommendation_reason.includes('\n'))) bad('recommendation_reason must be one line of at most 500 characters');
+  if (row.scheduled_for != null && (typeof row.scheduled_for !== 'string' || Number.isNaN(Date.parse(row.scheduled_for)))) bad('scheduled_for must be an ISO timestamp or null');
 }
+// ---- the accuracy gate (mirror of the engine function; claims-core.js runs in both) ----
+const { sha256Hex, localSourceLoader, markedLexer } = (() => {
+  let lexer = null;
+  let claimsMod = null;
+  const mod = async () => (claimsMod ??= await import('./claims.js'));
+  return {
+    sha256Hex: async (x) => (await mod()).sha256(typeof x === 'string' ? x : Buffer.from(x)),
+    markedLexer: async () => (lexer ??= await (await mod()).markedLexer()),
+    localSourceLoader: () => core.storedSourceLoader({
+      read: async (sp) => fs.readFile(path.join(storageRoot(), sp)).catch(() => null),
+      sha: async (b) => (await mod()).sha256(Buffer.from(b)),
+      pdfPages: async (b, pages) => (await (await mod()).pdfPages(Buffer.from(b), pages)).pages,
+    }),
+  };
+})();
+
+/** Blog writes: re-verify the fact list on the "server" before the owner can see it; never keep a client stamp. */
+async function gateBlog(next, patchBody, { refuse }) {
+  const body = core.withoutStamp(next.body ?? {});
+  if (!refuse && !(Array.isArray(body.claims) && body.claims.length)) return patchBody === undefined ? undefined : body;
+  const r = await core.serverVerifyBlog(body, { lexer: await markedLexer(), hash: sha256Hex, getSource: localSourceLoader() });
+  if (r.passed) return r.body;
+  if (refuse) bad(`claims check failed on the server (${r.messages.length} problem(s)): ${r.messages.slice(0, 4).join(' | ')}${r.messages.length > 4 ? ' | ...' : ''}`);
+  return patchBody === undefined && !next.body?.claims_check?.server ? undefined : body;
+}
+/** Creative writes into a review status: every visible fact must be backed by the parent blog's verified claims. */
+async function gateCreative(data, next) {
+  const parent = findRow(data, 'content_items', next.parent_id);
+  if (!parent || parent.type !== 'blog') bad('a creative needs its parent blog (parent_id)');
+  if (!(await core.stampValid(parent.body, sha256Hex, { markdown: false }))) fail(409, `the parent blog ${parent.id} has no fact list verified by the engine server; save the blog again with save-blog first`);
+  const errs = core.derivedTextErrors(core.creativeTextGroups(next.type, next.body), parent.body.claims, { what: next.type });
+  if (errs.length) bad(`facts check failed on the server (${errs.length} problem(s)): ${errs.slice(0, 4).join(' | ')}${errs.length > 4 ? ' | ...' : ''}`);
+}
+async function gateItemWrite(data, kind, cur, patch, { insert = false } = {}) {
+  if (kind === 'publisher') return;
+  const next = { ...(cur || {}), ...patch };
+  if (next.type === 'blog') {
+    const touches = insert || patch.status !== undefined || patch.body !== undefined;
+    if (!touches) return;
+    if (next.status === 'pending_review') patch.body = await gateBlog(next, patch.body, { refuse: true });
+    else if (next.status === 'changes_requested' && patch.body !== undefined) patch.body = await gateBlog(next, patch.body, { refuse: false });
+    else if (patch.body !== undefined) patch.body = core.withoutStamp(patch.body);
+    if (patch.body === undefined) delete patch.body;
+  } else if (core.REVIEW_STATUSES.includes(next.status) && (insert || patch.status !== undefined || patch.body !== undefined)) {
+    await gateCreative(data, next);
+  }
+}
+async function gateSocial(data, row) {
+  const blog = findRow(data, 'content_items', row.blog_item_id);
+  if (!blog || !(await core.stampValid(blog.body, sha256Hex, { markdown: false }))) fail(409, `the blog ${row.blog_item_id} has no fact list verified by the engine server; save the blog again with save-blog first`);
+  const errs = socialRules.socialClaimsErrors(row, blog.body);
+  if (errs.length) bad(`facts check failed on the server: ${errs.slice(0, 4).join(' | ')}${errs.length > 4 ? ' | ...' : ''}`);
+}
+
+/** DRY_RUN mirror of the server's source fetch: stores bytes, text and meta under storage sources/<sha256>/. */
+async function storeSource({ url, finalUrl, buffer, mime }) {
+  const claims = await import('./claims.js');
+  const kind = claims.sourceKind(buffer, mime);
+  const sha = claims.sha256(buffer);
+  const sp = core.sourcePaths(sha, kind);
+  const put = async (rel, b) => {
+    const f = path.join(storageRoot(), rel);
+    await fs.mkdir(path.dirname(f), { recursive: true });
+    await fs.writeFile(f, b);
+  };
+  let pages = null;
+  let title = '';
+  let textSha = null;
+  if (kind === 'pdf') pages = (await claims.pdfPages(buffer, [1])).total;
+  else {
+    const str = buffer.toString('utf8');
+    const text = core.sourceTextOf(str, kind);
+    title = kind === 'html' ? core.htmlTitle(str) : '';
+    await put(sp.text, Buffer.from(text, 'utf8'));
+    textSha = claims.sha256(Buffer.from(text, 'utf8'));
+  }
+  await put(sp.raw, buffer);
+  let prev = null;
+  try {
+    prev = JSON.parse(await fs.readFile(path.join(storageRoot(), sp.meta), 'utf8'));
+  } catch {
+    prev = null;
+  }
+  const now = nowISO();
+  const meta = { sha256: sha, url: prev?.url ?? url, final_url: finalUrl && finalUrl !== url ? finalUrl : prev?.final_url ?? null, urls: [...new Set([...(prev?.urls ?? []), url, ...(finalUrl ? [finalUrl] : [])])], mime: mime || (kind === 'pdf' ? 'application/pdf' : 'text/html'), kind, bytes: buffer.length, pages, title, text_sha256: textSha, fetched_at: now, first_fetched_at: prev?.first_fetched_at ?? now, origin: 'server', core_version: core.CORE_VERSION };
+  await put(sp.meta, Buffer.from(JSON.stringify(meta), 'utf8'));
+  return { ...meta, raw_path: sp.raw, text_path: kind === 'pdf' ? sp.raw : sp.text };
+}
+
 const settingsData = (data) => data.settings.find((r) => r.id === 1)?.data ?? { ...CONTRACT_SETTINGS };
 
 const localActions = {
@@ -568,7 +661,7 @@ const localActions = {
       .slice(0, limit);
   },
 
-  insert_item(p, kind, data) {
+  async insert_item(p, kind, data) {
     const row = pick(p, FIELDS.itemInsert, 'insert_item');
     oneOf(row.type, ENUMS.itemType, 'type');
     if (row.status !== undefined) oneOf(row.status, kind === 'any' ? ENUMS.itemStatus : SESSION_ITEM_STATUSES, 'status');
@@ -577,10 +670,11 @@ const localActions = {
     if (row.parent_id !== undefined) row.parent_id = optUuid(row.parent_id, 'parent_id');
     requireFk(data, 'topics', row.topic_id, 'topic_id');
     requireFk(data, 'content_items', row.parent_id, 'parent_id');
+    await gateItemWrite(data, kind, null, row, { insert: true });
     return insertRow(data, 'content_items', row);
   },
 
-  update_item(p, kind, data) {
+  async update_item(p, kind, data) {
     const id = uuid(p.id);
     const allowed = kind === 'publisher' ? FIELDS.itemPatchPublisher : kind === 'session' ? FIELDS.itemPatchSession
       : [...new Set([...FIELDS.itemPatchSession, ...FIELDS.itemPatchPublisher, 'approved_at', 'approved_by'])];
@@ -593,6 +687,9 @@ const localActions = {
     const row = findRow(data, 'content_items', id) || fail(404, `item ${id} not found`);
     if (kind === 'session' && LOCKED_FOR_SESSION.includes(row.status)) fail(409, `item ${id} is ${row.status}; session tokens cannot modify approved or published items`);
     if (kind === 'publisher' && !LOCKED_FOR_SESSION.includes(row.status)) fail(409, `item ${id} is ${row.status}; publisher tokens may only update approved or published items`);
+    // conditional write (sweep): only while the item is still in the expected status
+    if (p.expect_status !== undefined && row.status !== p.expect_status) fail(409, `item ${id} is ${row.status}, not ${p.expect_status}; it changed meanwhile`);
+    await gateItemWrite(data, kind, row, patch);
     return Object.assign(row, patch, { updated_at: nowISO() });
   },
 
@@ -736,7 +833,7 @@ const localActions = {
   },
 
   // ---- social posts (LINKEDIN.md 2.5) ----
-  insert_social_post(p, k, data) {
+  async insert_social_post(p, k, data) {
     if (k === 'publisher') fail(403, 'publisher tokens may not call insert_social_post');
     const row = pick(p, SOCIAL.insert, 'insert_social_post');
     row.blog_item_id = uuid(row.blog_item_id, 'blog_item_id');
@@ -755,10 +852,11 @@ const localActions = {
       fail(409, `source_item_id ${row.source_item_id} is not the newest ${row.format} of this blog (${derived ?? 'none'})`);
     }
     row.source_item_id = derived;
+    await gateSocial(data, row);
     return insertRow(data, 'social_posts', row);
   },
 
-  update_social_post(p, k, data) {
+  async update_social_post(p, k, data) {
     if (k === 'publisher') fail(403, 'publisher tokens may not call update_social_post');
     const id = uuid(p.id);
     const patch = nonEmpty(pick(obj(p.patch, 'patch'), SOCIAL.patch, 'update_social_post'), 'update_social_post');
@@ -773,16 +871,43 @@ const localActions = {
     if (patch.recommended_format != null) oneOf(patch.recommended_format, SOCIAL.formats, 'recommended_format');
     socialTextChecks(patch);
     if (patch.format !== undefined && patch.format !== row.format) Object.assign(patch, { source_item_id: newestChild(data, row.blog_item_id, patch.format), media_urn: null, media_status: null });
+    await gateSocial(data, { ...row, ...patch });
     return Object.assign(row, patch, { updated_at: nowISO() });
   },
 
-  get_social_post: (p, k, data) => findRow(data, 'social_posts', uuid(p.id)) || fail(404, `social post ${p.id} not found`),
+  get_social_post(p, k, data) {
+    if (k === 'publisher') fail(403, 'only session tokens may call get_social_post');
+    return findRow(data, 'social_posts', uuid(p.id)) || fail(404, `social post ${p.id} not found`);
+  },
 
   list_social_posts(p, k, data) {
+    if (k === 'publisher') fail(403, 'only session tokens may call list_social_posts');
     const limit = int(p.limit, 'limit', { min: 1, max: 200, dflt: 50 });
     const blog = p.blog_item_id === undefined ? undefined : uuid(p.blog_item_id, 'blog_item_id');
     const status = inList(p.status, SOCIAL.statuses, 'status');
     return data.social_posts.filter((r) => (blog === undefined || r.blog_item_id === blog) && (!status || status.includes(r.status))).sort(byCreated(false)).slice(0, limit);
+  },
+
+  /** The server fetches a source itself (sessions only); the sha256-bound copy is what the claims check reads. */
+  async fetch_source(p, k) {
+    if (k === 'publisher') fail(403, 'only session tokens may call fetch_source');
+    const url = core.checkSourceUrl(p.url);
+    if (url.error) bad(url.error);
+    const res = await httpRequest(url.href, { method: 'GET', timeoutMs: 120_000, maxRedirects: 8, headers: { 'user-agent': core.SOURCE_UA, accept: 'text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8', 'accept-language': 'en-IN,en;q=0.9' } });
+    if (res.status !== 200) fail(502, `fetch_source: ${url.href} answered HTTP ${res.status}`);
+    if (!res.body?.length) fail(502, `fetch_source: ${url.href} sent an empty response`);
+    if (res.body.length > core.SOURCE_MAX_BYTES) fail(413, 'fetch_source: the source is larger than 30 MB');
+    const h = res.headers?.['content-type'] ?? '';
+    const mime = String(Array.isArray(h) ? h[0] : h).split(';')[0].trim().toLowerCase();
+    return storeSource({ url: url.href, finalUrl: res.url, buffer: res.body, mime });
+  },
+
+  // DRY_RUN only: put a local file in the server's source store as if the server had fetched it (tests).
+  async seed_source(p) {
+    const url = core.checkSourceUrl(p.url);
+    if (url.error) bad(url.error);
+    const buffer = await fs.readFile(String(p.file));
+    return storeSource({ url: url.href, finalUrl: p.final_url, buffer, mime: p.mime || '' });
   },
 
   // DRY_RUN only (the live API has no insert_job: the dashboard inserts jobs under RLS).
@@ -965,7 +1090,7 @@ export const listRecentTopics = (weeks = 8) => engineCall('list_topics', { since
 // ---- content items ----
 
 export const insertItem = (item) => engineCall('insert_item', normalizeFks(item));
-export const updateItem = (id, patch) => engineCall('update_item', { id: idOf(id), patch: normalizeFks(patch) });
+export const updateItem = (id, patch, { expectStatus } = {}) => engineCall('update_item', { id: idOf(id), patch: normalizeFks(patch), ...(expectStatus ? { expect_status: expectStatus } : {}) });
 /** Item row plus `assets` (sorted by position). */
 export const getItem = (id) => engineCall('get_item', { id: idOf(id) });
 
@@ -1121,6 +1246,10 @@ export const listRuns = ({ ids, status, kind, limit } = {}) => engineCall('list_
 
 // ---- social posts (LINKEDIN.md 2.5) ----
 
+/** The engine server fetches a source and keeps it (sources/<sha256>/); returns its meta and storage paths. */
+export const fetchSource = (url) => engineCall('fetch_source', { url });
+/** DRY_RUN only: seed the server's source store with a local file (tests). */
+export const seedSource = (url, file, mime, finalUrl) => engineCall('seed_source', { url, file, mime, ...(finalUrl ? { final_url: finalUrl } : {}) });
 export const insertSocialPost = (row) => engineCall('insert_social_post', normalizeFks(row));
 export const updateSocialPost = (id, patch) => engineCall('update_social_post', { id: idOf(id), patch });
 export const getSocialPost = (id) => engineCall('get_social_post', { id: idOf(id) });

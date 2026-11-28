@@ -257,6 +257,17 @@ export async function checkBlogText(text, opts = {}) {
     const m = content.match(RAW_HTML);
     errors.push(`${label}.md: raw HTML is not allowed (found ${JSON.stringify(m[0].slice(0, 40))})`);
   }
+  // Engine-only (stricter than the site): characters that hide what a reader sees from the fact checks.
+  // An HTML comment inside a number ("1<!-- -->2%") renders as "12%"; format characters (zero-width, invisible
+  // separators, bidi marks, soft hyphens) and non-ASCII digits do the same.
+  for (const [name, value] of [['body', content], ['title', data.title], ['description', data.description], ['imageAlt', data.imageAlt]]) {
+    const v = String(value ?? '');
+    if (/<!--|-->/.test(v)) errors.push(`${label}.md: HTML comments ("<!--") are not allowed in the ${name}`);
+    const cf = v.match(/\p{Cf}/u);
+    if (cf) errors.push(`${label}.md: invisible character U+${cf[0].codePointAt(0).toString(16).toUpperCase().padStart(4, '0')} in the ${name}; delete it`);
+    const nd = v.match(/[^\P{Nd}0-9]/u);
+    if (nd) errors.push(`${label}.md: non-ASCII digit "${nd[0]}" in the ${name}; write numbers with 0-9`);
+  }
   const words = siteWords(content);
   let toc = [];
   try {
