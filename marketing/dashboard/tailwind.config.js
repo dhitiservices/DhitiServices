@@ -19,9 +19,8 @@ export default {
         violet: v("violet"),
       },
       fontFamily: {
-        // SF Pro only, from the operating system: Apple devices render real SF Pro; no font files are shipped (Apple's
-        // licence does not allow web embedding), so other systems fall back to their own UI font.
-        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', 'system-ui', 'sans-serif'],
+        // SF Pro Display everywhere (@font-face in src/index.css, owner-supplied OTFs in public/fonts/), then the system SF.
+        sans: ['"SF Pro Display"', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         // SF-style scale: [size, {lineHeight, letterSpacing}]

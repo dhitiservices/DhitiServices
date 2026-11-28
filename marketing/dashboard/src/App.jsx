@@ -1,10 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MotionConfig, motion } from "framer-motion";
-import { ToastProvider } from "./components/Toast.jsx";
+import { ToastProvider, useToast } from "./components/Toast.jsx";
+import { IdleLock } from "./components/IdleLock.jsx";
 import { Sidebar, TabBar, MobileHeader, NAV, isActive } from "./components/Shell.jsx";
 import { CommandPalette } from "./components/CommandPalette.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
-import { AppMark } from "./components/ui.jsx";
+import { AppMark, Button } from "./components/ui.jsx";
 import { DataProvider, useData } from "./lib/store.jsx";
 import { createSupabaseBackend } from "./lib/backend.js";
 import { setMediaBackend } from "./lib/media.js";
@@ -12,7 +13,11 @@ import { useHotkeys } from "./lib/hotkeys.js";
 import { useLocation, match, navigate } from "./lib/router.jsx";
 import { demoRequested, setDemo } from "./lib/config.js";
 import { page } from "./lib/motion.js";
-import { Login, NotAuthorised } from "./pages/Auth.jsx";
+import { Login } from "./pages/Auth.jsx";
+import { AuthContext } from "./lib/auth.js";
+import {
+  staleReason, markActive, lastActive, clearActivity, clearPending, REASON_TEXT, urlErrorText,
+} from "./lib/session.js";
 import Overview from "./pages/Overview.jsx";
 import Review from "./pages/Review.jsx";
 
@@ -42,76 +47,134 @@ export default function App() {
   );
 }
 
-function Splash() {
+/** Waits (briefly) for SF Pro Display so the first painted screen never swaps fonts. */
+function fontsReady(timeout = 900) {
+  if (!document.fonts?.load) return Promise.resolve();
+  const load = Promise.all(["400 15px", "500 15px", "700 15px"].map((w) => document.fonts.load(`${w} "SF Pro Display"`))).catch(() => {});
+  return Promise.race([load, new Promise((r) => setTimeout(r, timeout))]);
+}
+
+function Splash({ error, onRetry, onSignOut }) {
   return (
-    <div className="aurora flex min-h-dvh items-center justify-center">
-      <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}>
-        <AppMark size={56} />
+    <div className="aurora flex min-h-dvh flex-col items-center justify-center px-6" aria-busy={!error} aria-live="polite">
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }} className="relative">
+        <span className="splash-halo absolute -inset-6 rounded-[32px]" aria-hidden />
+        <AppMark size={60} className="relative shadow-lift" />
       </motion.div>
+      {error ? (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-8 max-w-[320px] text-center">
+          <div className="text-headline font-semibold text-ink">Couldn't reach Studio</div>
+          <p className="mt-1 text-callout text-ink-mute">Check your connection. Nothing is shown until your access is confirmed.</p>
+          <div className="mt-5 flex justify-center gap-2">
+            <Button variant="ghost" onClick={onSignOut}>Sign out</Button>
+            <Button variant="primary" onClick={onRetry}>Try again</Button>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.4 }} className="mt-8 h-[3px] w-28 overflow-hidden rounded-full bg-ink/[0.07]">
+          <div className="progress-indeterminate h-full w-1/3 rounded-full bg-gradient-to-r from-brand-bright to-brand-deep" />
+        </motion.div>
+      )}
+      <span className="sr-only">{error ? "Connection problem" : "Checking your access"}</span>
     </div>
   );
 }
 
+/**
+ * The gate. Nothing of the app renders until a session exists AND public.is_allowlisted() said yes.
+ * states: boot (splash) | signed_out (login) | verifying (login, busy) | checking (splash) | error (splash + retry) | ready
+ */
 function Root() {
   const [backend, setBackend] = useState(null);
-  const [auth, setAuth] = useState({ state: "checking", user: null });
+  const [auth, setAuth] = useState({ state: "boot", user: null, notice: null });
+  const current = useRef(null); // user id whose access was checked (token refreshes for the same person are ignored)
+  const toast = useToast();
 
   useEffect(() => {
     let alive = true;
-    makeBackend().then((b) => { if (alive) { setMediaBackend(b); setBackend(b); } });
+    Promise.all([makeBackend(), fontsReady()]).then(([b]) => { if (alive) { setMediaBackend(b); setBackend(b); } });
     return () => { alive = false; };
   }, []);
+
+  const endSession = useCallback(async (reason, scope = "local") => {
+    current.current = null;
+    clearActivity();
+    clearPending();
+    setAuth({ state: "signed_out", user: null, notice: REASON_TEXT[reason] || null });
+    try { await backend?.auth.signOut(scope); }
+    catch {
+      if (scope === "global") toast({ tone: "danger", title: "Couldn't reach every device", description: "This browser is signed out. Sign in and try again when you're online to end the other sessions." });
+    }
+  }, [backend, toast]);
+
+  const check = useCallback(async (session) => {
+    const stale = staleReason();
+    if (stale) return endSession(stale);
+    setAuth((a) => ({ ...a, state: a.state === "signed_out" || a.state === "verifying" ? "verifying" : "checking", user: session.user }));
+    try {
+      const ok = await backend.auth.isAllowlisted();
+      if (!ok) return endSession("denied");
+      if (!lastActive()) markActive();
+      clearPending();
+      setAuth({ state: "ready", user: session.user, notice: null });
+    } catch {
+      setAuth({ state: "error", user: session.user, notice: null });
+    }
+  }, [backend, endSession]);
 
   useEffect(() => {
     if (!backend) return;
     let alive = true;
-    const check = async (session) => {
-      if (!alive) return;
-      if (!session) return setAuth({ state: "signed_out", user: null });
-      try {
-        const team = await backend.auth.isTeam();
-        if (alive) setAuth({ state: team ? "ready" : "not_team", user: session.user });
-      } catch {
-        if (alive) setAuth({ state: "not_team", user: session.user, error: true });
-      }
-    };
-    let current = null;
     const handle = (session) => {
-      const id = session?.user?.id || null;
-      if (id === current && id !== null) return; // token refresh for the same person
-      current = id;
+      if (!alive) return;
+      if (!session) {
+        current.current = null;
+        setAuth((a) => (a.state === "signed_out" ? a : { state: "signed_out", user: null, notice: null }));
+        return;
+      }
+      const id = session.user?.id || null;
+      if (id && id === current.current) return;
+      current.current = id;
       check(session);
     };
-    backend.auth.getSession().then(handle);
-    const off = backend.auth.onChange((s) => {
-      if (!s) { current = null; setAuth({ state: "signed_out", user: null }); }
-      else handle(s);
+    backend.auth.getSession().then((s) => {
+      if (!alive) return;
+      const urlError = backend.auth.takeUrlError?.();
+      if (!s) {
+        setAuth({ state: "signed_out", user: null, notice: urlError ? urlErrorText(urlError.code, urlError.description) : null });
+        return;
+      }
+      handle(s);
     });
+    const off = backend.auth.onChange((s) => handle(s));
     return () => { alive = false; off?.(); };
-  }, [backend]);
+  }, [backend, check]);
 
-  const signOut = useCallback(async () => {
-    if (backend?.kind === "demo") {
-      setDemo(false);
-      window.location.assign("/");
-      return;
-    }
-    await backend?.auth.signOut();
-  }, [backend]);
+  const signOut = useCallback((scope = "local") => endSession(scope === "global" ? "global" : null, scope), [endSession]);
+  const authValue = useMemo(() => ({ user: auth.user, signOut, demo: backend?.kind === "demo" }), [auth.user, signOut, backend]);
 
   const enterDemo = useCallback(() => {
     setDemo(true);
     window.location.assign("/?demo=1");
   }, []);
+  const leaveDemo = useCallback(() => {
+    setDemo(false);
+    window.location.assign("/?demo=0");
+  }, []);
 
-  if (!backend || auth.state === "checking") return <Splash />;
-  if (auth.state === "signed_out") return <Login backend={backend} onDemo={enterDemo} />;
-  if (auth.state === "not_team") return <NotAuthorised email={auth.user?.email} onSignOut={signOut} />;
+  if (!backend || auth.state === "boot" || auth.state === "checking") return <Splash />;
+  if (auth.state === "error") return <Splash error onRetry={() => { current.current = null; backend.auth.getSession().then((s) => (s ? check(s) : endSession(null))); }} onSignOut={() => endSession(null)} />;
+  if (auth.state === "signed_out" || auth.state === "verifying") {
+    return <Login backend={backend} notice={auth.notice} verifying={auth.state === "verifying"} onDemo={enterDemo} onLeaveDemo={backend.kind === "demo" ? leaveDemo : null} />;
+  }
 
   return (
-    <DataProvider backend={backend} user={auth.user}>
-      <Shell onSignOut={signOut} demo={backend.kind === "demo"} />
-    </DataProvider>
+    <AuthContext.Provider value={authValue}>
+      <DataProvider backend={backend} user={auth.user}>
+        <Shell onSignOut={() => signOut()} demo={backend.kind === "demo"} />
+        <IdleLock onExpire={(reason) => endSession(reason)} />
+      </DataProvider>
+    </AuthContext.Provider>
   );
 }
 

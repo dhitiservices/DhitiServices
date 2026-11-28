@@ -1,6 +1,32 @@
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, STORAGE_BUCKET } from "./config.js";
 import { slugifyFile, uuid } from "./format.js";
+import { freshSignIn } from "./session.js";
+
+/** What an emailed sign-in link put in the URL (implicit flow: `#access_token=...` or `#error=...`). */
+function readLanding() {
+  const out = { signedIn: false, error: null, dirty: false };
+  try {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const query = new URLSearchParams(window.location.search);
+    if (hash.get("access_token")) out.signedIn = out.dirty = true;
+    const code = hash.get("error_code") || hash.get("error") || query.get("error_code") || query.get("error");
+    if (code) out.error = { code, description: hash.get("error_description") || query.get("error_description") || "" };
+    if (code) out.dirty = true;
+  } catch { /* no URL access */ }
+  return out;
+}
+
+function cleanLandingUrl(landing) {
+  if (!landing.dirty) return;
+  landing.dirty = false;
+  try {
+    const q = new URLSearchParams(window.location.search);
+    ["error", "error_code", "error_description"].forEach((k) => q.delete(k));
+    const search = q.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${search ? `?${search}` : ""}`);
+  } catch { /* ignore */ }
+}
 
 /**
  * Supabase backend. Everything the dashboard does goes through RLS as the signed-in team member:
@@ -9,13 +35,24 @@ import { slugifyFile, uuid } from "./format.js";
  * The demo backend (src/demo/backend.js) implements the same interface.
  */
 export function createSupabaseBackend() {
+  // An emailed sign-in link lands here with the session (or an error) in the URL hash. Read it before the client
+  // consumes it: a fresh sign-in resets the idle clock, and a link error is shown on the login screen.
+  const landing = readLanding();
+  if (landing.signedIn) freshSignIn();
+
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    // Implicit flow: the emailed link carries the session in the hash, so it also works when opened on another
+    // device (PKCE would need the verifier stored in the browser that asked for the code).
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" },
     realtime: { params: { eventsPerSecond: 5 } },
   });
 
   const must = ({ data, error }) => {
-    if (error) throw Object.assign(new Error(error.message || "Request failed"), { code: error.code, details: error.details });
+    if (error) throw Object.assign(new Error(error.message || "Request failed"), { code: error.code, details: error.details, status: error.status });
+    return data;
+  };
+  const authMust = ({ data, error }) => {
+    if (error) throw error; // keep status/code/name for the login screen's error mapping
     return data;
   };
 
@@ -27,25 +64,45 @@ export function createSupabaseBackend() {
     client: sb,
 
     auth: {
+      /** Resolves once the client has read any session from the URL; then the hash is removed from the address bar. */
       async getSession() {
         const { data } = await sb.auth.getSession();
+        cleanLandingUrl(landing);
         return data.session ?? null;
       },
+      /** Error carried by an emailed link (expired, already used), or null. Read once. */
+      takeUrlError() {
+        const e = landing.error;
+        landing.error = null;
+        return e;
+      },
       onChange(cb) {
-        const { data } = sb.auth.onAuthStateChange((_event, session) => cb(session ?? null));
+        // Never call Supabase from inside this callback synchronously (it holds the auth lock): defer.
+        const { data } = sb.auth.onAuthStateChange((event, session) => setTimeout(() => cb(session ?? null, event), 0));
         return () => data.subscription.unsubscribe();
       },
-      async signInWithOtp(email) {
-        must(await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } }));
+      /** Sends the 6-digit code (and link). shouldCreateUser: the database rejects any address not on the allowlist. */
+      async sendCode(email) {
+        authMust(await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } }));
       },
-      async signInWithPassword(email, password) {
-        must(await sb.auth.signInWithPassword({ email, password }));
+      async verifyCode(email, token) {
+        freshSignIn();
+        const data = authMust(await sb.auth.verifyOtp({ email, token, type: "email" }));
+        return data.session;
       },
-      async signOut() {
-        await sb.auth.signOut();
+      /** scope: 'local' (this browser) or 'global' (every device: revokes all refresh tokens). */
+      async signOut(scope = "local") {
+        const { error } = await sb.auth.signOut({ scope });
+        // A global sign-out that fails (offline) must still end this browser's session.
+        if (error && scope !== "local") await sb.auth.signOut({ scope: "local" });
+        if (error && scope === "global") throw error;
       },
-      async isTeam() {
-        return must(await sb.rpc("is_team")) === true;
+      async isAllowlisted() {
+        return must(await sb.rpc("is_allowlisted")) === true;
+      },
+      async accessToken() {
+        const { data } = await sb.auth.getSession();
+        return data.session?.access_token || null;
       },
     },
 
@@ -93,9 +150,37 @@ export function createSupabaseBackend() {
       return data.map((d) => ({ path: d.path, signedUrl: d.signedUrl, error: d.error }));
     },
 
-    async uploadLibraryFile(file) {
+    /**
+     * Upload to `library/<uuid>/<file>` with progress (XHR to the Storage REST API as the signed-in user; RLS allows
+     * team inserts under library/ only). onProgress(0..1). Resolves with the storage path.
+     */
+    async uploadLibraryFile(file, { mime, onProgress, signal } = {}) {
       const path = `library/${uuid()}/${slugifyFile(file.name)}`;
-      must(await sb.storage.from(STORAGE_BUCKET).upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false, cacheControl: "31536000" }));
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Your session has ended. Sign in again.");
+      const url = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path.split("/").map(encodeURIComponent).join("/")}`;
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", url);
+        xhr.setRequestHeader("authorization", `Bearer ${token}`);
+        xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+        xhr.setRequestHeader("content-type", mime || file.type || "application/octet-stream");
+        xhr.setRequestHeader("cache-control", "max-age=31536000");
+        xhr.setRequestHeader("x-upsert", "false");
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) { onProgress?.(1); return resolve(); }
+          let m = `Upload failed (${xhr.status})`;
+          try { const j = JSON.parse(xhr.responseText); m = j.message || j.error || m; } catch { /* not JSON */ }
+          if (xhr.status === 413 || /maximum allowed size|too large/i.test(m)) m = "The file is larger than storage allows.";
+          if (xhr.status === 401 || xhr.status === 403) m = "Upload not allowed. Sign in again and retry.";
+          reject(new Error(m));
+        };
+        xhr.onerror = () => reject(new Error("Network error while uploading. Check your connection and retry."));
+        xhr.onabort = () => reject(Object.assign(new Error("Upload cancelled"), { name: "AbortError" }));
+        signal?.addEventListener("abort", () => xhr.abort(), { once: true });
+        xhr.send(file);
+      });
       return path;
     },
     async insertLibrary(row) {

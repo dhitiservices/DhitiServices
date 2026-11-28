@@ -18,7 +18,7 @@ import { ApproveSheet, ChangesSheet, PostedSheet } from "../components/ReviewShe
 import { BlogArticle, BlogMeta } from "../components/viewers/BlogViewer.jsx";
 import { CarouselStage, CarouselMeta } from "../components/viewers/CarouselViewer.jsx";
 import { GraphicStage, GraphicMeta, useGraphicVariant } from "../components/viewers/GraphicViewer.jsx";
-import { VideoStage, VideoMeta } from "../components/viewers/VideoViewer.jsx";
+import { VideoStage, VideoMeta, voiceoverState } from "../components/viewers/VideoViewer.jsx";
 import { MetaSection } from "../components/viewers/Meta.jsx";
 import { openSafe } from "../lib/safe.js";
 import { useToast } from "../components/Toast.jsx";
@@ -479,7 +479,10 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
 
   return (
     <div className="flex items-center gap-2">
-      {s === "awaiting_voiceover" && !compact && <Chip tone="violet" className="mr-1"><Mic className="h-3 w-3" /> Upload voiceover in the panel</Chip>}
+      {s === "awaiting_voiceover" && !compact && (() => {
+        const rendering = voiceoverState(item, d.jobs).state === "rendering";
+        return <Chip tone="violet" pulse={rendering} className="mr-1">{!rendering && <Mic className="h-3 w-3" />}{rendering ? "Rendering with your voice" : "Record and upload your voiceover"}</Chip>;
+      })()}
       {primary}
       {cleanMore.length > 0 && (
         <Menu

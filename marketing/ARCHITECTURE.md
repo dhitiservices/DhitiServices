@@ -14,10 +14,10 @@ human approval in the dashboard → blog auto-published to www.dhitiservices.com
    Download URLs expire in ~5 minutes (video) / ~15 minutes (photo): download immediately with `cli.js fetch`.
    Never call any `images_generate`, `video_generate` or other generation tool.
 3. **3 blogs per week** (settings.blogs_per_week = 3), each with 1 carousel, 2 graphics, 1 reel.
-4. **Dashboard font: SF Pro only** (system stack `-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display"`,
-   no font files: real SF Pro on Apple devices, the system UI font elsewhere, because SF Pro may not be web-served),
-   Dhiti colours, premium/smooth/real-app feel. Creatives (carousel/graphic/video) use **Inter** — the closest
-   openly licensed match to SF Pro (Apple's SF Pro licence does not allow use in marketing graphics).
+4. **Dashboard font: SF Pro Display only**, from the owner's licensed OTF files in `marketing/dashboard/public/fonts/`
+   (gitignored, never committed), `@font-face` 400/500/700 with `font-display: swap`, stack `"SF Pro Display",
+   -apple-system, BlinkMacSystemFont, system-ui, sans-serif`; Dhiti colours, premium/smooth/real-app feel.
+   Creatives (carousel/graphic/video) use **Inter**, embedded by the engine.
 
 ## Components
 
@@ -206,9 +206,10 @@ Every command prints a single JSON object to stdout (logs to stderr) and exits n
    - `make-video` accepts `--voiceover <file>`; `render/video.js` accepts `body.voiceover_path` and aligns to it.
    - Body adds: `"voiceover_script": "", "voiceover": {"library_asset_id", "duration"} | null`, scene `vo_line`.
 4. **Dashboard design bar:** Apple × Notion × Stripe — world-class, premium gradients (Dhiti red family on
-   ink/off-white, subtle mesh/aurora gradients, glass surfaces), SF Pro Display. If font files exist in
-   `marketing/dashboard/public/fonts/` (SF-Pro-Display-*.otf|woff2) load them via @font-face (owner supplies them);
-   otherwise the system SF stack. No other fonts.
+   ink/off-white, subtle mesh/aurora gradients, glass surfaces), **SF Pro Display** for everything: the owner's
+   licensed OTF files in `marketing/dashboard/public/fonts/` (`SF-Pro-Display-Regular|Medium|Bold.otf`, gitignored,
+   never committed) loaded with `@font-face` (400/500/700, `font-display: swap`), stack `"SF Pro Display",
+   -apple-system, BlinkMacSystemFont, system-ui, sans-serif`; CSP `font-src 'self'`. No other fonts in the dashboard.
 5. Cover images, carousel and graphic photos, and reel footage must be top-tier: authentic, high resolution,
    editorial, on-topic; never cheesy, never AI-generated (`ai_generated: "excluded"`).
 
@@ -221,10 +222,13 @@ Applied in migrations `owner_only_security` + `email_code_only_login(_fix)`:
 - No two-factor / TOTP anywhere. Do not build an authenticator screen.
 
 Dashboard login flow (must implement exactly):
-1. Email → `signInWithOtp({ email, options: { shouldCreateUser: true } })` sending a 6-digit code. Show the same neutral message for any email ("If this email has access, a code is on its way") — never reveal whether an email is allowed. Resend button with a 60 s cooldown.
+1. Email → `signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } })` sending a 6-digit code (the same email's link also signs in: implicit flow, `detectSessionInUrl`, URL cleaned after). Show the same neutral message for any email ("If this email has access, a code is on its way") — never reveal whether an email is allowed. Resend button with a 60 s cooldown.
 2. 6-box code input (paste-aware, auto-submit) → `verifyOtp({ email, token, type: 'email' })`.
 3. `rpc('is_allowlisted')` false → sign out, neutral error.
 4. Idle lock: 30 min without input → sign out; tab hidden > 12 h → sign out. Settings has "Sign out everywhere" (`signOut({ scope: 'global' })`).
 5. Only the publishable key is in the bundle; no other secrets.
-Netlify: strict CSP pinned to the project host, HSTS, frame-ancestors none, noindex, no third-party scripts or fonts.
+Netlify: strict CSP pinned to the project host, HSTS, frame-ancestors none, noindex, no third-party scripts or fonts
+(fonts are served by the site itself: `font-src 'self'`).
+Owner one-time Supabase steps (Site URL/redirect URL, `{{ .Token }}` in the Magic Link and Confirm signup templates):
+`marketing/dashboard/README.md` → "Owner setup".
 Optional owner step after the first login: Supabase → Authentication → turn off sign-ups (extra layer; the trigger already blocks strangers).

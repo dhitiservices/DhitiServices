@@ -1,13 +1,16 @@
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Mail, KeyRound, ShieldCheck, FileText, ImagePlay, CheckCircle2, FlaskConical, LogOut, Lock } from "lucide-react";
-import { Button, AppMark, cx } from "../components/ui.jsx";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
+import { ArrowRight, ArrowLeft, Mail, ShieldCheck, FileText, ImagePlay, FlaskConical, Info, RotateCw } from "lucide-react";
+import { Button, AppMark, Spinner, cx } from "../components/ui.jsx";
 import { DEMO_AVAILABLE } from "../lib/config.js";
-import { spring, ease } from "../lib/motion.js";
+import { ease } from "../lib/motion.js";
+import {
+  CODE_LENGTH, RESEND_SECONDS, NEUTRAL_SENT, validEmail, classifySendError, verifyErrorText, savePending, loadPending, clearPending,
+} from "../lib/session.js";
 
 const FEATURES = [
   { icon: FileText, title: "Three researched blogs every week", body: "Written for travel operators, checked against the site's SEO rules." },
-  { icon: ImagePlay, title: "Licensed stock only", body: "Every photo and clip is Magnific stock with a licence trail. Never AI-generated." },
+  { icon: ImagePlay, title: "Your media, licensed stock", body: "Your own photos and voice, plus Magnific stock with a licence trail. Never AI-generated." },
   { icon: ShieldCheck, title: "Nothing goes live without you", body: "Approve, edit or send back. Blogs publish on the days you choose." },
 ];
 
@@ -47,158 +50,313 @@ function BrandPanel() {
         </div>
         <div className="flex items-center justify-between text-[12.5px] text-white/40">
           <span>Dhiti Services · Rural operations from Pune district</span>
-          <span>Studio v2</span>
+          <span>Studio</span>
         </div>
       </div>
     </div>
   );
 }
 
-export function Login({ backend, onDemo }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("link"); // link | password
-  const [state, setState] = useState({ busy: false, sent: false, error: null });
+/* ------------------------------------------------------------------------------------------------ code boxes */
 
-  const submit = async (e) => {
+/**
+ * Six one-digit boxes that behave like one field: typing advances, Backspace steps back, arrows move, a pasted or
+ * autofilled code (iOS/Android "From Messages/Mail", autocomplete="one-time-code") fills every box at once, and the
+ * sixth digit submits.
+ */
+function CodeInput({ value, onChange, onComplete, disabled, invalid }) {
+  const refs = useRef([]);
+  const digits = Array.from({ length: CODE_LENGTH }, (_, i) => value[i] || "");
+  const focus = (i) => { const el = refs.current[Math.max(0, Math.min(CODE_LENGTH - 1, i))]; el?.focus(); el?.select?.(); };
+
+  const fill = (start, text) => {
+    const incoming = text.replace(/\D/g, "");
+    if (!incoming) return;
+    const next = digits.slice();
+    // A whole code (paste or autofill) always starts at the first box.
+    const from = incoming.length >= CODE_LENGTH ? 0 : start;
+    for (let k = 0; k < incoming.length && from + k < CODE_LENGTH; k++) next[from + k] = incoming[k];
+    const joined = next.join("");
+    onChange(joined);
+    const firstEmpty = next.findIndex((d) => !d);
+    if (firstEmpty === -1) {
+      refs.current[CODE_LENGTH - 1]?.blur();
+      onComplete(joined);
+    } else focus(Math.min(firstEmpty, from + incoming.length));
+  };
+
+  const onKeyDown = (i, e) => {
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      const next = digits.slice();
+      if (next[i]) { next[i] = ""; onChange(next.join("")); }
+      else if (i > 0) { next[i - 1] = ""; onChange(next.join("")); focus(i - 1); }
+    } else if (e.key === "Delete") {
+      e.preventDefault();
+      const next = digits.slice(); next[i] = ""; onChange(next.join(""));
+    } else if (e.key === "ArrowLeft") { e.preventDefault(); focus(i - 1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); focus(i + 1); }
+    else if (e.key === "Home") { e.preventDefault(); focus(0); }
+    else if (e.key === "End") { e.preventDefault(); focus(CODE_LENGTH - 1); }
+    else if (e.key.length === 1 && !/\d/.test(e.key) && !e.metaKey && !e.ctrlKey) e.preventDefault();
+  };
+
+  useEffect(() => { if (!disabled) focus(Math.max(0, digits.findIndex((d) => !d))); }, [disabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="flex justify-between gap-2 sm:gap-2.5" role="group" aria-label="6-digit code">
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => (refs.current[i] = el)}
+          value={d}
+          disabled={disabled}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          enterKeyHint={i === CODE_LENGTH - 1 ? "done" : "next"}
+          aria-label={`Digit ${i + 1} of ${CODE_LENGTH}`}
+          aria-invalid={invalid || undefined}
+          onFocus={(e) => e.target.select()}
+          onKeyDown={(e) => onKeyDown(i, e)}
+          onPaste={(e) => { e.preventDefault(); fill(i, e.clipboardData.getData("text")); }}
+          onChange={(e) => {
+            const v = e.target.value.replace(/\D/g, "");
+            if (!v) return;
+            // Typing over a filled box gives two characters: keep the new one.
+            fill(i, v.length === 2 && d ? v.replace(d, "") || v[1] : v);
+          }}
+          className={cx(
+            "code-box tnum h-[58px] w-full min-w-0 rounded-[14px] bg-surface text-center text-[26px] font-semibold text-ink caret-brand outline-none transition-[box-shadow,background-color] duration-150 sm:h-[62px]",
+            invalid ? "code-box-invalid" : d ? "code-box-filled" : "",
+            disabled && "opacity-60",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Notice({ tone = "info", children }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      role={tone === "error" ? "alert" : "status"}
+      className={cx(
+        "flex items-start gap-2.5 rounded-xl px-3.5 py-2.5 text-callout font-medium",
+        tone === "error" ? "bg-brand/[0.07] text-brand-deep dark:text-brand-bright" : "bg-ink/[0.045] text-ink-soft",
+      )}
+    >
+      <Info className="mt-px h-4 w-4 shrink-0 opacity-80" strokeWidth={2.2} />
+      <span>{children}</span>
+    </motion.div>
+  );
+}
+
+const secondsLeft = (sentAt) => Math.max(0, Math.ceil(RESEND_SECONDS - (Date.now() - sentAt) / 1000));
+
+/* ------------------------------------------------------------------------------------------------ login */
+
+/**
+ * Step 1: email -> signInWithOtp (shouldCreateUser; the database turns away anyone not on the allowlist).
+ * Every address sees the same neutral message. Step 2: the 6-digit code -> verifyOtp. The emailed link works too
+ * (handled by the Supabase client on load). The app shell appears only after the allowlist check in App.jsx.
+ */
+export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
+  const pending = useRef(loadPending()).current;
+  const [step, setStep] = useState(pending ? "code" : "email");
+  const [email, setEmail] = useState(pending?.email || "");
+  const [sentAt, setSentAt] = useState(pending?.sentAt || 0);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
+  const [left, setLeft] = useState(() => (pending ? secondsLeft(pending.sentAt) : 0));
+  const shake = useAnimationControls();
+  const emailRef = useRef(null);
+  const demo = DEMO_AVAILABLE && backend.kind === "demo";
+
+  useEffect(() => {
+    if (step !== "code") return undefined;
+    setLeft(secondsLeft(sentAt));
+    const id = setInterval(() => setLeft(secondsLeft(sentAt)), 1000);
+    return () => clearInterval(id);
+  }, [step, sentAt]);
+
+  // A notice from the gate (signed out for inactivity, access denied, expired link) always returns to step 1.
+  useEffect(() => { if (notice) { setStep("email"); setCode(""); } }, [notice]);
+
+  const send = useCallback(async (addr, { resend } = {}) => {
+    setError(null);
+    setInfo(null);
+    setBusy(true);
+    let res;
+    try { await backend.auth.sendCode(addr); res = { kind: "sent" }; }
+    catch (e) { res = classifySendError(e); }
+    setBusy(false);
+    if (res.kind !== "sent") { setError(res.text); return false; }
+    // "wait" = a code for this address was requested moments ago: it is already in the inbox, so treat it as sent.
+    const at = res.wait ? Date.now() - (RESEND_SECONDS - res.wait) * 1000 : Date.now();
+    setSentAt(at);
+    savePending(addr, at);
+    setCode("");
+    setStep("code");
+    if (resend) setInfo(res.wait ? `You can ask for another code in ${res.wait} s.` : "If this email has access, a new code is on its way.");
+    return true;
+  }, [backend]);
+
+  const submitEmail = (e) => {
     e.preventDefault();
     const addr = email.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(addr)) return setState({ busy: false, sent: false, error: "Enter a valid email address." });
-    setState({ busy: true, sent: false, error: null });
+    if (!validEmail(addr)) { setError("Enter a valid email address."); emailRef.current?.focus(); return; }
+    setEmail(addr);
+    send(addr);
+  };
+
+  const verify = async (token) => {
+    if (busy || verifying) return;
+    setError(null);
+    setInfo(null);
+    setBusy(true);
     try {
-      if (mode === "link") {
-        await backend.auth.signInWithOtp(addr);
-        setState({ busy: false, sent: true, error: null });
-      } else {
-        await backend.auth.signInWithPassword(addr, password);
-      }
-    } catch (err) {
-      const msg = /rate|seconds/i.test(err.message) ? "Too many attempts. Wait a minute and try again." : /invalid/i.test(err.message) ? "That email and password don't match." : err.message;
-      setState({ busy: false, sent: false, error: msg });
+      await backend.auth.verifyCode(email, token);
+      // App.jsx takes it from here (allowlist check, then the app). Keep the busy state until it does.
+    } catch (e) {
+      setBusy(false);
+      setError(verifyErrorText(e));
+      setCode("");
+      shake.start({ x: [0, -10, 9, -6, 4, 0], transition: { duration: 0.42, ease: "easeOut" } });
     }
   };
+  useEffect(() => { if (!verifying) setBusy(false); }, [verifying]);
+
+  const differentEmail = () => {
+    clearPending();
+    setStep("email");
+    setCode("");
+    setError(null);
+    setInfo(null);
+    setTimeout(() => emailRef.current?.focus(), 50);
+  };
+
+  const signingIn = busy && step === "code";
 
   return (
     <div className="flex min-h-dvh bg-canvas">
       <BrandPanel />
-      <div className="aurora relative flex flex-1 items-center justify-center px-5 py-12 sm:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease }}
-          className="w-full max-w-[400px]"
-        >
-          <div className="mb-8 flex flex-col items-center text-center lg:items-start lg:text-left">
-            <AppMark size={52} className="mb-6 shadow-lift" />
-            <h2 className="text-title-1 font-bold text-ink">Sign in to Studio</h2>
-            <p className="mt-2 text-body text-ink-mute">Review and approve this week's blogs, carousels, graphics and reels.</p>
-          </div>
-
+      <div className="aurora relative flex flex-1 items-center justify-center px-4 py-12 sm:px-8">
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease }} className="w-full max-w-[400px]">
           <AnimatePresence mode="wait" initial={false}>
-            {state.sent ? (
-              <motion.div
-                key="sent"
-                initial={{ opacity: 0, scale: 0.97 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={spring}
-                className="card p-6 text-center"
-              >
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-ok/10">
-                  <CheckCircle2 className="h-6 w-6 text-ok" strokeWidth={2} />
+            {step === "email" ? (
+              <motion.div key="email" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.28, ease }}>
+                <div className="mb-8 flex flex-col items-center text-center lg:items-start lg:text-left">
+                  <AppMark size={52} className="mb-6 shadow-lift" />
+                  <h2 className="text-title-1 font-bold text-ink">Sign in to Studio</h2>
+                  <p className="mt-2 text-body text-ink-mute">We'll email you a 6-digit code. No password needed.</p>
                 </div>
-                <div className="text-headline font-semibold">Check your inbox</div>
-                <p className="mt-1.5 text-body text-ink-mute">
-                  We sent a sign-in link to <span className="font-semibold text-ink">{email.trim()}</span>. It works once and expires in an hour.
-                </p>
-                <button className="mt-5 text-callout font-semibold text-brand-ink hover:underline" onClick={() => setState({ busy: false, sent: false, error: null })}>
-                  Use a different email
-                </button>
+                <form onSubmit={submitEmail} className="space-y-3" noValidate>
+                  <AnimatePresence initial={false}>{notice && !error && <Notice key="notice" tone="info">{notice}</Notice>}</AnimatePresence>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-ink-faint" />
+                    <input
+                      ref={emailRef}
+                      type="email"
+                      name="email"
+                      autoComplete="username email"
+                      inputMode="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      autoFocus
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); if (error) setError(null); }}
+                      className="input h-12 pl-10"
+                      aria-label="Email"
+                      aria-invalid={!!error || undefined}
+                    />
+                  </div>
+                  <AnimatePresence initial={false}>{error && <Notice key="err" tone="error">{error}</Notice>}</AnimatePresence>
+                  <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy} iconRight={busy ? undefined : ArrowRight}>
+                    {busy ? "Sending…" : "Email me a code"}
+                  </Button>
+                  {DEMO_AVAILABLE && !demo && (
+                    <Button type="button" variant="ghost" size="md" className="w-full" icon={FlaskConical} onClick={onDemo}>Explore with sample data</Button>
+                  )}
+                  {demo && (
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-violet/[0.08] px-3.5 py-2.5 text-[12.5px] font-medium text-violet">
+                      <span>Demo: any email works, the code is 123456.</span>
+                      {onLeaveDemo && <button type="button" onClick={onLeaveDemo} className="shrink-0 font-semibold underline-offset-2 hover:underline">Leave demo</button>}
+                    </div>
+                  )}
+                </form>
               </motion.div>
             ) : (
-              <motion.form key="form" onSubmit={submit} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3" noValidate>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-ink-faint" />
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    autoFocus
-                    placeholder="you@dhitiservices.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="input h-12 pl-10"
-                    aria-label="Email"
-                  />
+              <motion.div key="code" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={{ duration: 0.28, ease }}>
+                <div className="mb-7 flex flex-col items-center text-center lg:items-start lg:text-left">
+                  <span className="mb-6 flex h-[52px] w-[52px] items-center justify-center rounded-[14px] bg-gradient-to-b from-[#FF4A33] to-[#C20600] text-white shadow-glow">
+                    <Mail className="h-6 w-6" strokeWidth={2} />
+                  </span>
+                  <h2 className="text-title-1 font-bold text-ink">Check your email</h2>
+                  <p className="mt-2 text-body text-ink-mute">{NEUTRAL_SENT}</p>
+                  <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full bg-ink/[0.05] px-3 py-1 text-callout">
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-ink-mute" />
+                    <span className="truncate font-semibold text-ink" data-testid="login-email">{email}</span>
+                  </div>
                 </div>
-                <AnimatePresence initial={false}>
-                  {mode === "password" && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease }} className="overflow-hidden">
-                      <div className="relative pt-0">
-                        <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-ink-faint" />
-                        <input
-                          type="password"
-                          autoComplete="current-password"
-                          placeholder="Password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="input h-12 pl-10"
-                          aria-label="Password"
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <AnimatePresence>
-                  {state.error && (
-                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-xl bg-brand/[0.07] px-3.5 py-2.5 text-callout font-medium text-brand-deep dark:text-brand-bright">
-                      {state.error}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <Button type="submit" variant="primary" size="lg" className="w-full" loading={state.busy} iconRight={state.busy ? undefined : ArrowRight}>
-                  {mode === "link" ? "Email me a sign-in link" : "Sign in"}
-                </Button>
-                <div className="flex items-center gap-3 py-2">
-                  <div className="h-px flex-1 bg-ink/[0.08]" />
-                  <span className="text-caption font-semibold uppercase tracking-[0.08em] text-ink-faint">or</span>
-                  <div className="h-px flex-1 bg-ink/[0.08]" />
+
+                <form onSubmit={(e) => { e.preventDefault(); if (code.length === CODE_LENGTH) verify(code); }} noValidate>
+                  <label className="mb-2.5 block text-callout font-semibold text-ink-soft">Enter the 6-digit code</label>
+                  <motion.div animate={shake}>
+                    <CodeInput value={code} onChange={(v) => { setCode(v); if (error) setError(null); }} onComplete={verify} disabled={signingIn || verifying} invalid={!!error} />
+                  </motion.div>
+                  <div className="mt-3 min-h-[60px]">
+                    <AnimatePresence mode="wait" initial={false}>
+                      {signingIn || verifying ? (
+                        <motion.div key="busy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 py-2.5 text-callout font-medium text-ink-mute" role="status">
+                          <Spinner className="h-4 w-4" /> Signing you in…
+                        </motion.div>
+                      ) : error ? (
+                        <Notice key="err" tone="error">{error}</Notice>
+                      ) : info ? (
+                        <Notice key="info">{info}</Notice>
+                      ) : null}
+                    </AnimatePresence>
+                  </div>
+                  <button type="submit" className="sr-only" tabIndex={-1}>Verify code</button>
+                </form>
+
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <button type="button" onClick={differentEmail} disabled={signingIn} className="inline-flex items-center gap-1.5 rounded-lg py-1.5 text-callout font-semibold text-ink-soft transition-colors hover:text-ink disabled:opacity-50">
+                    <ArrowLeft className="h-4 w-4" /> Use a different email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => send(email, { resend: true })}
+                    disabled={left > 0 || busy || verifying}
+                    aria-live="polite"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-callout font-semibold text-brand-ink transition-colors hover:bg-brand/[0.07] disabled:bg-transparent disabled:text-ink-faint"
+                  >
+                    <RotateCw className="h-3.5 w-3.5" />
+                    {left > 0 ? <span>Resend in <span className="tnum">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</span></span> : "Resend code"}
+                  </button>
                 </div>
-                <Button type="button" variant="secondary" size="lg" className="w-full" icon={mode === "link" ? KeyRound : Mail} onClick={() => { setMode(mode === "link" ? "password" : "link"); setState({ busy: false, sent: false, error: null }); }}>
-                  {mode === "link" ? "Sign in with a password" : "Use a sign-in link instead"}
-                </Button>
-                {DEMO_AVAILABLE && (
-                  <Button type="button" variant="ghost" size="md" className="w-full" icon={FlaskConical} onClick={onDemo}>
-                    Explore with sample data
-                  </Button>
-                )}
-              </motion.form>
+
+                <p className="mt-6 rounded-xl bg-ink/[0.035] px-3.5 py-3 text-[12.5px] leading-[18px] text-ink-mute">
+                  The email also has a sign-in link. Opening it in this browser signs you in without the code. The code expires after an hour; only the newest one works.
+                  {demo && <span className="mt-1 block font-semibold text-violet">Demo code: 123456</span>}
+                </p>
+              </motion.div>
             )}
           </AnimatePresence>
 
-          <p className="mt-8 text-center text-[12.5px] leading-[18px] text-ink-faint lg:text-left">
-            Access is limited to the Dhiti team. Your email must be on the team list.
+          <p className="mt-8 flex items-center justify-center gap-1.5 text-center text-[12.5px] leading-[18px] text-ink-faint lg:justify-start lg:text-left">
+            <ShieldCheck className="h-3.5 w-3.5" /> Private workspace. Only approved accounts can sign in.
           </p>
         </motion.div>
       </div>
-    </div>
-  );
-}
-
-export function NotAuthorised({ email, onSignOut }) {
-  return (
-    <div className="aurora flex min-h-dvh items-center justify-center px-5">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }} className="card w-full max-w-[420px] p-8 text-center">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-b from-brand/15 to-brand/5">
-          <Lock className="h-6 w-6 text-brand-ink" strokeWidth={2} />
-        </div>
-        <h1 className="text-title-2 font-bold">This account isn't on the team</h1>
-        <p className="mt-2 text-body text-ink-mute">
-          <span className={cx("font-semibold text-ink")}>{email}</span> is signed in, but it isn't on Dhiti Studio's team list.
-          Ask the owner to add it, then sign in again.
-        </p>
-        <Button variant="secondary" size="lg" className="mt-6 w-full" icon={LogOut} onClick={onSignOut}>Sign out</Button>
-      </motion.div>
     </div>
   );
 }

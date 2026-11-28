@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronRight, ShieldCheck, Lock, Check, X, Sun, Moon, Monitor, Plus } from "lucide-react";
+import { ChevronRight, ShieldCheck, Lock, Check, X, Sun, Moon, Monitor, Plus, LogOut, MonitorSmartphone, Mail, Timer } from "lucide-react";
+import { useAuth } from "../lib/auth.js";
+import { Confirm } from "../components/Sheet.jsx";
 import { useData } from "../lib/store.jsx";
 import { PageHeader, useTheme } from "../components/Shell.jsx";
-import { Button, Card, Field, Stepper, StatusChip, Skeleton, Segmented, EmptyState, cx } from "../components/ui.jsx";
+import { Button, Card, Field, Stepper, StatusChip, Skeleton, Segmented, EmptyState, Avatar, cx } from "../components/ui.jsx";
 import { RUN_STATUS, RUN_KIND } from "../lib/model.js";
 import { formatDateTime, duration, relative } from "../lib/format.js";
 import { spring } from "../lib/motion.js";
@@ -179,6 +181,8 @@ export default function Settings() {
             </Card>
           </section>
 
+          <SecuritySection />
+
           <section>
             <h2 className="mb-3 text-headline font-semibold">Appearance</h2>
             <Card className="p-1">
@@ -263,6 +267,50 @@ function RunsLog() {
           );
         })}
       </Card>
+    </section>
+  );
+}
+
+/** Account and sessions: who is signed in, how sign-in works, sign out here or on every device. */
+function SecuritySection() {
+  const { user, signOut, demo } = useAuth();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(null);
+  const run = async (scope) => { setBusy(scope); try { await signOut(scope); } finally { setBusy(null); } };
+  return (
+    <section id="security" className="scroll-mt-20">
+      <h2 className="mb-3 text-headline font-semibold">Account and security</h2>
+      <Card className="divide-y divide-[color:var(--hairline)]">
+        <div className="flex items-center gap-3 px-5 py-4">
+          <Avatar email={user?.email || ""} size={36} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-body font-semibold text-ink">{user?.email || "Signed in"}</div>
+            <div className="text-[12.5px] text-ink-mute">{demo ? "Demo session (sample data)" : "Signed in with an emailed code"}</div>
+          </div>
+          <Button variant="secondary" icon={LogOut} onClick={() => run("local")} loading={busy === "local"}>Sign out</Button>
+        </div>
+        {[
+          [Mail, "Email code sign-in", "A 6-digit code (or the link in the same email) each time. No password, no authenticator app."],
+          [Timer, "Automatic lock", "Signs out after 30 minutes without activity, with a 60-second warning, and when Studio has been in the background for more than 12 hours."],
+        ].map(([I, t, h]) => (
+          <div key={t} className="flex items-start gap-3 px-5 py-4">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ink/[0.05] text-ink-soft"><I className="h-4 w-4" /></span>
+            <div className="flex-1"><div className="text-body font-semibold">{t}</div><div className="text-[12.5px] text-ink-mute">{h}</div></div>
+          </div>
+        ))}
+        <Row label="Sign out everywhere" hint="Ends every session on every device and browser, including this one.">
+          <Button variant="danger" icon={MonitorSmartphone} onClick={() => setConfirm(true)} loading={busy === "global"}>Sign out everywhere</Button>
+        </Row>
+      </Card>
+      <Confirm
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        title="Sign out everywhere?"
+        description="Every device signed in to Studio is signed out within an hour at most (immediately on this one). You'll need a new email code to come back."
+        confirmLabel="Sign out everywhere"
+        tone="danger"
+        onConfirm={() => run("global")}
+      />
     </section>
   );
 }

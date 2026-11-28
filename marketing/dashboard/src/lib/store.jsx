@@ -35,6 +35,7 @@ export function DataProvider({ backend, user, children }) {
   const assetTimers = useRef(new Map());
   const email = user?.email || "team";
 
+  const itemsRef = useRef(new Map()); // item id -> last known status (to notice a reel coming back from rendering)
   const liveRef = useRef(false);
   liveRef.current = live;
   const load = useCallback(async ({ silent } = {}) => {
@@ -83,6 +84,9 @@ export function DataProvider({ backend, user, children }) {
       }
       const key = TABLE_KEY[table];
       if (!key) return;
+      if (table === "content_items" && row && row.type === "video" && row.status === "pending_review" && itemsRef.current.get(row.id) === "awaiting_voiceover") {
+        toast({ tone: "ok", title: "Your reel is ready", description: "Rendered with your voice. It's back in review." });
+      }
       setData((d) => {
         if (eventType === "DELETE") return { ...d, [key]: d[key].filter((r) => r.id !== old?.id) };
         if (!row) return d;
@@ -96,7 +100,7 @@ export function DataProvider({ backend, user, children }) {
     const onFocus = () => load({ silent: true });
     window.addEventListener("focus", onFocus);
     return () => { unsub?.(); clearInterval(poll); window.removeEventListener("focus", onFocus); };
-  }, [backend, load]);
+  }, [backend, load, toast]);
 
   // ---- low-level mutators -------------------------------------------------------------------------
   const setItemLocal = useCallback((id, patch) =>
@@ -278,12 +282,14 @@ export function DataProvider({ backend, user, children }) {
 
     fetchRunLog: (id) => backend.fetchRunLog(id),
 
-    async uploadLibrary(file, { kind, title, notes = "", tags = [], contentItemId = null } = {}) {
-      const path = await backend.uploadLibraryFile(file);
+    /** Upload one file to library/<uuid>/<file> and create its library_assets row. opts.onProgress(0..1). */
+    async uploadLibrary(file, { kind, mime, title, notes = "", tags = [], contentItemId = null, onProgress, signal } = {}) {
+      const type = mime || file.type || "application/octet-stream";
+      const path = await backend.uploadLibraryFile(file, { mime: type, onProgress, signal });
       let row;
       try {
         row = await backend.insertLibrary({
-          kind, storage_path: path, mime: file.type || null, title: title || file.name, notes, tags,
+          kind, storage_path: path, mime: type, title: (title || file.name).slice(0, 200), notes, tags,
           content_item_id: contentItemId, uploaded_by: email,
         });
       } catch (e) {
@@ -295,16 +301,44 @@ export function DataProvider({ backend, user, children }) {
       return row;
     },
 
-    async uploadVoiceover(item, file, meta = {}) {
+    async updateLibrary(row, patch) {
+      setData((d) => ({ ...d, library: d.library.map((r) => (r.id === row.id ? { ...r, ...patch } : r)) }));
+      try {
+        const fresh = await backend.updateLibrary(row.id, patch);
+        setData((d) => ({ ...d, library: upsert(d.library, fresh, "library") }));
+        return fresh;
+      } catch (e) {
+        setData((d) => ({ ...d, library: upsert(d.library, row, "library") }));
+        toast({ tone: "danger", title: "Couldn't save", description: e.message });
+        throw e;
+      }
+    },
+
+    /** Queue the reel re-render with a voiceover that is already in the library (render_video job). */
+    async renderWithVoiceover(item, libraryRow) {
+      const busy = data.jobs.find((j) => j.kind === "render_video" && j.payload?.content_item_id === item.id && (j.status === "queued" || j.status === "running"));
+      if (busy) throw new Error("A render with your voice is already in progress for this reel.");
+      if (item.status !== "awaiting_voiceover") throw new Error("This reel isn't waiting for a voiceover any more.");
+      const job = await insertJob("render_video", { content_item_id: item.id, library_asset_id: libraryRow.id });
+      toast({ tone: "ok", title: "Rendering with your voice", description: "The reel is re-timed to your recording and comes back here for review." });
+      return job;
+    },
+
+    /** Upload a recording for a reel (library row kind voiceover, linked to the item), then queue the render. */
+    async uploadVoiceover(item, file, { mime, title, onProgress } = {}) {
       const row = await actions.uploadLibrary(file, {
-        kind: "voiceover", title: file.name, notes: meta.duration ? `Duration ${meta.duration.toFixed(1)} s` : "", contentItemId: item.id, tags: ["voiceover"],
+        kind: "voiceover", mime, title: title || file.name.replace(/\.[^.]+$/, ""), contentItemId: item.id, tags: ["voiceover"], onProgress,
       });
-      await insertJob("render_video", { content_item_id: item.id, library_asset_id: row.id });
-      toast({ tone: "ok", title: "Voiceover uploaded", description: "The reel is re-timed to your voice on the next run." });
+      await actions.renderWithVoiceover(item, row);
       return row;
     },
 
     async deleteLibrary(row) {
+      const rendering = data.jobs.some((j) => j.kind === "render_video" && j.payload?.library_asset_id === row.id && (j.status === "queued" || j.status === "running"));
+      if (rendering) {
+        toast({ tone: "warn", title: "This voiceover is being rendered", description: "Delete it after the reel is back in review." });
+        return;
+      }
       setData((d) => ({ ...d, library: d.library.filter((r) => r.id !== row.id) }));
       try {
         await backend.deleteLibrary(row);
@@ -314,7 +348,9 @@ export function DataProvider({ backend, user, children }) {
         toast({ tone: "danger", title: "Couldn't remove", description: e.message });
       }
     },
-  }), [backend, data.settings, email, insertJob, load, mutateItem, toast, undoable]);
+  }), [backend, data.settings, data.jobs, email, insertJob, load, mutateItem, toast, undoable]);
+
+  useEffect(() => { itemsRef.current = new Map(data.items.map((i) => [i.id, i.status])); }, [data.items]);
 
   // ---- derived ------------------------------------------------------------------------------------------
   const derived = useMemo(() => {

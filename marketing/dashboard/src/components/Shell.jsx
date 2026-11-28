@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutGrid, Inbox, CalendarDays, Telescope, Send, Globe2, FolderOpen, Settings2, Search, MoreHorizontal,
-  Sun, Moon, Monitor, LogOut, FlaskConical,
+  Sun, Moon, Monitor, LogOut,
 } from "lucide-react";
 import { Link, navigate, useLocation } from "../lib/router.jsx";
 import { useData } from "../lib/store.jsx";
@@ -151,8 +151,8 @@ export function Sidebar({ onSearch, onSignOut, demo }) {
             <div className="truncate text-callout font-semibold text-ink">{data.user?.email?.split("@")[0] || "Team"}</div>
             <div className="truncate text-[11.5px] text-ink-mute">{data.user?.email}</div>
           </div>
-          <button onClick={onSignOut} title={demo ? "Leave demo" : "Sign out"} className="rounded-lg p-1.5 text-ink-mute transition-colors hover:bg-ink/[0.06] hover:text-ink">
-            {demo ? <FlaskConical className="h-4 w-4" /> : <LogOut className="h-4 w-4" />}
+          <button onClick={onSignOut} title={demo ? "Sign out of demo" : "Sign out"} aria-label="Sign out" className="rounded-lg p-1.5 text-ink-mute transition-colors hover:bg-ink/[0.06] hover:text-ink">
+            <LogOut className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -247,7 +247,7 @@ export function TabBar({ onSignOut, demo }) {
             <div className="truncate text-callout font-semibold">{data.user?.email}</div>
             <SyncBadge />
           </div>
-          <button onClick={onSignOut} className="rounded-xl bg-ink/[0.05] px-3 py-2 text-callout font-semibold text-ink-soft">{demo ? "Leave demo" : "Sign out"}</button>
+          <button onClick={onSignOut} className="rounded-xl bg-ink/[0.05] px-3 py-2 text-callout font-semibold text-ink-soft">Sign out</button>
         </div>
       </Sheet>
     </>
