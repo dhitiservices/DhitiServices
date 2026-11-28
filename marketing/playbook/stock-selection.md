@@ -90,6 +90,13 @@ second stretch). The Magnific watermark on previews is expected; it is not on th
   desk, airport, travel counter.
 - **Relevant.** The image tells the story of this specific post: the document, the call, the reconciliation, the
   front desk. A cover could not be swapped onto a different post.
+- **India, verified from the provider.** Ethnicity and place come from the provider's title or tags (`stock_get`),
+  never from looking at the face, and the stock entry's `note` records which ("Ethnicity from the provider title
+  (Indian business man); tags are mixed"). A title that does not say Indian or South Asian is not enough, however
+  the person looks. Reject any frame showing a non-Indian airport code (JHB, LHR, DXB on a boarding pass), foreign
+  currency or signage; for airline topics prefer an Indian code (DEL, BOM, BLR) or no code at all.
+- **Real offices.** Reject home sets (sofa, floor lamp, curtains), trading-floor or stock-chart walls and studio
+  backdrops for an office story. A 4K clip whose background fails can still give a clean close-up with `zoom`.
 - **People.** Indian or South Asian professionals in smart-casual office clothes whenever people appear. Real
   diversity of age and gender across the week. No children. Expression matches the post: concentrated, neutral
   or mildly concerned for problem topics; no smiling at a lost-money story.
@@ -106,8 +113,9 @@ second stretch). The Magnific watermark on previews is expected; it is not on th
 - **Resolution.** Photos at least 2000 px on the long edge (covers ideally 3000+). Video at least 1080x1920.
 - **Variety.** Do not reuse the same model or set across the three posts in a week; vary settings (office,
   hotel, airport, phone desk).
-  Within one blog, the cover photo may appear in at most one derived creative (usually the carousel cover). Never
-  use one clip or photo twice in the same reel.
+  Within one blog, one stock file belongs to one creative: the cover stays on the blog (it is every link preview's
+  image), and the carousel, each graphic and the reel use different photos and clips. `make-*` refuses a reuse.
+  Never use one clip or photo twice in the same reel.
 
 Prefer a free (40-credit) photo when it is as good as a premium one. Pay for premium when it is clearly better.
 
@@ -138,12 +146,14 @@ Reject and choose again if the real file is too small or not what the preview sh
 ## 6. Keep the licence trail and the credit ledger
 
 - Every downloaded file gets a sidecar entry. For the blog cover write `$WORK/<slug>/stock.json`:
-  `{"provider":"magnific","id":3629477,"type":"photo","title":"<title from search or stock_get>","url_preview":"<previewUrl>","author":"<author name>","credit_cost":40}`
+  `{"provider":"magnific","id":3629477,"type":"photo","title":"<provider title, verbatim>","url":"<webUrl>","url_preview":"<previewUrl>","author":"<author name>","credit_cost":40,"note":"<optional editorial note>"}`
+  `title` is the provider's own title copied exactly (from the search result or `stock_get`; when `stock_get`
+  returns none, the words of the provider URL slug). Never rewrite it to fit the story: put any description of your
+  own, and the ethnicity source, in `note`.
 - Every creative spec carries a top-level `"stock"` array listing each file it uses:
   `[{"file":"/abs/path/3629477.jpg","provider":"magnific","id":3629477,"type":"photo","title":"...","url_preview":"..."}]`
   (library files: `{"file":"...","provider":"library","library_asset_id":"...","title":"..."}`).
 - Append one line per download to `$WORK/credits.jsonl`:
   `{"slug":"<slug>","use":"cover|carousel|graphic|reel","id":3629477,"type":"photo","credit_cost":40}`.
-- Reuse within the run: a file you already bought (for example the blog cover) can be used again in that blog's
-  carousel and graphics at no extra cost. Keep files in `$WORK/stock/` named by stock id and check there before
-  buying.
+- Keep files in `$WORK/stock/` named by stock id and check there before buying: never download the same item twice.
+  A file bought for one creative is not reused in another creative of the same blog (one photo per creative).

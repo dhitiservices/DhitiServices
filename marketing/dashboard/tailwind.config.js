@@ -22,6 +22,9 @@ export default {
         // SF Pro Display everywhere (@font-face in src/index.css, owner-supplied OTFs in public/fonts/), then the system SF.
         sans: ['"SF Pro Display"', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
       },
+      // Licensed faces: 400, 500, 700. Semibold maps to Medium so 600 never silently renders as Bold; 700 is kept for
+      // page titles, headings and numbers. (Add a 600 face in src/index.css and remove this to use a real Semibold.)
+      fontWeight: { semibold: "500" },
       fontSize: {
         // SF-style scale: [size, {lineHeight, letterSpacing}]
         "title-l": ["34px", { lineHeight: "41px", letterSpacing: "-0.026em" }],

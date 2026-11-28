@@ -96,10 +96,11 @@ const TONES = {
   warn: "bg-warn/[0.12] text-warn dark:bg-warn/[0.16]",
   danger: "bg-brand/[0.1] text-brand-deep dark:text-brand-bright",
   info: "bg-info/[0.1] text-info dark:bg-info/[0.16]",
-  violet: "bg-violet/[0.1] text-violet dark:bg-violet/[0.18]",
+  // In progress: neutral ink with a live red dot (one accent family, no extra hue).
+  active: "bg-ink/[0.07] text-ink-soft",
   neutral: "bg-ink/[0.06] text-ink-mute",
 };
-const DOT = { brand: "bg-brand", ok: "bg-ok", warn: "bg-warn", danger: "bg-brand-deep", info: "bg-info", violet: "bg-violet", neutral: "bg-ink-faint" };
+const DOT = { brand: "bg-brand", ok: "bg-ok", warn: "bg-warn", danger: "bg-brand-deep", info: "bg-info", active: "bg-brand", neutral: "bg-ink-faint" };
 
 export function Chip({ tone = "neutral", pulse, children, className, dot = true, size = "md" }) {
   return (

@@ -18,7 +18,7 @@ import { ApproveSheet, ChangesSheet, PostedSheet } from "../components/ReviewShe
 import { BlogArticle, BlogMeta } from "../components/viewers/BlogViewer.jsx";
 import { CarouselStage, CarouselMeta } from "../components/viewers/CarouselViewer.jsx";
 import { GraphicStage, GraphicMeta, useGraphicVariant } from "../components/viewers/GraphicViewer.jsx";
-import { VideoStage, VideoMeta, voiceoverState } from "../components/viewers/VideoViewer.jsx";
+import { VideoStage, VideoMeta, voiceoverState, voiceoverChip, requestVoiceoverUpload } from "../components/viewers/VideoViewer.jsx";
 import { MetaSection } from "../components/viewers/Meta.jsx";
 import { openSafe } from "../lib/safe.js";
 import { useToast } from "../components/Toast.jsx";
@@ -143,6 +143,10 @@ export default function Review({ id }) {
       a: () => act.approve(),
       "shift+a": () => act.quickApprove(),
       r: () => act.changes(),
+      u: () => {
+        if (!sel || sel.status !== "awaiting_voiceover" || voiceoverState(sel, d.jobs).state === "rendering") return false;
+        requestVoiceoverUpload();
+      },
       e: () => {
         if (!sel || editing) return false;
         if (sel.type !== "blog" || ["published", "generating"].includes(sel.status)) return why(sel, "edit");
@@ -176,7 +180,7 @@ export default function Review({ id }) {
       <div className="min-h-0 flex-1 px-2.5 pb-28 sm:px-3 lg:overflow-y-auto lg:pb-6">
         {loading ? (
           <div className="space-y-2 px-1.5 pt-2">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex gap-3 p-2"><Skeleton className="h-12 w-12 shrink-0" /><div className="flex-1 space-y-2 pt-1"><Skeleton className="h-3.5 w-4/5" /><Skeleton className="h-3 w-1/3" /></div></div>)}</div>
-        ) : flat.length === 0 ? (
+        ) : flat.length === 0 && desktop ? null : flat.length === 0 ? (
           <EmptyState
             icon={filter === "review" ? PartyPopper : Inbox}
             tone={filter === "review" ? "brand" : "neutral"}
@@ -188,10 +192,13 @@ export default function Review({ id }) {
           groups.map((g) => (
             <div key={g.key} className="mb-3">
               <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-[1] -mx-2.5 flex items-center gap-2 bg-canvas/85 px-5 pb-1.5 pt-3 backdrop-blur-xl backdrop-saturate-150 sm:-mx-3 sm:px-6 lg:top-0 lg:mx-0 lg:bg-transparent lg:px-3 lg:backdrop-blur-none">
-                <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-soft">{g.topic?.title || "Other"}</span>
-                {g.topic?.planned_publish_date && <span className="tnum shrink-0 text-[11.5px] text-ink-faint">{formatDate(dateOnly(g.topic.planned_publish_date), { weekday: "short", day: "numeric", month: "short" })}</span>}
+                {/* The blog row right below carries the title, so the header names the slot: date and category. */}
+                <span className="tnum min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-soft" title={g.topic?.title || undefined}>
+                  {[g.topic?.planned_publish_date ? formatDate(dateOnly(g.topic.planned_publish_date), { weekday: "short", day: "numeric", month: "short" }) : null, g.topic?.category].filter(Boolean).join(" · ") || g.topic?.title || "Other"}
+                </span>
+                {!g.items.some((i) => i.type === "blog") && g.topic?.title && <span className="min-w-0 max-w-[45%] shrink truncate text-[11.5px] text-ink-faint">{g.topic.title}</span>}
               </div>
-              {g.items.map((it) => <QueueRow key={it.id} item={it} topic={g.topic} active={it.id === sel?.id && desktop} onClick={() => open(it)} />)}
+              {g.items.map((it) => <QueueRow key={it.id} item={it} topic={g.topic} jobs={d.jobs} active={it.id === sel?.id && desktop} onClick={() => open(it)} />)}
             </div>
           ))
         )}
@@ -220,8 +227,11 @@ export default function Review({ id }) {
         <EmptyState icon={Sparkles} title="This item no longer exists">It may have been replaced by a newer version.</EmptyState>
       ) : flat.length ? (
         <EmptyState icon={Sparkles} title="Pick something to review">Select an item on the left, or press J.</EmptyState>
+      ) : filter === "review" ? (
+        // The only empty state on screen: the queue column stays quiet so the two never repeat each other.
+        <EmptyState icon={PartyPopper} tone="brand" title="Inbox zero">Everything has been reviewed. Drafts from the next weekly run land here, and you'll see them live.</EmptyState>
       ) : (
-        <EmptyState icon={PartyPopper} tone="brand" title="All caught up">Nothing is waiting for you. Drafts from the next run land here, and you'll see them live.</EmptyState>
+        <EmptyState icon={Inbox} title="Nothing here">No items match “{FILTERS[filter].label}” right now.</EmptyState>
       )}
     </div>
   ) : desktop ? <ViewerSkeleton /> : null;
@@ -282,7 +292,24 @@ function defaultBlogSlot(item, topic) {
 }
 const canChange = (i) => ["pending_review", "awaiting_voiceover", "changes_requested", "failed", "approved"].includes(i.status);
 
-function QueueRow({ item, topic, active, onClick }) {
+/** The item's status chip; a reel being rendered with the owner's voice shows that state instead of "Needs voiceover". */
+function ItemStatus({ item, jobs, size = "sm" }) {
+  const vo = voiceoverChip(item, jobs);
+  return vo ? <Chip tone={vo.tone} pulse={vo.pulse} size={size}>{vo.label}</Chip> : <StatusChip map={ITEM_STATUS} status={item.status} size={size} />;
+}
+
+/** "now", "12m ago", "2h ago", "3d ago", then the date: compact enough for a queue row. */
+function shortAgo(v) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(v).getTime()) / 60000));
+  if (!Number.isFinite(m)) return "";
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  if (m < 1440) return `${Math.round(m / 60)}h ago`;
+  if (m < 1440 * 7) return `${Math.round(m / 1440)}d ago`;
+  return formatDate(v, { day: "numeric", month: "short" });
+}
+
+function QueueRow({ item, topic, jobs, active, onClick }) {
   const T = TYPE_META[item.type];
   return (
     <button onClick={onClick} aria-current={active ? "true" : undefined} className="group relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left">
@@ -300,9 +327,9 @@ function QueueRow({ item, topic, active, onClick }) {
       <div className="relative min-w-0 flex-1">
         <div className="line-clamp-2 text-[13.5px] font-semibold leading-[18px] tracking-[-0.006em] text-ink">{T.label === "Blog" ? itemTitle(item, topic) : `${T.label}${item.body?.kind ? ` · ${item.body.kind}` : ""}`}</div>
         <div className="mt-1 flex items-center gap-1.5">
-          <StatusChip map={ITEM_STATUS} status={item.status} size="sm" />
+          <ItemStatus item={item} jobs={jobs} />
           {item.version > 1 && <span className="text-[11px] font-semibold text-ink-faint">v{item.version}</span>}
-          <span className="ml-auto text-[11px] text-ink-faint">{relative(item.updated_at || item.created_at)}</span>
+          <span className="ml-auto whitespace-nowrap text-[11px] text-ink-faint" title={item.updated_at ? `Updated ${new Date(item.updated_at).toLocaleString("en-IN")}` : undefined}>{item.updated_at ? "Updated " : "Created "}{shortAgo(item.updated_at || item.created_at)}</span>
         </div>
       </div>
     </button>
@@ -380,16 +407,15 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
           <div className="flex items-center gap-2">
             <T.icon className="h-4 w-4 shrink-0 text-ink-mute" strokeWidth={2} />
             <span className="truncate text-[14.5px] font-semibold tracking-[-0.01em]">{T.label}{item.body?.kind && item.type === "graphic" ? ` · ${item.body.kind}` : ""}</span>
-            <span className="hidden shrink-0 sm:inline"><StatusChip map={ITEM_STATUS} status={item.status} size="sm" /></span>
+            <span className="hidden shrink-0 sm:inline"><ItemStatus item={item} jobs={d.jobs} /></span>
           </div>
+          {/* Position first, so a long topic title is what truncates, never "5 of 9". */}
           <div className="tnum truncate text-[11.5px] text-ink-faint">
-            {topic?.title || itemTitle(parentBlog) || ""}
-            {desktop && total > 0 && index >= 0 ? ` · ${index + 1} of ${total}` : ""}
-            {item.version > 1 ? ` · v${item.version}` : ""}
+            {[desktop && total > 0 && index >= 0 ? `${index + 1} of ${total}` : "", item.version > 1 ? `v${item.version}` : "", topic?.title || itemTitle(parentBlog) || ""].filter(Boolean).join(" · ")}
           </div>
         </div>
         {desktop && actions}
-        {!desktop && <span className="sm:hidden"><StatusChip map={ITEM_STATUS} status={item.status} size="sm" /></span>}
+        {!desktop && <span className="sm:hidden"><ItemStatus item={item} jobs={d.jobs} /></span>}
         {!desktop && total > 1 && (
           <div className="flex items-center">
             <IconButton icon={ChevronUp} label="Previous item" size="sm" onClick={() => onStep(-1)} disabled={index <= 0} />
@@ -422,6 +448,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
                 <MetaSection title="History">
                   <div className="space-y-1.5 text-[12.5px] text-ink-mute">
                     <div>Created {relative(item.created_at)}</div>
+                    {item.updated_at && item.updated_at !== item.created_at && <div>Updated {relative(item.updated_at)}</div>}
                     {item.approved_at && <div>Approved {relative(item.approved_at)}{item.approved_by ? ` by ${item.approved_by.split("@")[0]}` : ""}</div>}
                     {item.published_at && <div>Published {relative(item.published_at)}</div>}
                   </div>
@@ -465,10 +492,19 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
       );
     }
     if (s === "awaiting_voiceover") {
+      // The owner's job here is the recording: that is the primary action, in the same slot as Approve.
+      const rendering = voiceoverState(item, d.jobs).state === "rendering";
       return (
-        <Button size={compact ? "lg" : "md"} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={compact ? "flex-1" : ""}>
-          Request changes
-        </Button>
+        <>
+          <Button size={compact ? "lg" : "md"} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={compact ? "flex-1" : ""}>
+            {compact ? "Changes" : "Request changes"}
+          </Button>
+          {!rendering && (
+            <Button size={compact ? "lg" : "md"} variant="primary" icon={Mic} onClick={() => requestVoiceoverUpload()} kbd={compact ? null : "U"} title="U: choose your recording" className={compact ? "flex-[1.4]" : ""} data-testid="vo-upload-action">
+              Upload voiceover
+            </Button>
+          )}
+        </>
       );
     }
     if (s === "approved" && item.type === "blog") return <Button size={compact ? "lg" : "md"} variant="dark" icon={Rocket} onClick={onPublish} className={compact ? "flex-1" : ""}>Publish now</Button>;
@@ -481,10 +517,6 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
 
   return (
     <div className="flex items-center gap-2">
-      {s === "awaiting_voiceover" && !compact && (() => {
-        const rendering = voiceoverState(item, d.jobs).state === "rendering";
-        return <Chip tone="violet" pulse={rendering} className={cx("mr-1", rendering ? "hidden xl:inline-flex" : "hidden 2xl:inline-flex")}>{!rendering && <Mic className="h-3 w-3" />}{rendering ? "Rendering with your voice" : "Awaiting your recording"}</Chip>;
-      })()}
       {primary}
       {cleanMore.length > 0 && (
         <Menu

@@ -36,6 +36,12 @@ export default function Calendar() {
   const days = DAYS.map((name, i) => ({ name, ymd: addDays(ws, i) }));
   const weekTopics = d.topics.filter((t) => t.week_start === ws || (t.planned_publish_date >= ws && t.planned_publish_date <= addDays(ws, 6)));
   const unscheduled = weekTopics.filter((t) => !t.planned_publish_date);
+  const emptyWeek = !loading && weekTopics.length === 0;
+  // The week after, as a compact strip under the grid (fills the space short columns leave, one click to open it).
+  const nextWs = addDays(ws, 7);
+  const nextTopics = d.topics
+    .filter((t) => t.status !== "skipped" && (t.week_start === nextWs || (t.planned_publish_date >= nextWs && t.planned_publish_date <= addDays(nextWs, 6))))
+    .sort((a, b) => String(a.planned_publish_date || "9").localeCompare(String(b.planned_publish_date || "9")));
   const move = (n) => { setDir(n); setWeek(addDays(ws, n * 7)); };
 
   return (
@@ -71,7 +77,7 @@ export default function Calendar() {
             const isPublish = publishDays.includes(day.name);
             const past = day.ymd < today;
             return (
-              <div key={day.ymd} className={cx("flex flex-col rounded-2xl p-2 md:min-h-[420px]", isPublish ? "bg-surface/70 shadow-[0_0_0_1px_var(--hairline)]" : "bg-ink/[0.02]", !loading && !topics.length && !isPublish && !isToday && "max-md:hidden")}>
+              <div key={day.ymd} className={cx("flex flex-col rounded-2xl p-2", !emptyWeek && "md:min-h-[220px]", isPublish ? "bg-surface/70 shadow-[0_0_0_1px_var(--hairline)]" : "bg-ink/[0.02]", !loading && !topics.length && !isPublish && !isToday && "max-md:hidden")}>
                 <div className="flex items-center gap-2 px-1.5 pb-2 pt-1">
                   <span className={cx("text-[12px] font-semibold uppercase tracking-[0.06em]", isToday ? "text-brand-ink" : past ? "text-ink-faint" : "text-ink-mute")}>{day.name.slice(0, 3)}</span>
                   <span className={cx("tnum flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-[15px] font-bold", isToday ? "bg-brand-deep text-white" : past ? "text-ink-faint" : "text-ink")}>
@@ -79,7 +85,7 @@ export default function Calendar() {
                   </span>
                   {isPublish && <span className="ml-auto rounded-md bg-ok/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ok">Publish</span>}
                 </div>
-                <div className="flex flex-1 flex-col gap-2">
+                <div className={cx("flex flex-1 flex-col gap-2", emptyWeek && "hidden")}>
                   {loading ? (
                     isPublish && <Skeleton className="h-32 rounded-xl" />
                   ) : topics.length ? (
@@ -101,7 +107,34 @@ export default function Calendar() {
         </div>
       )}
 
-      {!loading && weekTopics.length === 0 && (
+      {!loading && nextTopics.length > 0 && (
+        <section className="mt-8" aria-labelledby="cal-next">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <h2 id="cal-next" className="text-headline font-semibold">Next week</h2>
+            <button type="button" onClick={() => move(1)} className="text-callout font-semibold text-brand-ink hover:underline">Open week of {formatDate(dateOnly(nextWs), { day: "numeric", month: "short" })}</button>
+          </div>
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {nextTopics.slice(0, 6).map((t) => {
+              const blog = d.items.find((i) => i.topic_id === t.id && i.type === "blog");
+              return (
+                <button key={t.id} type="button" onClick={() => (blog ? navigate(`/review/${blog.id}`) : move(1))} className="card flex items-center gap-3 p-3 text-left transition-shadow hover:card-lift">
+                  <span className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl bg-ink/[0.05] text-ink">
+                    <span className="text-[9.5px] font-bold uppercase leading-3 tracking-wider">{t.planned_publish_date ? formatDate(dateOnly(t.planned_publish_date), { weekday: "short" }) : "TBD"}</span>
+                    <span className="tnum text-[15px] font-bold leading-5">{t.planned_publish_date ? Number(t.planned_publish_date.slice(8)) : "–"}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-callout font-semibold text-ink">{t.title}</span>
+                    <span className="block truncate text-[12px] text-ink-mute">{t.category || "Topic"}</span>
+                  </span>
+                  {blog ? <StatusChip map={ITEM_STATUS} status={blog.status} size="sm" /> : <StatusChip map={TOPIC_STATUS} status={t.status} size="sm" />}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {emptyWeek && (
         <div className="card mt-6">
           <EmptyState icon={CalendarDays} title="Nothing planned this week" action={<Button variant="secondary" onClick={() => d.actions.runWeekly()}>Run weekly now</Button>}>
             Topics appear here once the weekly run has researched and planned them.

@@ -133,7 +133,7 @@ If `kinds` is omitted, each worker gets its own queue:
 - A **publisher** claims `publish_now`. It is not allowed to claim any other kind, and a session may not claim
   `publish_now` (it could never mark the blog published, so that "Publish now" would be lost).
 
-Jobs are created by the dashboard under RLS, which allows queued jobs only. There is no `insert_job` action.
+Jobs are created by the dashboard under RLS, which allows only queued jobs of the four shapes the dashboard sends, for items in the right state (see ARCHITECTURE.md v3.1.1). There is no `insert_job` action.
 For tests, insert a job through the Supabase connector:
 `insert into jobs(kind,payload,requested_by) values ('regenerate','{}','test')`.
 

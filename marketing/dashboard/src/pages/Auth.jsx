@@ -30,7 +30,7 @@ export function AuroraBackdrop({ className }) {
 
 function Hero() {
   return (
-    <div className="hidden max-w-[520px] lg:block">
+    <div className="hidden max-w-[520px] pt-12 lg:block">
       <motion.p
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -267,8 +267,10 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
           <Lock className="h-3.5 w-3.5" strokeWidth={2.2} /> Private workspace
         </span>
       </header>
-      <main className="relative z-[1] flex flex-1 items-center justify-center px-4 py-10 sm:px-10">
-        <div className="flex w-full max-w-[1120px] items-center justify-center gap-16 lg:justify-between">
+      {/* Top-anchored (not vertically centred), so the card does not jump between the shorter email step and the
+          taller code step; the offset still centres the taller step on common screens. */}
+      <main className="relative z-[1] flex flex-1 items-start justify-center px-4 pb-10 pt-[clamp(24px,calc(50dvh-372px),140px)] sm:px-10">
+        <div className="flex w-full max-w-[1120px] items-start justify-center gap-16 lg:justify-between">
         <Hero />
         <motion.div
           initial={{ opacity: 0, y: 16, scale: 0.985 }}
@@ -314,7 +316,7 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
                     <Button type="button" variant="ghost" size="md" className="w-full" icon={FlaskConical} onClick={onDemo}>Explore with sample data</Button>
                   )}
                   {demo && (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-violet/[0.08] px-3.5 py-2.5 text-[12.5px] font-medium text-violet">
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-ink/[0.045] px-3.5 py-2.5 text-[12.5px] font-medium text-ink-soft">
                       <span>Demo: any email works, the code is 123456.</span>
                       {onLeaveDemo && <button type="button" onClick={onLeaveDemo} className="shrink-0 font-semibold underline-offset-2 hover:underline">Leave demo</button>}
                     </div>
@@ -373,8 +375,8 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
                 </div>
 
                 <p className="mt-5 rounded-2xl bg-ink/[0.035] px-4 py-3 text-[12.5px] leading-[18px] text-ink-mute">
-                  The email also has a sign-in link. Opening it in this browser signs you in without the code. The code expires after an hour; only the newest one works.
-                  {demo && <span className="mt-1 block font-semibold text-violet">Demo code: 123456</span>}
+                  The email also has a sign-in link. Opening it in this browser signs you in without the code. The code expires after 10 minutes; only the newest one works.
+                  {demo && <span className="mt-1 block font-semibold text-ink-soft">Demo code: 123456</span>}
                 </p>
               </motion.div>
             )}
@@ -386,9 +388,8 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
         </motion.div>
         </div>
       </main>
-      <footer className="relative z-[1] flex items-center justify-center gap-2 px-5 pb-[calc(20px+env(safe-area-inset-bottom))] text-[12px] text-ink-mute sm:justify-between sm:px-10 sm:pb-7">
+      <footer className="relative z-[1] flex items-center justify-center gap-2 px-5 pb-[calc(20px+env(safe-area-inset-bottom))] text-[12px] text-ink-mute sm:px-10 sm:pb-7">
         <span>Dhiti Services · Rural operations from Pune district</span>
-        <span className="hidden sm:inline">Studio</span>
       </footer>
     </div>
   );

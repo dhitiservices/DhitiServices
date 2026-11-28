@@ -7,6 +7,7 @@ import { coverOf, blogUrl } from "../../lib/model.js";
 import { downloadPath, downloadName } from "../../lib/media.js";
 import { useHotkeys, MOD } from "../../lib/hotkeys.js";
 import { useData } from "../../lib/store.jsx";
+import { PublishTimePicker } from "../PublishTimePicker.jsx";
 import { SignedImage } from "../Media.jsx";
 import { Button, Counter, Field, Kbd, cx } from "../ui.jsx";
 import { MetaSection, MetaRow } from "./Meta.jsx";
@@ -37,18 +38,35 @@ export const hasDraft = (item) => !!item && !!readDraft(item);
  * The website's checks (scripts/check-blog.mjs), computed in the browser for an edited article: the engine's stored
  * result describes the text it saved, not the owner's edit.
  */
-export function clientChecks({ markdown = "", description = "", title = "" }) {
+export function clientChecks({ markdown = "", description = "", title = "" }, { words: knownWords } = {}) {
   const messages = [];
-  const words = countWords(markdown);
+  const words = Number.isFinite(knownWords) && knownWords > 0 ? knownWords : countWords(markdown);
   const sections = (markdown.match(/^##\s+\S/gm) || []).length;
-  if (words < 1000) messages.push(`Only ${words} words; the site needs at least 1,000.`);
-  if (sections !== 8) messages.push(`${sections} "##" sections; the site expects exactly 8.`);
-  if (/\u2014/.test(markdown + description + title)) messages.push("Remove em dashes (\u2014).");
-  if (description.length > 160) messages.push(`Description is ${description.length} characters; the limit is 160.`);
-  if (!/\]\(https:/.test(markdown)) messages.push("Add at least one linked https source.");
-  if (/<\/?[a-z][^>]*>/i.test(markdown)) messages.push("Raw HTML is not allowed.");
-  if (/^ {0,3}\[[^\]]+\]:\s*\S+/m.test(markdown)) messages.push("Use inline links [text](https://...), not reference-style links.");
+  if (words < 1000) messages.push(`${words.toLocaleString("en-IN")} words (minimum 1,000)`);
+  if (sections !== 8) messages.push(`${sections} "##" sections (the site expects exactly 8)`);
+  if (/\u2014/.test(markdown + description + title)) messages.push("Remove em dashes (\u2014)");
+  if (description.length > 160) messages.push(`Description is ${description.length} characters (limit 160)`);
+  if (!/\]\(https:/.test(markdown)) messages.push("Add at least one linked https source");
+  if (/<\/?[a-z][^>]*>/i.test(markdown)) messages.push("Raw HTML is not allowed");
+  if (/^ {0,3}\[[^\]]+\]:\s*\S+/m.test(markdown)) messages.push("Use inline links [text](https://...), not reference-style links");
   return { passed: messages.length === 0, messages, words, sections };
+}
+
+/**
+ * One verdict for the Quality panel, so it can never contradict itself. An edited article (checks.stale) is judged
+ * by the site's rules in the browser alone. Otherwise the engine's stored result must pass AND the same rules must
+ * hold for the stored text, using the engine's word count (it mirrors the site's exact counting).
+ */
+export function blogVerdict(b = {}) {
+  const fm = b.frontmatter || {};
+  const input = { markdown: b.markdown || "", description: fm.description || "", title: fm.title || "" };
+  if (b.checks?.stale) return { ...clientChecks(input), stale: true };
+  const words = Number(b.word_count) || countWords(input.markdown);
+  const local = b.markdown ? clientChecks(input, { words }) : { passed: words >= 1000, messages: words >= 1000 ? [] : [`${words} words (minimum 1,000)`] };
+  const stored = b.checks || {};
+  const messages = [...new Set([...(stored.passed === false ? stored.messages || [] : []), ...local.messages])];
+  if (stored.passed === false && !messages.length) messages.push("The engine's checks did not pass");
+  return { passed: messages.length === 0, messages, words, stale: false };
 }
 
 export function BlogArticle({ item, editing, setEditing }) {
@@ -178,13 +196,13 @@ export function BlogArticle({ item, editing, setEditing }) {
 }
 
 export function BlogMeta({ item, topic }) {
-  const { actions } = useData();
+  const { actions, settings } = useData();
   const b = item.body || {};
   const fm = b.frontmatter || {};
-  const words = b.word_count || countWords(b.markdown);
   const desc = fm.description || "";
-  // After an edit in the dashboard the stored result is stale: re-run the site's rules on the current text.
-  const checks = b.checks?.stale ? { ...clientChecks({ markdown: b.markdown, description: desc, title: fm.title }), stale: true } : b.checks || {};
+  // One verdict: the stored engine result and the site's rules on the current text must agree before it reads green.
+  const checks = blogVerdict(b);
+  const words = checks.words;
   const [when, setWhen] = useState(toISTInput(item.scheduled_for));
   useEffect(() => setWhen(toISTInput(item.scheduled_for)), [item.scheduled_for]);
   const changed = when && fromISTInput(when) !== (item.scheduled_for ? new Date(item.scheduled_for).toISOString() : null);
@@ -194,8 +212,8 @@ export function BlogMeta({ item, topic }) {
     <>
       {(item.status === "approved" || item.status === "pending_review") && (
         <MetaSection title={item.status === "approved" ? "Scheduled" : "Planned publish"}>
-          <input type="datetime-local" aria-label="Publish date and time (IST)" className="input tnum h-10 text-callout" value={when} onChange={(e) => setWhen(e.target.value)} />
-          <div className="mt-2 flex items-center justify-between gap-2">
+          <PublishTimePicker compact idPrefix="meta" value={when} onChange={setWhen} publishDays={settings?.publish_days || []} plannedDay={topic?.planned_publish_date} />
+          <div className="mt-3 flex items-center justify-between gap-2">
             <span className="text-[12px] text-ink-mute">{item.scheduled_for ? `${formatDateTime(item.scheduled_for)} IST` : "Not scheduled"}</span>
             <AnimatePresence>
               {changed && (
@@ -241,11 +259,13 @@ export function BlogMeta({ item, topic }) {
         <MetaRow label="Words"><span className={cx("tnum", words < 1000 && "text-warn")}>{Number(words).toLocaleString("en-IN")}</span></MetaRow>
         <MetaRow label="Read time">{readMinutes(words)} min</MetaRow>
         <MetaRow label="Version">v{item.version || 1}</MetaRow>
-        <div className={cx("mt-2 flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12.5px] font-medium", checks.passed === false ? "bg-warn/10 text-warn" : "bg-ok/10 text-ok")}>
-          {checks.passed === false ? <AlertTriangle className="mt-px h-4 w-4 shrink-0" /> : <CheckCircle2 className="mt-px h-4 w-4 shrink-0" />}
-          <div>
-            {checks.passed === false ? "Site checks need attention" : checks.stale ? "Your edit passes the website's checks" : "Passes the website's blog checks"}
-            {checks.messages?.length > 0 && <ul className="mt-1 list-disc pl-4 font-normal">{checks.messages.map((m, i) => <li key={i}>{m}</li>)}</ul>}
+        <div className={cx("mt-2 flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12.5px] font-medium", checks.passed ? "bg-ok/10 text-ok" : "bg-warn/10 text-warn")} data-testid="blog-checks">
+          {checks.passed ? <CheckCircle2 className="mt-px h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-px h-4 w-4 shrink-0" />}
+          <div className="min-w-0">
+            {checks.passed
+              ? (checks.stale ? "Your edit passes the website's checks" : "Passes the website's blog checks")
+              : checks.messages.length === 1 ? `Check before approving: ${checks.messages[0]}` : "Check before approving"}
+            {!checks.passed && checks.messages.length > 1 && <ul className="mt-1 list-disc pl-4 font-normal">{checks.messages.map((m, i) => <li key={i}>{m}</li>)}</ul>}
           </div>
         </div>
       </MetaSection>

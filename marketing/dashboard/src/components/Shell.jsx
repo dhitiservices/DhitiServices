@@ -52,10 +52,33 @@ const THEME_OPTIONS = [
   { value: "system", label: "Auto", icon: Monitor },
 ];
 
+/** "just now" | "4 min ago" | "2 h ago" | "3 d ago": short enough for the sidebar footer. */
+function ago(d) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  if (m < 60 * 24) return `${Math.round(m / 60)} h ago`;
+  return `${Math.round(m / 1440)} d ago`;
+}
+
 function SyncBadge() {
-  const { live, lastSync } = useData();
+  const { live, lastSync, status, syncError } = useData();
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
+  // A failed load or refresh always wins over the Live dot: the data on screen may be stale.
+  if (status === "error" || syncError) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full bg-warn/[0.12] px-2 py-0.5 text-[11.5px] font-medium text-warn"
+        title={syncError?.message || "The last refresh failed. Retrying every 30 seconds."}
+        role="status"
+        data-testid="sync-offline"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-warn" />
+        {lastSync ? `Offline · synced ${ago(lastSync)}` : "Offline"}
+      </span>
+    );
+  }
   return (
     <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-mute" title={live ? "Live updates on" : "Refreshing every 30 seconds"}>
       <span className={cx("h-1.5 w-1.5 rounded-full", live ? "bg-ok shadow-[0_0_0_3px_rgb(var(--ok)/0.18)]" : "bg-ink-faint")} />
@@ -76,7 +99,7 @@ export function Sidebar({ onSearch, onSignOut, demo }) {
       <div className="flex items-center gap-2.5 px-5 pb-4 pt-5">
         <Logo className="h-[22px]" />
         <span className="mt-[3px] text-[13px] font-semibold tracking-[-0.01em] text-ink-mute">Studio</span>
-        {demo && <span className="ml-auto mt-0.5 rounded-md bg-violet/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet">Demo</span>}
+        {demo && <span className="ml-auto mt-0.5 rounded-md bg-ink/[0.06] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-mute">Demo</span>}
       </div>
 
       <div className="px-3">

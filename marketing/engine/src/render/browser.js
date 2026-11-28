@@ -242,6 +242,71 @@ export async function loadPhoto(file, { width, height, focus, maxEdge = 2160 } =
   return img.extract({ left, top, width: cw, height: ch }).resize({ width, height, fit: 'fill' });
 }
 
+/**
+ * Crop rectangle (in source pixels) that loadPhoto uses for a cover crop of a iw x ih image to width x height
+ * around an explicit focus. Returns null for smart-crop strategies (attention/entropy), whose crop is not known
+ * in advance: set an explicit focus when a subject box must be checked.
+ */
+export function coverCropRect(iw, ih, { width, height, focus, zoom = 1 }) {
+  const f = parseFocus(focus);
+  if (typeof f === 'string') return null;
+  const z = Math.max(1, Number(zoom) || 1);
+  const scale = Math.max(width / iw, height / ih) * z;
+  const cw = Math.min(iw, width / scale);
+  const ch = Math.min(ih, height / scale);
+  const left = Math.min(iw - cw, Math.max(0, f.x * iw - cw / 2));
+  const top = Math.min(ih - ch, Math.max(0, f.y * ih - ch / 2));
+  return { left, top, width: cw, height: ch, scale: width / cw };
+}
+
+/** Same as coverCropRect for video clips: ffmpeg scales to fill (times zoom) and crops at (spare * focus). */
+export function clipCropRect(iw, ih, { width, height, focus, zoom = 1 }) {
+  const f = parseFocus(focus);
+  const fx = typeof f === 'object' ? f.x : 0.5;
+  const fy = typeof f === 'object' ? f.y : 0.5;
+  const z = Math.max(1, Number(zoom) || 1);
+  const scale = Math.max(width / iw, height / ih) * z;
+  const sw = iw * scale, sh = ih * scale;
+  const left = ((sw - width) * fx) / scale, top = ((sh - height) * fy) / scale;
+  return { left, top, width: width / scale, height: height / scale, scale };
+}
+
+/**
+ * Normalises a subject box ({x, y, w, h} as fractions of the SOURCE image or video frame, e.g. the face).
+ * Returns null when absent or malformed.
+ */
+export function parseSubject(subject) {
+  if (!subject || typeof subject !== 'object') return null;
+  const n = (v) => Number(v);
+  const b = { x: n(subject.x), y: n(subject.y), w: n(subject.w), h: n(subject.h) };
+  if (![b.x, b.y, b.w, b.h].every(Number.isFinite) || b.w <= 0 || b.h <= 0) return null;
+  return b;
+}
+
+/** Maps a subject box through a crop rect into output pixels ({left, top, width, height}). */
+export function subjectInOutput(subject, crop, iw, ih) {
+  const b = parseSubject(subject);
+  if (!b || !crop) return null;
+  const x0 = (b.x * iw - crop.left) * crop.scale, y0 = (b.y * ih - crop.top) * crop.scale;
+  return { left: Math.round(x0), top: Math.round(y0), width: Math.round(b.w * iw * crop.scale), height: Math.round(b.h * ih * crop.scale) };
+}
+
+/** Pixel size of a photo after EXIF rotation. */
+export async function photoSize(file) {
+  const m = await sharp(file, { failOn: 'none', limitInputPixels: false }).metadata();
+  const swap = (m.orientation || 1) >= 5;
+  return { width: swap ? m.height : m.width, height: swap ? m.width : m.height };
+}
+
+/**
+ * HTML for an invisible subject marker. The render pass reports any text line that crosses it as a collision.
+ * rect: output-pixel box relative to the positioned container (null -> '').
+ */
+export function subjectMarker(rect, label = 'subject') {
+  if (!rect) return '';
+  return `<div data-subject="${escapeHtml(label)}" aria-hidden="true" style="position:absolute;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;pointer-events:none;visibility:hidden"></div>`;
+}
+
 const photoCache = new Map();
 /**
  * Local photo file -> JPEG data URI, downscaled to `maxEdge` px on the long edge (default 2160) or cover-cropped
@@ -388,9 +453,71 @@ const SETTLE_AND_FIT = async () => {
       report.overflow.push({ box: box.dataset.fitBox || box.className, scale });
     }
   }
+  // Collision checks (v3.2): text over a declared subject (face) box, and highlight bands over the glyphs of the
+  // line above (descender clipping). Both are reported; the renderers turn them into errors.
+  report.collisions = [];
+  const lineRects = (root) => {
+    const out = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.nodeValue.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) if (r.width > 1 && r.height > 1) out.push({ r, el: n.parentElement });
+    }
+    return out;
+  };
+  const hit = (a, b, pad = 0) => a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
+  const scopes = [...document.querySelectorAll('[data-text-scope]')];
+  const textScopes = scopes.length ? scopes : [...document.querySelectorAll('h1, h2, blockquote, p, .eyebrow, .v-kicker, .label')];
+  for (const subj of document.querySelectorAll('[data-subject]')) {
+    const s = subj.getBoundingClientRect();
+    for (const scope of textScopes) {
+      for (const { r } of lineRects(scope)) {
+        if (hit(r, s)) {
+          report.collisions.push({ kind: 'text-over-subject', subject: subj.dataset.subject, text: scope.textContent.trim().slice(0, 60) });
+          break;
+        }
+      }
+    }
+  }
+  for (const block of document.querySelectorAll('h1, h2, blockquote')) {
+    const hls = [...block.querySelectorAll('.hl')];
+    if (!hls.length) continue;
+    const cs = getComputedStyle(hls[0]);
+    if (cs.backgroundImage === 'none' && (cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent')) continue;
+    const fs = parseFloat(getComputedStyle(block).fontSize) || 16;
+    const cutTop = (parseFloat(cs.getPropertyValue('--hl-cut-top')) || 0) * fs;
+    const lines = lineRects(block);
+    for (const h of hls) {
+      for (const hr of h.getClientRects()) {
+        const bandTop = hr.top + cutTop;
+        for (const { r, el } of lines) {
+          if (h.contains(el) && Math.abs(r.top - hr.top) < 2) continue; // same fragment
+          if (r.top >= hr.top - 2) continue; // only lines above
+          if (r.right <= hr.left || r.left >= hr.right) continue;
+          const glyphBottom = r.bottom - 0.04 * fs; // content box bottom minus the gap below descenders (Inter)
+          if (bandTop < glyphBottom - 0.5) {
+            report.collisions.push({ kind: 'highlight-over-line-above', text: h.textContent.trim().slice(0, 40), overlap_px: +(glyphBottom - bandTop).toFixed(1) });
+            break;
+          }
+        }
+      }
+    }
+  }
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   return report;
 };
+
+/** Throws when a render reported a collision (text over a subject's face, or a highlight clipping the line above). */
+export function assertNoCollisions(report, where) {
+  const c = report?.collisions || [];
+  if (!c.length) return;
+  const msg = c.map((x) => (x.kind === 'text-over-subject'
+    ? `the text "${x.text}" crosses the ${x.subject} box (move focus/zoom, pick another photo, or shorten the text)`
+    : `the highlight on "${x.text}" overlaps the line above by ${x.overlap_px}px`)).join('; ');
+  throw new Error(`${where}: ${msg}`);
+}
 
 /**
  * Opens a page of the given size and calls fn(render). render(html, {transparent, type, quality}) returns

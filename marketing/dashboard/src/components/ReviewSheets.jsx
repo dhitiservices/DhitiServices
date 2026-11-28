@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarClock, Check, Send } from "lucide-react";
+import { Check, Send } from "lucide-react";
 import { Sheet } from "./Sheet.jsx";
 import { Button, Kbd, cx } from "./ui.jsx";
 import { MOD } from "../lib/hotkeys.js";
-import { toISTInput, fromISTInput, formatDateTime, dateOnly, addDays, todayIST } from "../lib/format.js";
+import { toISTInput, fromISTInput, formatDateTime, addDays, todayIST } from "../lib/format.js";
+import { useData } from "../lib/store.jsx";
+import { PublishTimePicker } from "./PublishTimePicker.jsx";
 
 function defaultSlot(item, topic) {
   if (item.scheduled_for && new Date(item.scheduled_for) > new Date()) return item.scheduled_for;
@@ -21,13 +23,9 @@ export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
   useEffect(() => {
     if (open && latest.current.item) setValue(toISTInput(defaultSlot(latest.current.item, latest.current.topic)));
   }, [open, item?.id]);
+  const { settings } = useData();
   const iso = fromISTInput(value);
   const past = iso && new Date(iso) < new Date(Date.now() - 60000);
-  const presets = [
-    topic?.planned_publish_date && { label: "Planned slot", v: `${topic.planned_publish_date}T10:00` },
-    { label: "Tomorrow 10:00", v: `${addDays(todayIST(), 1)}T10:00` },
-    { label: "Next Monday", v: (() => { const t = new Date(dateOnly(todayIST())); const add = ((8 - t.getUTCDay()) % 7) || 7; return `${addDays(todayIST(), add)}T10:00`; })() },
-  ].filter(Boolean);
 
   const submit = () => { onApprove(iso); onClose(); };
 
@@ -45,20 +43,21 @@ export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
         </>
       }
     >
-      <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <label className="block">
-          <span className="mb-1.5 flex items-center gap-1.5 text-callout font-semibold text-ink-soft"><CalendarClock className="h-4 w-4" /> Publish at (IST)</span>
-          <input data-autofocus type="datetime-local" className="input tnum h-11" value={value} onChange={(e) => setValue(e.target.value)} />
-        </label>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {presets.map((p) => (
-            <button type="button" key={p.label} onClick={() => setValue(p.v)} className={cx("h-7 rounded-full px-3 text-[12.5px] font-semibold transition-colors", value === p.v ? "bg-ink text-canvas" : "bg-ink/[0.05] text-ink-soft hover:bg-ink/[0.09]")}>
-              {p.label}
-            </button>
-          ))}
-        </div>
+      {/* Enter approves from anywhere in the sheet (the footer shows ↵); Space picks a day or time. */}
+      <form
+        onSubmit={(e) => { e.preventDefault(); if (iso) submit(); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && e.target.tagName !== "SELECT" && iso) { e.preventDefault(); submit(); } }}
+      >
+        <PublishTimePicker
+          value={value}
+          onChange={setValue}
+          publishDays={settings?.publish_days || []}
+          plannedDay={topic?.planned_publish_date}
+          idPrefix="approve"
+          autoFocus
+        />
         <div className={cx("mt-4 rounded-xl px-3.5 py-3 text-callout", past ? "bg-warn/10 text-warn" : "bg-ink/[0.04] text-ink-soft")}>
-          {iso ? (past ? "That time has passed, so it publishes on the next publisher run." : `Goes live ${formatDateTime(iso)} IST.`) : "Pick a date and time."}
+          {iso ? (past ? "That time has passed, so it publishes on the next publisher run." : <>Goes live <span className="font-semibold text-ink">{formatDateTime(iso)} IST</span>.</>) : "Pick a day and time."}
         </div>
         <button type="submit" className="hidden" />
       </form>

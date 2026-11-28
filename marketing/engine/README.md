@@ -43,7 +43,7 @@ Every command prints **one JSON value on stdout** and writes logs to stderr. Exi
 | `make-graphic --parent B --spec graphic.json [--item I]` | 1080x1080 and 1200x627 PNGs |
 | `make-video --parent B --spec video.json [--item I] [--voiceover vo.mp3 --voiceover-asset id]` | 1080x1920 H.264 reel and a JPEG poster. With `voiceover_script` and no voiceover, the item waits in `awaiting_voiceover` |
 | `make-video --item I --voiceover vo.mp3 [--voiceover-asset id]` | re-renders from the stored sources (no spec and no re-download needed). Scenes are re-timed to the recording in proportion to each scene's `vo_line` word count (lead 0.25 s, tail 0.45 s, minimum 1.5 s per scene, up to 90 s); the voiceover is loudness-normalised to -14 LUFS (true peak -1.5 dB) and replaces the silent track; clip audio is always muted. The item returns to `pending_review` |
-| `preview carousel\|graphic\|video --spec f --out dir` / `preview cover --cover photo --out dir [--md draft.md]` | renders locally without uploading, for self-review |
+| `preview carousel\|graphic\|video --spec f --out dir [--publish-date YYYY-MM-DD]` / `preview cover --cover photo --out dir [--md draft.md]` | renders locally without uploading, for self-review. Prints `warnings` (dates without a year, dates before the publish date); video previews also write `safe-zone-sheet.jpg` (one frame per scene with the platform UI zones shaded) |
 | `topic --id T --status ready` · `job claim [--kinds regenerate]` · `job finish --id J --status done` · `item --id I` | bookkeeping |
 | `publish [--dry-list]` | publishes the approved blogs that are due or have a `publish_now` job |
 
@@ -72,8 +72,27 @@ taken from `image`. Keywords and FAQ belong in `--meta meta.json` (extra frontma
 needs at least one `](https://...)` source. Link related posts as `../<slug>/`, and those posts must exist.
 
 **Stock metadata** (`--stock`, or `"stock"` next to every `photo`/`clip` in a spec):
-`{"id":"<magnific id>","title":"...","url_preview":"...","author":"...","license":"..."}`. It is stored in
-`assets.meta.stock` and in the body as the licence trail. Entries marked AI-generated are refused.
+`{"id":"<magnific id>","title":"<provider title, verbatim>","url_preview":"...","author":"...","license":"...","note":"<editorial note>"}`.
+It is stored in `assets.meta.stock` (on every asset that embeds the file, carousel slides included) and in the body
+as the licence trail. Entries marked AI-generated are refused.
+
+**Set rules enforced by `make-*` (v3.2):** a creative may not use a stock id that the blog cover or another
+creative of the same blog already uses (`UsageError`, nothing is saved). The JSON result carries `warnings` for
+dates in the copy that have no year or fall before the blog's `scheduled_for`.
+
+**Spec fields added in v3.2** (all optional; older specs render as before except where noted):
+- Every photo/clip with a person: `subject` `{x,y,w,h}` (fractions of the source photo or clip frame, the face box)
+  plus an explicit `{x,y}` `focus`. The render fails if any text line crosses the mapped box (carousel slides,
+  graphics, reel scenes). Reel highlight boxes are checked against the glyphs of the line above.
+- Carousel: no big numerals (one numbering system: the header counter; eyebrows may say "Step 1"); non-cover slides
+  are top-anchored at a fixed y. CTA slides render per platform: PNGs (Instagram) end with `cta_instagram` (default
+  "Full guide: link in bio") and `save_line`; the PDF (LinkedIn) keeps the URL button.
+- Graphic: stat `compare` `[{label, value, active?}]` (2 or 3 cells); tip `chips` (up to 10 short labels).
+- Video: scene `zoom` (1 to 3, punch into a clip around `focus`), scene `logo` ("left"/"right"; default: the calmer
+  top corner, or away from the subject), body `outro_text` (verb-led end-card line) and `outro_vo_line` (spoken over
+  the end card; with a voiceover the card takes its share of the recording). Default `transition` is `cut`: hard
+  cuts between scenes and one fade to black into the end card. The hook's text is visible from frame 0 (only its
+  highlight animates in); text sits in the band y 770 to 1240, clear of the bottom 35% platform UI.
 
 **Specs** follow the `content_items.body` shapes in ARCHITECTURE.md. `photo`/`clip` are local paths, resolved
 relative to the spec file. The engine uploads each source to `items/<id>/src/` (photos at 2560 px or less; clips

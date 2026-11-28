@@ -4,13 +4,17 @@
 //
 // Pipeline (robust by construction: every scene is encoded on its own, then joined):
 //   1. Normalise scenes (duration 1.5-12 s, total incl. 3 s outro clamped to 20-40 s).
-//   2. Playwright renders transparent overlays: one scrim (gradients + small wordmark), one text layer per scene,
-//      the outro background and the outro foreground. Text stays inside x 90..920 (clear of the Reels action rail), y 280..1500.
+//   2. Playwright renders transparent overlays: two scrims (gradients + small wordmark top-left or top-right; each
+//      scene takes the corner with the lower subject saliency, or the side away from a declared subject box), one text
+//      layer per scene, the outro background and the outro foreground. Text sits in the band y 770..1240, x 90..920:
+//      clear of the Reels/LinkedIn bottom UI (bottom ~35%) and of the right-hand action rail.
 //   3. ffmpeg encodes each scene: stock clip (scaled + cropped to fill, trimmed, looped only if too short) or photo
-//      (Ken Burns via zoompan on a 2x still), scrim on top, text fading in with a slight rise, fading out before the cut.
-//   4. Scenes + outro are joined with crossfades (xfade); if that fails, with hard cuts (concat demuxer). Final encode
-//      is a single libx264 pass with platform-friendly settings, BT.709 tagged.
-//   5. Poster = a frame from the first scene once its text is fully visible (JPEG).
+//      (Ken Burns via zoompan on a 2x still), scrim on top. The hook's text is fully visible from frame 0 and only its
+//      highlight animates in; later scenes' text rises in quickly. scene.zoom (>= 1) punches into a clip (4K sources
+//      stay sharp) and scene.subject ({x,y,w,h} of the source frame) fails the render if text would cross the face.
+//   4. Default transition "cut": hard cuts between content scenes on the voiceover beats, one short fade to black into
+//      the outro only. Other xfade transitions remain available. Final encode is a single libx264 pass, BT.709.
+//   5. Poster = a frame from the first scene with its text and highlight fully visible (JPEG).
 //   6. Voiceover (v3, optional body.voiceover_path): scenes are re-timed so the content matches the voiceover length,
 //      each scene's share proportional to the word count of its vo_line; the voiceover is loudness-normalised to
 //      -14 LUFS (true peak -1.5 dB) and becomes the only audio track (stock clip audio is always muted).
@@ -22,7 +26,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import sharp from 'sharp';
 import ffmpegStatic from 'ffmpeg-static';
-import { withPage, resolveBrand, htmlDocument, richText, cleanText, plainText, escapeHtml, loadPhoto, parseFocus } from './browser.js';
+import { withPage, resolveBrand, htmlDocument, richText, cleanText, plainText, escapeHtml, loadPhoto, parseFocus, coverCropRect, clipCropRect, subjectInOutput, subjectMarker, photoSize, assertNoCollisions } from './browser.js';
 import { log } from '../log.js';
 
 export const VIDEO_SIZE = Object.freeze({ width: 1080, height: 1920 });
@@ -31,10 +35,14 @@ const H = VIDEO_SIZE.height;
 const FPS = 30;
 const OUTRO_SECONDS = 3;
 const XFADE = 0.4; // crossfade length (s)
-const TEXT_IN_AT = 0.35; // text starts appearing (s into scene)
-const TEXT_IN_DUR = 0.6;
+const TEXT_IN_AT = 0.12; // text starts appearing (s into scene); the hook's text is visible from frame 0
+const TEXT_IN_DUR = 0.4;
 const TEXT_OUT_DUR = 0.3;
-const RISE_PX = 48;
+const RISE_PX = 32;
+const HOOK_HL_AT = 0.1; // hook: the highlight box fades in over the already visible text
+const HOOK_HL_DUR = 0.4;
+// Wordmark boxes (output px) for the two allowed corners, used for the saliency pick.
+const LOGO_BOX = { left: { x: 90, y: 270, w: 260, h: 90 }, right: { x: 730, y: 270, w: 260, h: 90 } };
 const MIN_TOTAL = 20;
 const MAX_TOTAL = 40;
 const MAX_SCENES = 12;
@@ -43,6 +51,7 @@ const VO_LEAD = 0.25; // voiceover starts this long after the first frame (s)
 const VO_TAIL = 0.45; // breathing room after the last word before the outro (s)
 const SITE = 'www.dhitiservices.com';
 const TRANSITIONS = new Set(['fade', 'fadeblack', 'dissolve', 'smoothleft', 'smoothup', 'slideleft', 'slideup', 'wipeleft', 'circleopen', 'cut']);
+const DEFAULT_TRANSITION = 'cut';
 
 export const FFMPEG_PATH = process.env.FFMPEG_PATH || ffmpegStatic;
 
@@ -119,12 +128,23 @@ function planScenes(body, voDuration = null) {
       clipStart: Number.isFinite(Number(s.clip_start)) ? Math.max(0, Number(s.clip_start)) : null,
       photo: clip ? null : photo,
       focus: s.focus ?? null,
+      zoom: Math.min(3, Math.max(1, Number(s.zoom) || 1)),
+      subject: s.subject ?? null,
+      logo: s.logo === 'left' || s.logo === 'right' ? s.logo : null,
     };
   });
+  scenes.outro = OUTRO_SECONDS;
   if (voDuration) {
     // Re-time to the voiceover: content = lead + voiceover + tail, split by each scene's vo_line word count
     // (scenes without a vo_line keep their relative duration as weight). Minimum 1.5 s per scene.
-    const want = Math.min(MAX_TOTAL_VO - OUTRO_SECONDS, VO_LEAD + voDuration + VO_TAIL);
+    // An outro_vo_line (the spoken call to action) is voiced over the end card: the outro takes its share of the
+    // recording (at least OUTRO_SECONDS) and the scenes share the rest.
+    const outroWords = words(body?.outro_vo_line);
+    const allWords = raw.slice(0, MAX_SCENES).reduce((a, s) => a + words(s.vo_line), 0) + outroWords;
+    const frac = outroWords && allWords ? outroWords / allWords : 0;
+    if (frac) scenes.outro = Math.max(OUTRO_SECONDS, frames(voDuration * frac + VO_TAIL + 0.3) / FPS);
+    // Content ends where the outro's words start (speech rate assumed even across the script).
+    const want = Math.min(MAX_TOTAL_VO - scenes.outro, frac ? VO_LEAD + voDuration * (1 - frac) : VO_LEAD + voDuration + VO_TAIL);
     const wc = raw.slice(0, MAX_SCENES).map((s) => words(s.vo_line));
     const totalWords = wc.reduce((a, b) => a + b, 0);
     const baseDur = scenes.reduce((a, s) => a + s.duration, 0);
@@ -159,30 +179,113 @@ function planScenes(body, voDuration = null) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Scene geometry: where the subject lands, which corner the wordmark takes
+// ---------------------------------------------------------------------------------------------
+
+/** Source size + crop rect (source px -> output px) of a scene's first frame. */
+async function sceneGeometry(scene, clipInfo) {
+  if (scene.clip) {
+    const info = clipInfo.get(scene.clip);
+    if (!info?.width) return null;
+    return { iw: info.width, ih: info.height, crop: clipCropRect(info.width, info.height, { width: W, height: H, focus: scene.focus, zoom: scene.zoom }) };
+  }
+  if (!scene.photo) return null;
+  const { width: iw, height: ih } = await photoSize(scene.photo);
+  // Stills are prepared at 2x and Ken Burns starts at (about) zoom 1: map through the 2x crop, then halve.
+  const c = coverCropRect(iw, ih, { width: W * 2, height: H * 2, focus: scene.focus });
+  if (!c) return { iw, ih, crop: null };
+  return { iw, ih, crop: { ...c, scale: c.scale / 2 } };
+}
+
+/** Small grey sample (W/4 x H/4) of a scene's first frame, for the saliency pick. */
+async function sampleFrame(scene, dir) {
+  const w = W / 4, h = H / 4;
+  if (scene.clip) {
+    const f = parseFocus(scene.focus);
+    const fx = typeof f === 'object' ? f.x : 0.5, fy = typeof f === 'object' ? f.y : 0.5;
+    const out = path.join(dir, `sample-${scene.index}.png`);
+    const z = scene.zoom || 1;
+    await runFfmpeg(['-y', '-loglevel', 'error', '-ss', String(r3(scene.clipStart ?? 0)), '-i', scene.clip, '-frames:v', '1',
+      '-vf', `scale=${Math.round(w * z)}:${Math.round(h * z)}:force_original_aspect_ratio=increase,crop=${w}:${h}:(iw-${w})*${fx}:(ih-${h})*${fy}`, out], { label: 'sample' });
+    return sharp(out).greyscale().raw().toBuffer({ resolveWithObject: true });
+  }
+  if (scene.photo) return (await loadPhoto(scene.photo, { width: w, height: h, focus: scene.focus })).greyscale().raw().toBuffer({ resolveWithObject: true });
+  return null;
+}
+
+/** Detail (mean absolute Laplacian) + brightness penalty inside an output-px box of a grey sample. */
+function cornerBusyness(sample, box) {
+  const { data, info } = sample;
+  const k = info.width / W;
+  const x0 = Math.max(1, Math.round(box.x * k)), x1 = Math.min(info.width - 2, Math.round((box.x + box.w) * k));
+  const y0 = Math.max(1, Math.round(box.y * k)), y1 = Math.min(info.height - 2, Math.round((box.y + box.h) * k));
+  let lap = 0, lum = 0, n = 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const i = y * info.width + x;
+      const v = data[i];
+      lap += Math.abs(4 * v - data[i - 1] - data[i + 1] - data[i - info.width] - data[i + info.width]);
+      lum += v;
+      n++;
+    }
+  }
+  if (!n) return 0;
+  return lap / n + Math.max(0, lum / n - 150) * 0.25; // a white wordmark also needs a darker patch
+}
+
+const overlaps = (a, b) => a && b && a.left < b.x + b.w && a.left + a.width > b.x && a.top < b.y + b.h && a.top + a.height > b.y;
+
+async function pickLogoCorner(scene, subjectRect, dir) {
+  if (scene.logo) return scene.logo;
+  const hitL = overlaps(subjectRect, LOGO_BOX.left), hitR = overlaps(subjectRect, LOGO_BOX.right);
+  if (hitL && !hitR) return 'right';
+  if (hitR && !hitL) return 'left';
+  try {
+    const sample = await sampleFrame(scene, dir);
+    if (!sample) return 'left';
+    const l = cornerBusyness(sample, LOGO_BOX.left), r = cornerBusyness(sample, LOGO_BOX.right);
+    return r + 1.5 < l ? 'right' : 'left'; // prefer the left (reading order) unless the right is clearly calmer
+  } catch (err) {
+    log.warn(`renderVideo: saliency sample failed for scene ${scene.index + 1}: ${err.message.split('\n')[0]}`);
+    return 'left';
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Overlays (Playwright)
 // ---------------------------------------------------------------------------------------------
 
-async function renderOverlays(scenes, brand, dir, body) {
+async function renderOverlays(scenes, brand, dir, body, geo) {
   const css = ['creative.css', 'video.css'];
   const doc = (body, transparent = true) => htmlDocument({ body, css, colors: brand.colors, width: W, height: H, transparent });
-  const files = { scrim: path.join(dir, 'scrim.png'), text: [], outroBg: path.join(dir, 'outro-bg.png'), outroFg: path.join(dir, 'outro-fg.png'), fallback: null };
+  const files = { scrim: {}, text: [], hookBase: null, outroBg: path.join(dir, 'outro-bg.png'), outroFg: path.join(dir, 'outro-fg.png'), fallback: null };
   await withPage(VIDEO_SIZE, async (render) => {
-    const scrim = await render(doc(`<div class="v v-scrim"><div class="v-brand"><img src="${brand.logo.reverse}" alt="Dhiti"></div></div>`), { transparent: true });
-    await fs.writeFile(files.scrim, scrim.buffer);
+    for (const side of ['left', 'right']) {
+      const scrim = await render(doc(`<div class="v v-scrim"><div class="v-brand ${side}"><img src="${brand.logo.reverse}" alt="Dhiti"></div></div>`), { transparent: true });
+      files.scrim[side] = path.join(dir, `scrim-${side}.png`);
+      await fs.writeFile(files.scrim[side], scrim.buffer);
+    }
     for (const s of scenes) {
       if (!s.text) {
         files.text.push(null);
         continue;
       }
-      const html = doc(`<div class="v"><div class="v-safe" data-fit-box="scene-${s.index + 1}" data-fit-min="0.45">
+      const inner = (extra = '') => `<div class="v${extra}">${subjectMarker(geo[s.index]?.subjectRect, 'face')}<div class="v-safe" data-fit-box="scene-${s.index + 1}" data-fit-min="0.45" data-text-scope>
         ${s.eyebrow ? `<div class="v-kicker">${escapeHtml(s.eyebrow)}</div>` : ''}
         <h1 class="v-text${s.index === 0 ? ' hook' : ''}">${richText(s.text)}</h1>
         <div class="v-rule"></div>
-      </div></div>`);
-      const { buffer } = await render(html, { transparent: true });
+      </div></div>`;
+      const { buffer, report } = await render(doc(inner()), { transparent: true });
+      assertNoCollisions(report, `reel scene ${s.index + 1}`);
       const f = path.join(dir, `text-${s.index}.png`);
       await fs.writeFile(f, buffer);
       files.text.push(f);
+      if (s.index === 0) {
+        // Hook: the same text without highlight boxes, visible from frame 0; the boxed version fades in over it.
+        const base = await render(doc(inner(' no-hl-box')), { transparent: true });
+        files.hookBase = path.join(dir, 'text-0-base.png');
+        await fs.writeFile(files.hookBase, base.buffer);
+      }
     }
     const bg = await render(doc(`<div class="v v-outro-bg"><img class="watermark" src="${brand.mark.white}" alt=""></div>`, false));
     await fs.writeFile(files.outroBg, bg.buffer);
@@ -222,16 +325,14 @@ async function prepareStill(src, out, focus) {
   return out;
 }
 
-function textFilters(len, fadeOutEnd) {
-  const outAt = Math.max(TEXT_IN_AT + TEXT_IN_DUR + 0.2, fadeOutEnd - TEXT_OUT_DUR);
+/** Text layer animation. fadeOutEnd = null keeps the text up to the last frame (hard cut). */
+function textFilters(fadeOutEnd) {
   const rise = `if(lt(t,${TEXT_IN_AT}),${RISE_PX},if(lt(t,${TEXT_IN_AT + TEXT_IN_DUR}),${RISE_PX}*pow(1-(t-${TEXT_IN_AT})/${TEXT_IN_DUR},3),0))`;
-  return {
-    prep: `format=rgba,fade=t=in:st=${TEXT_IN_AT}:d=${TEXT_IN_DUR}:alpha=1,fade=t=out:st=${r3(outAt)}:d=${TEXT_OUT_DUR}:alpha=1`,
-    y: `'${rise}'`,
-  };
+  const out = fadeOutEnd == null ? '' : `,fade=t=out:st=${r3(Math.max(TEXT_IN_AT + TEXT_IN_DUR + 0.2, fadeOutEnd - TEXT_OUT_DUR))}:d=${TEXT_OUT_DUR}:alpha=1`;
+  return { prep: `format=rgba,fade=t=in:st=${TEXT_IN_AT}:d=${TEXT_IN_DUR}:alpha=1${out}`, y: `'${rise}'` };
 }
 
-async function encodeScene(scene, len, { overlays, dir, clipCursor, fadeOutEnd, clipInfo }) {
+async function encodeScene(scene, len, { overlays, dir, clipCursor, fadeOutEnd, clipInfo, logoSide }) {
   const out = path.join(dir, `scene-${scene.index}.mp4`);
   const n = frames(len);
   const args = ['-y', '-loglevel', 'error'];
@@ -251,7 +352,8 @@ async function encodeScene(scene, len, { overlays, dir, clipCursor, fadeOutEnd, 
     const f = parseFocus(scene.focus);
     const fx = typeof f === 'object' ? f.x : 0.5;
     const fy = typeof f === 'object' ? f.y : 0.5;
-    bgChain = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}:(iw-${W})*${fx}:(ih-${H})*${fy},setsar=1,fps=${FPS},format=gbrp,trim=end_frame=${n},setpts=PTS-STARTPTS[bg]`;
+    const zw = Math.round(W * scene.zoom), zh = Math.round(H * scene.zoom);
+    bgChain = `[0:v]scale=${zw}:${zh}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}:(iw-${W})*${fx}:(ih-${H})*${fy},setsar=1,fps=${FPS},format=gbrp,trim=end_frame=${n},setpts=PTS-STARTPTS[bg]`;
   } else {
     const still = await prepareStill(scene.photo || overlays.fallback, path.join(dir, `still-${scene.index}.jpg`), scene.photo ? scene.focus : 'center');
     const m = MOTIONS[scene.index % MOTIONS.length];
@@ -262,12 +364,19 @@ async function encodeScene(scene, len, { overlays, dir, clipCursor, fadeOutEnd, 
     args.push('-i', still);
     bgChain = `[0:v]zoompan=z='${z}':x='${x}':y='${y}':d=${n}:s=${W}x${H}:fps=${FPS},setsar=1,format=gbrp,trim=end_frame=${n},setpts=PTS-STARTPTS[bg]`;
   }
-  args.push('-loop', '1', '-framerate', String(FPS), '-t', String(r3(len)), '-i', overlays.scrim);
+  args.push('-loop', '1', '-framerate', String(FPS), '-t', String(r3(len)), '-i', overlays.scrim[logoSide] || overlays.scrim.left);
   const textFile = overlays.text[scene.index];
   const chains = [bgChain, `[1:v]format=rgba[scrim]`, `[bg][scrim]overlay=0:0:format=gbrp:shortest=0[b1]`];
-  if (textFile) {
+  if (textFile && scene.index === 0 && overlays.hookBase) {
+    // Hook: base text static from frame 0; the highlighted version fades in over it (only the boxes change).
+    args.push('-loop', '1', '-framerate', String(FPS), '-t', String(r3(len)), '-i', overlays.hookBase);
     args.push('-loop', '1', '-framerate', String(FPS), '-t', String(r3(len)), '-i', textFile);
-    const t = textFilters(len, fadeOutEnd);
+    const outFade = fadeOutEnd == null ? '' : `,fade=t=out:st=${r3(Math.max(1, fadeOutEnd - TEXT_OUT_DUR))}:d=${TEXT_OUT_DUR}:alpha=1`;
+    chains.push(`[2:v]format=rgba${outFade}[base]`, `[3:v]format=rgba,fade=t=in:st=${HOOK_HL_AT}:d=${HOOK_HL_DUR}:alpha=1${outFade}[hl]`,
+      `[b1][base]overlay=0:0:format=gbrp[b2]`, `[b2][hl]overlay=0:0:format=gbrp[b3]`, `[b3]${TO_YUV}[out]`);
+  } else if (textFile) {
+    args.push('-loop', '1', '-framerate', String(FPS), '-t', String(r3(len)), '-i', textFile);
+    const t = textFilters(fadeOutEnd);
     chains.push(`[2:v]${t.prep}[txt]`, `[b1][txt]overlay=x=0:y=${t.y}:format=gbrp:eval=frame[b2]`, `[b2]${TO_YUV}[out]`);
   } else {
     chains.push(`[b1]${TO_YUV}[out]`);
@@ -332,6 +441,19 @@ async function joinXfade(parts, lens, transition, out) {
   return total;
 }
 
+/** Hard cuts between content scenes, then one fade to black into the outro (the last content part carries XFADE extra). */
+async function joinCutsThenFade(parts, lens, out, dir) {
+  const k = parts.length - 1; // content parts; the last part is the outro
+  const contentLen = lens.slice(0, k).reduce((a, b) => a + b, 0);
+  // 1) Content scenes share one intermediate encoding, so the concat demuxer joins them losslessly (stream copy).
+  const list = path.join(dir, 'content.txt');
+  await fs.writeFile(list, parts.slice(0, k).map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n') + '\n');
+  const content = path.join(dir, 'content.mp4');
+  await runFfmpeg(['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', content], { label: 'join (content cuts)' });
+  // 2) One fade to black into the end card.
+  return joinXfade([content, parts[k]], [contentLen, lens[k]], 'fadeblack', out);
+}
+
 async function joinConcat(parts, lens, out, dir) {
   const list = path.join(dir, 'concat.txt');
   await fs.writeFile(list, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n') + '\n');
@@ -365,8 +487,10 @@ async function mixVoiceover(videoFile, voFile, total, out) {
 /**
  * renderVideo(body, {brand, workDir, keepWork}) ->
  *   { mp4: Buffer, poster: Buffer (JPEG 1080x1920), posterMime: 'image/jpeg', duration: seconds, width, height, fps, timeline }
- * body = { scenes: [{ duration, on_screen_text, clip|null, photo|null, eyebrow?, clip_start?, focus? }], transition?: 'fade'|'cut'|xfade name,
- *          outro_text?: tagline on the end card (default "Operations teams for the travel industry"),
+ * body = { scenes: [{ duration, on_screen_text, clip|null, photo|null, eyebrow?, clip_start?, focus?, zoom?, subject?, logo? }],
+ *          transition?: 'cut' (default: hard cuts, fade into the outro) | 'fadeblack' | other xfade name,
+ *          outro_text?: action line on the end card (default "Operations teams for the travel industry"),
+ *          outro_vo_line?: the spoken call to action, voiced over the end card,
  *          voiceover_path?: local audio file (scenes are re-timed to it using scenes[].vo_line word counts) }
  * workDir: scratch directory (a unique subfolder is created inside and removed afterwards unless keepWork).
  */
@@ -381,42 +505,53 @@ export async function renderVideo(body, { brand, workDir, keepWork = false } = {
     voDuration = vi.duration;
   }
   const scenes = planScenes(body, voDuration);
+  const outroLen = scenes.outro || OUTRO_SECONDS;
   const resolved = await resolveBrand(brand);
   const base = workDir ? path.resolve(workDir) : os.tmpdir();
   await fs.mkdir(base, { recursive: true });
   const dir = await fs.mkdtemp(path.join(base, 'reel-'));
   const started = Date.now();
   try {
-    let transition = String(body?.transition || 'fadeblack').toLowerCase();
-    if (!TRANSITIONS.has(transition)) transition = 'fadeblack';
+    let transition = String(body?.transition || DEFAULT_TRANSITION).toLowerCase();
+    if (!TRANSITIONS.has(transition)) transition = DEFAULT_TRANSITION;
     const cut = transition === 'cut';
-
-    const overlays = await renderOverlays(scenes, resolved, dir, body);
 
     const clipInfo = new Map();
     for (const s of scenes) if (s.clip && !clipInfo.has(s.clip)) clipInfo.set(s.clip, await probeMedia(s.clip));
 
-    // With crossfades each scene (except the outro) is extended by XFADE so the total stays sum(durations) + outro.
-    const lens = [...scenes.map((s) => s.duration + (cut ? 0 : XFADE)), OUTRO_SECONDS];
+    // Subject boxes in output px and the wordmark corner per scene.
+    const geo = [];
+    for (const s of scenes) {
+      const g = s.subject ? await sceneGeometry(s, clipInfo) : null;
+      if (s.subject && !g?.crop) throw new Error(`renderVideo: scene ${s.index + 1} has "subject" but no explicit focus ({x,y}); the crop must be known to check it`);
+      const subjectRect = g ? subjectInOutput(s.subject, g.crop, g.iw, g.ih) : null;
+      geo[s.index] = { subjectRect, logo: await pickLogoCorner(s, subjectRect, dir) };
+    }
+
+    const overlays = await renderOverlays(scenes, resolved, dir, body, geo);
+
+    // Crossfade mode: every scene is extended by XFADE so the total stays sum(durations) + outro. Cut mode: only the
+    // last content scene is (it fades into the outro).
+    const last = scenes.length - 1;
+    const lens = [...scenes.map((s) => s.duration + (!cut || s.index === last ? XFADE : 0)), outroLen];
     const clipCursor = new Map();
     const parts = [];
     for (const s of scenes) {
       const len = lens[s.index];
-      parts.push(await encodeScene(s, len, { overlays, dir, clipCursor, clipInfo, fadeOutEnd: cut ? len : len - XFADE }));
+      const fadeOutEnd = cut ? (s.index === last ? len - XFADE : null) : len - XFADE;
+      parts.push(await encodeScene(s, len, { overlays, dir, clipCursor, clipInfo, fadeOutEnd, logoSide: geo[s.index].logo }));
     }
-    parts.push(await encodeOutro(OUTRO_SECONDS, overlays, dir));
+    parts.push(await encodeOutro(outroLen, overlays, dir));
 
     const outFile = path.join(dir, voFile ? 'reel-silent.mp4' : 'reel.mp4');
-    let joinedWith = cut ? 'cut' : transition;
-    if (cut) await joinConcat(parts, lens, outFile, dir);
-    else {
-      try {
-        await joinXfade(parts, lens, transition, outFile);
-      } catch (err) {
-        log.warn(`renderVideo: crossfade join failed, falling back to hard cuts: ${err.message.split('\n')[0]}`);
-        joinedWith = 'cut';
-        await joinConcat(parts, lens, outFile, dir);
-      }
+    let joinedWith = transition;
+    try {
+      if (cut) await joinCutsThenFade(parts, lens, outFile, dir);
+      else await joinXfade(parts, lens, transition, outFile);
+    } catch (err) {
+      log.warn(`renderVideo: join failed, falling back to plain hard cuts: ${err.message.split('\n')[0]}`);
+      joinedWith = 'concat';
+      await joinConcat(parts, lens, outFile, dir);
     }
 
     let finalFile = outFile;
@@ -431,13 +566,13 @@ export async function renderVideo(body, { brand, workDir, keepWork = false } = {
     const timeline = [];
     let t = 0;
     scenes.forEach((s, i) => {
-      timeline.push({ scene: i + 1, start: r3(t), duration: r3(s.duration), text: plainText(s.text), source: s.clip ? 'clip' : s.photo ? 'photo' : 'fallback' });
-      t += joinedWith === 'cut' ? lens[i] : lens[i] - XFADE;
+      timeline.push({ scene: i + 1, start: r3(t), duration: r3(s.duration), text: plainText(s.text), source: s.clip ? 'clip' : s.photo ? 'photo' : 'fallback', logo: geo[i].logo });
+      t += joinedWith === 'concat' ? lens[i] : cut ? (i === last ? lens[i] - XFADE : lens[i]) : lens[i] - XFADE;
     });
-    timeline.push({ scene: 'outro', start: r3(t), duration: OUTRO_SECONDS });
+    timeline.push({ scene: 'outro', start: r3(t), duration: r3(outroLen) });
 
-    // Poster: first scene once its text has fully landed.
-    const posterAt = Math.min(TEXT_IN_AT + TEXT_IN_DUR + 0.5, Math.max(0.1, scenes[0].duration - 0.5));
+    // Poster: the hook with its text and highlight fully visible.
+    const posterAt = Math.min(HOOK_HL_AT + HOOK_HL_DUR + 0.3, Math.max(0.1, scenes[0].duration - 0.5));
     const posterPng = path.join(dir, 'poster.png');
     await runFfmpeg(['-y', '-loglevel', 'error', '-ss', String(r3(posterAt)), '-i', finalFile, '-frames:v', '1', '-update', '1', posterPng], { label: 'poster' });
     const poster = await sharp(posterPng).jpeg({ quality: 88, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();

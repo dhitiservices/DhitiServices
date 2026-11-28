@@ -24,6 +24,34 @@ files in `content/blog/`). Match their rhythm: short paragraphs, plain sentences
    the last 24 months and cite the primary text (Act section, notification, circular, GSTN / IATA advisory) for
    every rule you state. Write dates explicitly ("on 30 November each year"). Never write relative time ("has just
    closed", "this month", "last week") unless it is true on `planned_publish_date` and stays true for 12 months.
+6. **Superseded-rule check (mandatory for every rule).** A source can be accurate and out of date. For each rule
+   whose source is more than 12 months old (an FAQ, an advisory, an Act "as enacted"), run at least one search
+   for a later change ("<rule> advisory <year>", "<rule> changes <year>", the GST Council's monthly newsletter, the
+   latest Council press release) and read what you find. If a later primary document changes the rule, state the
+   current rule, cite the later document, and drop the old wording. Cite an Act in its current consolidated text
+   (for the CGST Act: CBIC's amended copy, and a later circular that quotes an amended section), never the 2017
+   Gazette copy for a section that has since been amended. A rule that a Council has only recommended is written
+   as proposed ("recommended ... from the April 2027 return, after consultation"), with its proposed start.
+7. **Say exactly what the law says.** Count conditions before you summarise them: never "the law sets two
+   tests" when the section lists more; write "two of the conditions in section 16(2) decide most cases". Check the
+   provision's exclusions too (for credit: blocked items such as leave or home travel concession under section
+   17(5)). Describe a system window by when actions open and what acting late costs (IMS: records appear as soon as
+   the supplier saves them; actions after the 14th need a GSTR-2B recompute before GSTR-3B). Advice that a source
+   gave for one year only ("for FY 2023-24 ... before 11 November 2024") is attributed as that year's advice.
+   Operational claims with no source (for example how airlines document date changes) are cut, not guessed.
+8. **Mechanism check for the scenario.** Every cause in the opening scene must really produce the effect it is
+   blamed for. Walk each one through the system (for GST: documents flow on the recipient GSTIN, so a misspelt
+   name does not keep an invoice out of GSTR-2B; a wrong GSTIN does). A cause that fails the walk-through is
+   replaced. Worked examples ("filed on 5 July, it lands in June's GSTR-2B, issued 14 July") follow the source's
+   cut-off rules exactly.
+9. **Date check against the publish date.** List every deadline, cut-off and "last chance" in the draft and
+   compute each one relative to `planned_publish_date`. If a deadline falls on or just before the publish date, the
+   post says so with the year ("for 2025-26 invoices the cut-off is 30 November 2026, the day this guide was
+   published") and then gives the next cycle with its year. Never give advice whose deadline has already passed on
+   the publish date. Every date in the post carries its year unless it recurs ("the 14th of each month").
+10. **Source fidelity.** Quote descriptors exactly ("25 leading enterprises", not "large"); a trade-press article
+    about a study is attributed as a report of that study, not as the study. In `sources.json`, note when a check
+    relied on a saved copy because the live page could not be fetched.
 
 ## 2. Structure: exactly 8 `##` sections
 

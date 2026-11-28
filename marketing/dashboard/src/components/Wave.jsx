@@ -60,13 +60,43 @@ function useVisible(ref) {
   return v;
 }
 
+/** Width of an element, kept current with a ResizeObserver (0 until measured). */
+function useWidth(ref) {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    setW(el.clientWidth);
+    if (!("ResizeObserver" in window)) return undefined;
+    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return w;
+}
+
+/** Fit decoded peaks to the space available: never more bars than fit at about 4 px each (max of each bucket). */
+function fitPeaks(peaks, width) {
+  if (!peaks || !width) return peaks;
+  const n = Math.max(12, Math.min(peaks.length, Math.floor(width / 4)));
+  if (n >= peaks.length) return peaks;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = Math.floor((i * peaks.length) / n), b = Math.max(a + 1, Math.floor(((i + 1) * peaks.length) / n));
+    let m = 0;
+    for (let j = a; j < b; j++) m = Math.max(m, peaks[j]);
+    out.push(m);
+  }
+  return out;
+}
+
 const fmt = (n) => (Number.isFinite(n) ? `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}` : "0:00");
 
 /**
  * Audio player with a real waveform: play/pause, click or arrow keys to seek, elapsed/total time.
  * Pass `file` (a local File before upload) or `path` (a storage path) or `url`.
  */
-export function WavePlayer({ file, path, url: directUrl, bars = 56, label = "Voiceover", tone = "violet", className, onDuration }) {
+export function WavePlayer({ file, path, url: directUrl, bars = 56, label = "Voiceover", tone = "brand", className, onDuration }) {
   const signed = useSignedUrl(path);
   const [objectUrl, setObjectUrl] = useState(null);
   useEffect(() => {
@@ -88,7 +118,10 @@ export function WavePlayer({ file, path, url: directUrl, bars = 56, label = "Voi
   useEffect(() => { if (duration) onDuration?.(duration); }, [duration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pct = duration ? Math.min(1, t / duration) : 0;
-  const color = tone === "violet" ? "bg-violet" : "bg-brand";
+  const color = tone === "ink" ? "bg-ink" : "bg-brand";
+  const track = useRef(null);
+  const trackWidth = useWidth(track);
+  const shown = fitPeaks(wave?.peaks, trackWidth);
   const toggle = () => { const a = audio.current; if (a) a.paused ? a.play().catch(() => {}) : a.pause(); };
   const failed = signed.error || wave?.failed;
 
@@ -116,13 +149,13 @@ export function WavePlayer({ file, path, url: directUrl, bars = 56, label = "Voi
       >
         {playing ? <Pause className="h-3.5 w-3.5" fill="currentColor" /> : <Play className="ml-0.5 h-3.5 w-3.5" fill="currentColor" />}
       </button>
-      <div className="relative flex h-8 min-w-0 flex-1 items-center">
-        {wave?.peaks ? (
-          <div className="flex h-full w-full items-center gap-[2px]" aria-hidden>
-            {wave.peaks.map((p, i) => (
+      <div ref={track} className="relative flex h-8 min-w-0 flex-1 items-center overflow-hidden">
+        {shown ? (
+          <div className={cx("flex h-full w-full items-center overflow-hidden", trackWidth && trackWidth < 280 ? "gap-px" : "gap-[2px]")} aria-hidden>
+            {shown.map((p, i) => (
               <span
                 key={i}
-                className={cx("min-w-[1.5px] flex-1 rounded-full transition-colors duration-150", i / wave.peaks.length < pct ? color : "bg-ink/[0.16]")}
+                className={cx("min-w-[1.5px] flex-1 rounded-full transition-colors duration-150", i / shown.length < pct ? color : "bg-ink/[0.16]")}
                 style={{ height: `${Math.round(p * 100)}%` }}
               />
             ))}

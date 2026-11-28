@@ -36,7 +36,8 @@ const HELP = `Dhiti marketing engine
   make-graphic  --parent <blogId> --spec <graphic.json>  [--item <id>]
   make-video    --parent <blogId> --spec <video.json>    [--item <id>] [--voiceover <file>] [--voiceover-asset <id>]
   make-video    --item <id> --voiceover <file> [--voiceover-asset <id>]   re-render from stored sources
-  preview carousel|graphic|video --spec <file> --out <dir> [--voiceover <file>]
+  preview carousel|graphic|video --spec <file> --out <dir> [--voiceover <file>] [--publish-date YYYY-MM-DD]
+            (video previews also write safe-zone-sheet.jpg; warnings lists dates to re-check)
   preview cover --cover <photo> --out <dir> [--focus x,y]
   topic --id <id> --status planned|producing|ready|skipped|failed [--error <msg>]
   job claim [--kinds regenerate,run_weekly] [--limit 5]
@@ -169,7 +170,7 @@ export function normalizeStock(input, label = 'stock') {
       title: String(s.title ?? s.name ?? '').trim(),
       url_preview: String(s.url_preview ?? s.preview ?? s.preview_url ?? s.thumbnail ?? s.thumbnail_url ?? '').trim(),
     };
-    for (const k of ['url', 'author', 'license', 'type', 'width', 'height', 'duration', 'library_asset_id', 'credit_cost']) if (s[k] !== undefined && s[k] !== null && s[k] !== '') out[k] = s[k];
+    for (const k of ['url', 'author', 'license', 'type', 'width', 'height', 'duration', 'library_asset_id', 'credit_cost', 'note']) if (s[k] !== undefined && s[k] !== null && s[k] !== '') out[k] = s[k];
     return out;
   });
 }
@@ -306,7 +307,40 @@ async function storableClip(file) {
   }
 }
 
-async function uploadSource(itemId, name, file, kind) {
+/**
+ * A zoomed clip (scene.zoom > 1) is stored already cropped to the region the reel shows, at source resolution, so a
+ * later re-render (voiceover) never has to upscale a downscaled copy. Returns {file, baked} where baked holds the
+ * scene fields to store instead (zoom 1, centred focus, subject remapped into the crop), or null when not needed.
+ */
+async function bakeZoomedClip(file, scene) {
+  const zoom = Number(scene?.zoom) || 1;
+  if (zoom <= 1) return null;
+  const { runFfmpeg, probeMedia } = await import('./render/video.js');
+  const { clipCropRect, parseSubject } = await import('./render/browser.js');
+  const info = await probeMedia(file);
+  if (!info.width || !info.height) return null;
+  const c = clipCropRect(info.width, info.height, { width: 1080, height: 1920, focus: scene.focus, zoom });
+  const even = (n) => Math.max(2, Math.round(n / 2) * 2);
+  const w = even(c.width), h = even(c.height), x = even(c.left), y = even(c.top);
+  const out = path.join(await workRoot(), `baked-${process.pid}-${Date.now()}.mp4`);
+  await runFfmpeg(['-y', '-loglevel', 'error', '-i', file, '-an', '-vf', `crop=${w}:${h}:${x}:${y},scale='min(1080,iw)':-2:flags=lanczos`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], { label: 'zoomed clip bake' });
+  const sub = parseSubject(scene.subject);
+  const baked = { zoom: 1, focus: { x: 0.5, y: 0.5 } };
+  if (sub) baked.subject = { x: +((sub.x * info.width - x) / w).toFixed(4), y: +((sub.y * info.height - y) / h).toFixed(4), w: +((sub.w * info.width) / w).toFixed(4), h: +((sub.h * info.height) / h).toFixed(4) };
+  return { file: out, baked };
+}
+
+async function uploadSource(itemId, name, file, kind, scene = null) {
+  const bake = kind === 'clip' ? await bakeZoomedClip(file, scene) : null;
+  try {
+    const path_ = await uploadPrepared(itemId, name, bake ? bake.file : file, kind);
+    return bake ? { path: path_, baked: bake.baked } : path_;
+  } finally {
+    if (bake) await fs.rm(bake.file, { force: true }).catch(() => {});
+  }
+}
+
+async function uploadPrepared(itemId, name, file, kind) {
   const prepared = kind === 'clip' ? await storableClip(file) : await storablePhoto(file);
   const storagePath = `items/${itemId}/src/${safeName(name)}${prepared.ext}`;
   await store.uploadFile(storagePath, prepared.buffer, prepared.mime);
@@ -678,8 +712,77 @@ async function loadSpec(kind, specFile) {
       for (const m of media) if (m.file === file && !m.stock.length) m.stock = normalizeStock(entry, `stock[${i}]`);
     });
   }
+  // Every asset that embeds a file carries its own licence trail (carousel slide rows read slides[i].stock).
+  for (const m of media) if (m.stock.length && !m.obj.stock) m.obj.stock = m.stock.length === 1 ? m.stock[0] : m.stock;
   if (body.stock !== undefined) body.stock = normalizeStock(body.stock, 'stock');
   return { body, media };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Set-level checks (v3.2)
+// ---------------------------------------------------------------------------------------------
+
+/** Every {provider,id} stock entry anywhere in a stored body (slides[].stock, scenes[].stock, stock, cover_stock). */
+function stockIdsIn(value, out = new Set()) {
+  if (Array.isArray(value)) value.forEach((v) => stockIdsIn(v, out));
+  else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      if ((k === 'stock' || k === 'cover_stock') && v) {
+        for (const e of Array.isArray(v) ? v : [v]) {
+          if (e && typeof e === 'object' && (e.id ?? e.library_asset_id) != null) out.add(`${String(e.provider || 'magnific').toLowerCase()}:${e.id ?? e.library_asset_id}`);
+        }
+      } else stockIdsIn(v, out);
+    }
+  }
+  return out;
+}
+
+/**
+ * One photo or clip per creative across a blog's set: a creative may not reuse a stock file that the blog cover or
+ * another creative of the same blog already uses (the cover stays on the blog and its link previews only).
+ */
+async function assertNoStockReuse(parent, itemId, stockAll) {
+  const mine = new Set(stockAll.map((x) => `${x.provider}:${x.id}`));
+  if (!mine.size) return;
+  const owners = new Map();
+  for (const id of stockIdsIn(parent.body?.cover_stock ? { cover_stock: parent.body.cover_stock } : {})) owners.set(id, 'the blog cover');
+  const siblings = await store.listItems({ parent_id: parent.id });
+  for (const sib of siblings) {
+    if (sib.id === itemId || ['rejected', 'failed'].includes(sib.status)) continue;
+    for (const id of stockIdsIn(sib.body)) if (!owners.has(id)) owners.set(id, `${sib.type} ${sib.id}`);
+  }
+  const clashes = [...mine].filter((id) => owners.has(id)).map((id) => `${id} (already used by ${owners.get(id)})`);
+  if (clashes.length) throw new UsageError(`stock reuse inside one blog's set is not allowed: ${clashes.join(', ')}. Pick another photo or clip, or drop the photo.`);
+}
+
+const MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec';
+const MONTH_INDEX = (m) => ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(m.slice(0, 3).toLowerCase());
+
+/**
+ * Date-bound copy check for creatives: a dated claim must still be true on the publish date. Warns about any
+ * "<day> <Month>" without a year (ambiguous once the year turns) and any dated day before the publish date.
+ */
+function dateWarnings(body, publishDate) {
+  const texts = [];
+  const walk = (v, k = '') => {
+    if (typeof v === 'string') { if (!/^(file|photo|clip|url|url_preview|source|title|note|focus)$/.test(k) && !/^(https?:|\/)/.test(v)) texts.push(v); }
+    else if (Array.isArray(v)) v.forEach((x) => walk(x, k));
+    else if (v && typeof v === 'object') for (const [kk, vv] of Object.entries(v)) if (kk !== 'stock') walk(vv, kk);
+  };
+  walk(body);
+  const pub = publishDate ? new Date(`${String(publishDate).slice(0, 10)}T00:00:00Z`) : null;
+  const out = new Set();
+  const re = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTHS})\\b(?:,?\\s+(\\d{4}))?`, 'gi');
+  for (const t of texts) {
+    for (const m of t.matchAll(re)) {
+      if (!m[3]) out.add(`"${m[0]}" has no year: say which year, or make the line evergreen ("the 14th of each month")`);
+      else if (pub) {
+        const d = new Date(Date.UTC(+m[3], MONTH_INDEX(m[2]), +m[1]));
+        if (d < pub) out.add(`"${m[0]}" is before the publish date ${pub.toISOString().slice(0, 10)}: make sure the copy treats it as past`);
+      }
+    }
+  }
+  return [...out];
 }
 
 /** Rebuilds a spec from a stored item body, downloading its stored sources (for re-renders). */
@@ -769,6 +872,7 @@ function storedBody(kind, body, media, sources) {
     else delete obj.stock;
     obj.source = sources.get(m) ?? m.storedAt ?? null;
     obj.source_kind = m.kind;
+    if (m.baked) Object.assign(obj, m.baked); // stored clip is pre-cropped: zoom 1, focus centred, subject remapped
   };
   if (kind === 'carousel') (out.slides || []).forEach((s, i) => strip(s, 'photo', body.slides[i]));
   if (kind === 'graphic') strip(out, 'photo', body);
@@ -832,6 +936,10 @@ async function cmdMake(kind, { opts }) {
     const missingStock = media.filter((m) => !m.stock.length && !normalizeStock(body.stock).length);
     if (missingStock.length) log.warn(`${missingStock.length} media file(s) have no stock metadata (add "stock": {"id","title","url_preview"} next to each photo/clip for the licence trail)`);
 
+    await assertNoStockReuse(parent, itemId, stockAll);
+    const warnings = dateWarnings(body, parent.scheduled_for || parent.body?.frontmatter?.date);
+    for (const w of warnings) log.warn(`date check: ${w}`);
+
     const title = body.title || existing?.title || `${kind[0].toUpperCase()}${kind.slice(1)}: ${parent.title || parent.body?.frontmatter?.title || ''}`.trim();
     const ctx = await openItem({ itemId, type, topicId: parent.topic_id, parentId, title });
     try {
@@ -843,9 +951,14 @@ async function cmdMake(kind, { opts }) {
           sources.set(m, m.storedAt);
           continue;
         }
-        const key = `${m.kind}:${m.file}`;
-        if (!srcCache.has(key)) srcCache.set(key, await uploadSource(ctx.item.id, m.name, m.file, m.kind));
-        sources.set(m, srcCache.get(key));
+        const zoomed = m.kind === 'clip' && Number(m.obj?.zoom) > 1;
+        const key = zoomed ? `${m.kind}:${m.file}:${JSON.stringify([m.obj.zoom, m.obj.focus])}` : `${m.kind}:${m.file}`;
+        if (!srcCache.has(key)) srcCache.set(key, await uploadSource(ctx.item.id, m.name, m.file, m.kind, zoomed ? m.obj : null));
+        const up = srcCache.get(key);
+        if (up && typeof up === 'object') {
+          sources.set(m, up.path);
+          m.baked = up.baked;
+        } else sources.set(m, up);
       }
 
       const brand = await brandForRender();
@@ -877,6 +990,7 @@ async function cmdMake(kind, { opts }) {
         ...info,
         assets: assetSummary(assets),
         sources: [...new Set(sources.values())],
+        warnings,
       };
     } catch (err) {
       await failItem(ctx, err);
@@ -915,7 +1029,47 @@ async function cmdPreview({ pos, opts }) {
     await fs.writeFile(p, f.buffer);
     written.push(p);
   }
-  return { kind, files: written, ...info, media: media.map((m) => ({ file: m.file, kind: m.kind, stock: m.stock.map((s) => s.id) })) };
+  const extra = {};
+  if (kind === 'video') {
+    const mp4 = written.find((p) => p.endsWith('.mp4'));
+    if (mp4 && info.timeline) extra.safe_zone_sheet = await safeZoneSheet(mp4, info.timeline, path.join(outDir, 'safe-zone-sheet.jpg'));
+  }
+  const warnings = dateWarnings(body, optStr(opts, 'publish-date'));
+  return { kind, files: written, ...info, ...extra, warnings, media: media.map((m) => ({ file: m.file, kind: m.kind, stock: m.stock.map((s) => s.id) })) };
+}
+
+/**
+ * Self-review aid: one frame per scene (once its text is up) with the platform UI zones drawn on top: the top bar
+ * (y < 250), the bottom caption / username / audio zone of Reels and LinkedIn video (bottom 35%, y > 1248) and the
+ * right-hand action rail (x > 930, y 1100..1650). Text and faces must stay out of the shaded areas.
+ */
+async function safeZoneSheet(mp4, timeline, out) {
+  const { runFfmpeg } = await import('./render/video.js');
+  const dir = await fs.mkdtemp(path.join(await workRoot(), 'safezone-'));
+  try {
+    const W = 360, H = 640, k = W / 1080;
+    const guide = Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${W}" height="${250 * k}" fill="rgba(0,160,255,0.28)"/>
+      <rect x="0" y="${1248 * k}" width="${W}" height="${H - 1248 * k}" fill="rgba(255,0,0,0.30)"/>
+      <rect x="${930 * k}" y="${1100 * k}" width="${W - 930 * k}" height="${550 * k}" fill="rgba(255,200,0,0.45)"/>
+      <line x1="0" y1="${1248 * k}" x2="${W}" y2="${1248 * k}" stroke="#ff2a2a" stroke-width="2"/>
+      <rect x="${90 * k}" y="${770 * k}" width="${830 * k}" height="${470 * k}" fill="none" stroke="#00e08a" stroke-width="1.5" stroke-dasharray="5 4"/>
+    </svg>`);
+    const tiles = [];
+    for (const t of timeline) {
+      const at = t.scene === 'outro' ? t.start + 1.2 : t.start + Math.min(1.0, Math.max(0.2, t.duration - 0.3));
+      const f = path.join(dir, `f-${tiles.length}.png`);
+      await runFfmpeg(['-y', '-loglevel', 'error', '-ss', String(at.toFixed(3)), '-i', mp4, '-frames:v', '1', '-vf', `scale=${W}:${H}`, f], { label: 'safe-zone frame' });
+      tiles.push(await sharp(f).composite([{ input: guide }]).png().toBuffer());
+    }
+    const gap = 8;
+    await sharp({ create: { width: tiles.length * (W + gap) + gap, height: H + 2 * gap, channels: 3, background: '#111' } })
+      .composite(tiles.map((input, i) => ({ input, left: gap + i * (W + gap), top: gap })))
+      .jpeg({ quality: 84 }).toFile(out);
+    return out;
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function cmdTopic({ opts }) {

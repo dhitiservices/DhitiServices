@@ -3,7 +3,7 @@ import { useData } from "../lib/store.jsx";
 import { SignedImage } from "./Media.jsx";
 import { cx } from "./ui.jsx";
 
-const DOT = { brand: "bg-brand", ok: "bg-ok", warn: "bg-warn", danger: "bg-brand-deep", info: "bg-info", violet: "bg-violet", neutral: "bg-ink-faint" };
+const DOT = { brand: "bg-brand", ok: "bg-ok", warn: "bg-warn", danger: "bg-brand-deep", info: "bg-info", active: "bg-brand", neutral: "bg-ink-faint" };
 export const statusDot = (status) => DOT[ITEM_STATUS[status]?.tone || "neutral"];
 
 export function TypeIcon({ type, className = "h-7 w-7", iconClass = "h-3.5 w-3.5" }) {

@@ -24,7 +24,7 @@ function SourceLinks({ urls = [] }) {
 }
 
 function Section({ icon: Icon, title, count, tone, children }) {
-  const tones = { brand: "bg-brand/10 text-brand-ink", info: "bg-info/10 text-info", violet: "bg-violet/10 text-violet", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn" };
+  const tones = { brand: "bg-brand/10 text-brand-ink", info: "bg-info/10 text-info", violet: "bg-ink/[0.06] text-ink-soft", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn" };
   return (
     <section className="mt-10">
       <div className="mb-4 flex items-center gap-2.5">

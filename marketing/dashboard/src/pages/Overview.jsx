@@ -100,12 +100,13 @@ export default function Overview() {
       </div>
 
       <motion.div variants={list} initial="initial" animate="animate" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <Stat loading={loading} icon={Inbox} tone="brand" label="Needs review" value={stats.review} to="/review" />
-        <Stat loading={loading} icon={Mic} tone="violet" label="Needs voiceover" value={stats.voice} to="/review?filter=voice" />
-        <Stat loading={loading} icon={MessageSquareWarning} tone="warn" label="Changes requested" value={stats.changes} to="/review?filter=changes" />
-        <Stat loading={loading} icon={CalendarClock} tone="ok" label="Blogs scheduled" value={stats.scheduled} to="/calendar" />
-        <Stat loading={loading} icon={CheckCircle2} tone="ok" label="Ready to post" value={stats.approved} to="/ready" />
-        <Stat loading={loading} icon={Globe2} tone="info" label="Published · 30 days" value={stats.published} to="/published" />
+        {/* Neutral wells; only a tile that needs the owner's action (and has something in it) turns brand red. */}
+        <Stat loading={loading} icon={Inbox} attention label="Needs review" value={stats.review} to="/review" />
+        <Stat loading={loading} icon={Mic} attention label="Needs voiceover" value={stats.voice} to="/review?filter=voice" />
+        <Stat loading={loading} icon={MessageSquareWarning} label="Changes requested" value={stats.changes} to="/review?filter=changes" />
+        <Stat loading={loading} icon={CalendarClock} label="Blogs scheduled" value={stats.scheduled} to="/calendar" />
+        <Stat loading={loading} icon={CheckCircle2} label="Ready to post" value={stats.approved} to="/ready" />
+        <Stat loading={loading} icon={Globe2} label="Published · 30 days" value={stats.published} to="/published" />
       </motion.div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -135,7 +136,7 @@ export default function Overview() {
               <>
                 {d.activeJobs.slice(0, 3).map((j) => (
                   <div key={j.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-violet/10 text-violet"><Sparkles className="h-4 w-4" /></span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-ink/[0.05] text-ink-soft"><Sparkles className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-callout font-semibold">{JOB_KIND[j.kind] || j.kind}</div>
                       <div className="text-[12px] text-ink-mute">Requested {relative(j.created_at)}{j.requested_by ? ` by ${j.requested_by.split("@")[0]}` : ""}</div>
@@ -173,7 +174,7 @@ function WeekHero({ loading, weekStart, topics, items, className }) {
   const counts = Object.fromEntries(Object.keys(ITEM_STATUS).map((k) => [k, items.filter((i) => i.status === k).length]));
   const total = items.length || 1;
   const order = ["published", "approved", "pending_review", "awaiting_voiceover", "changes_requested", "generating", "failed", "rejected"];
-  const colors = { published: "#5AA2FF", approved: "#34C77B", pending_review: "#FF3322", awaiting_voiceover: "#A58CFF", changes_requested: "#FFB340", generating: "rgba(255,255,255,.35)", failed: "#C20600", rejected: "rgba(255,255,255,.18)" };
+  const colors = { published: "#5AA2FF", approved: "#34C77B", pending_review: "#FF3322", awaiting_voiceover: "#FF9B85", changes_requested: "#FFB340", generating: "rgba(255,255,255,.35)", failed: "#C20600", rejected: "rgba(255,255,255,.18)" };
   const blogs = items.filter((i) => i.type === "blog");
 
   return (
@@ -251,11 +252,11 @@ function ResearchCard({ loading, brief, className }) {
   );
 }
 
-const STAT_TONE = { brand: "text-brand-ink bg-brand/10", violet: "text-violet bg-violet/10", warn: "text-warn bg-warn/10", ok: "text-ok bg-ok/10", info: "text-info bg-info/10" };
-function Stat({ loading, icon: Icon, tone, label, value, to }) {
+function Stat({ loading, icon: Icon, attention, label, value, to }) {
+  const hot = attention && !loading && value > 0;
   return (
     <motion.button variants={listItem} onClick={() => navigate(to)} whileTap={{ scale: 0.98 }} className="card group p-4 text-left transition-shadow hover:card-lift">
-      <span className={cx("flex h-8 w-8 items-center justify-center rounded-[9px]", STAT_TONE[tone])}><Icon className="h-4 w-4" strokeWidth={2.2} /></span>
+      <span className={cx("flex h-8 w-8 items-center justify-center rounded-[9px] transition-colors", hot ? "bg-brand/10 text-brand-ink" : "bg-ink/[0.05] text-ink-soft")}><Icon className="h-4 w-4" strokeWidth={2.2} /></span>
       {loading ? <Skeleton className="mt-3 h-7 w-10" /> : <div className="tnum mt-3 text-[26px] font-bold leading-8 tracking-[-0.03em] text-ink">{value}</div>}
       <div className="mt-0.5 text-[12.5px] font-medium text-ink-mute">{label}</div>
     </motion.button>

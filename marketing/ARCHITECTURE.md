@@ -231,4 +231,32 @@ Netlify: strict CSP pinned to the project host, HSTS, frame-ancestors none, noin
 (fonts are served by the site itself: `font-src 'self'`).
 Owner one-time Supabase steps (Site URL/redirect URL, `{{ .Token }}` in the Magic Link and Confirm signup templates):
 `marketing/dashboard/README.md` → "Owner setup".
-Optional owner step after the first login: Supabase → Authentication → turn off sign-ups (extra layer; the trigger already blocks strangers).
+Owner step right after the first login (no longer optional): Supabase → Authentication → turn off sign-ups. Also set the
+OTP expiry to 600 s and tighten the OTP send/verify rate limits (README "Owner setup" steps 3 to 5).
+
+### v3.1.1 hardening (migrations `no_passwords_strip_encrypted_password`, `jobs_insert_policy_strict`, `library_uploads_type_and_path_checks`, `least_privilege_table_grants`)
+
+- **No passwords, enforced in the database.** Trigger `strip_password` (BEFORE INSERT OR UPDATE OF encrypted_password on
+  `auth.users`) sets `encrypted_password = ''`, so `/auth/v1/signup` with a password and the password grant can never
+  produce a usable login. This closes the pre-account takeover where someone plants a password on the allowlisted
+  address before the owner's first code sign-in. Tested in a rolled-back transaction: insert with a bcrypt hash →
+  stored ''; later UPDATE of the hash → ''; confirmed owner row still passes `is_team()`; strangers still blocked.
+- **Jobs** (`jobs.team_insert`): only `run_weekly {source:'dashboard'}`, `regenerate {content_item_id, feedback<=4000}`
+  for an item in `changes_requested`, `publish_now {content_item_id}` for an approved/published blog, `render_video
+  {content_item_id, library_asset_id}` for a reel in `awaiting_voiceover` with a voiceover row that is unassigned or
+  recorded for that reel; `status='queued'`, `requested_by` = JWT email, no started/finished/error.
+- **Library**: bucket `marketing` has a MIME allow-list (png, jpeg, webp, mp4, quicktime, webm, x-m4v, pdf, mpeg, mp4
+  audio, m4a, wav); storage inserts by the team only under `library/<uuid>/<safe-name>`; `library_assets` inserts need
+  that path, a media MIME, kind photo/video/voiceover, `uploaded_by` = JWT email, `used_count` 0; updates are
+  column-limited to title, notes, tags.
+- **Grants**: `anon` has no privileges on public tables (and none by default for new ones); `authenticated` keeps only
+  what a policy uses (SELECT; UPDATE on settings/topics/content_items; INSERT on jobs; INSERT/DELETE and column UPDATE on
+  library_assets); no TRUNCATE/REFERENCES/TRIGGER; no access to `engine_tokens`. `rls_auto_enable()` and
+  `touch_updated_at()` are not executable by API roles.
+- **Known residual risk (accepted, documented):** GoTrue answers differently for the allowlisted address than for any
+  other (a stranger's sign-up is rejected by `gate_signup` with HTTP 500; the owner's gets 200; after the owner exists,
+  `create_user:false` returns 422 for strangers). The dashboard's neutral message hides this in the UI, but a direct API
+  caller can learn which address is allowlisted. It cannot be removed inside GoTrue without emailing strangers.
+  Mitigations: the address is never written in the repo; OTP expiry 600 s; tight OTP send/verify rate limits; sign-ups
+  off after the first login. Supabase CAPTCHA (Turnstile) would add more, but needs a CSP exception for
+  `challenges.cloudflare.com`, so it is the owner's call against the "no third-party scripts" rule.

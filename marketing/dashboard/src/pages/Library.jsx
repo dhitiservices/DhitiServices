@@ -64,7 +64,7 @@ function QueueRow({ q, onChange, onRemove, onRetry }) {
     <motion.div layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }} transition={spring} className="rounded-2xl bg-ink/[0.03] p-3 shadow-[inset_0_0_0_1px_var(--hairline)]">
       <div className="flex items-center gap-3">
         <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface shadow-card">
-          {q.group === "photo" ? <LocalThumb file={q.file} /> : q.group === "video" ? <Film className="h-5 w-5 text-ink-soft" /> : q.group === "audio" ? <Mic className="h-5 w-5 text-violet" /> : <AlertCircle className="h-5 w-5 text-brand-ink" />}
+          {q.group === "photo" ? <LocalThumb file={q.file} /> : q.group === "video" ? <Film className="h-5 w-5 text-ink-soft" /> : q.group === "audio" ? <Mic className="h-5 w-5 text-brand-ink" /> : <AlertCircle className="h-5 w-5 text-brand-ink" />}
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-callout font-semibold">{q.file.name}</div>
@@ -145,7 +145,7 @@ function DetailSheet({ row: current, onClose, onDelete }) {
           {isImage(row) ? <SignedImage path={row.storage_path} fit="contain" className="aspect-[4/3] w-full" eager /> : row.kind === "video" ? <div className="aspect-video"><VideoThumb path={row.storage_path} /></div> : <div className="p-3"><WavePlayer path={row.storage_path} bars={72} label={row.title} /></div>}
         </div>
         {linked && (
-          <div className="flex items-center gap-2 rounded-xl bg-violet/[0.07] px-3 py-2 text-[12.5px] font-medium text-violet">
+          <div className="flex items-center gap-2 rounded-xl bg-ink/[0.045] px-3 py-2 text-[12.5px] font-medium text-ink-soft">
             <Clapperboard className="h-4 w-4" /> Recorded for: <span className="truncate font-semibold">{linked.title}</span>
           </div>
         )}
@@ -171,9 +171,9 @@ function AudioCard({ r, onOpen }) {
   const K = KINDS[r.kind] || KINDS.other;
   const linked = useData().itemById.get(r.content_item_id);
   return (
-    <div className="flex h-full flex-col gap-3 bg-gradient-to-br from-violet/[0.07] via-transparent to-brand/[0.035] p-3.5">
+    <div className="flex h-full flex-col gap-3 bg-gradient-to-br from-brand/[0.05] via-transparent to-transparent p-3.5">
       <button type="button" onClick={onOpen} className="flex items-center gap-3 text-left" aria-label={`Open ${r.title || "file"}`}>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-violet shadow-card"><K.icon className="h-[18px] w-[18px]" /></span>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-brand-ink shadow-card"><K.icon className="h-[18px] w-[18px]" /></span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-callout font-semibold text-ink">{r.title || "Untitled"}</span>
           <span className="block truncate text-[11.5px] text-ink-mute">{K.one} · {relative(r.created_at)}{linked ? ` · for ${linked.title}` : ""}</span>

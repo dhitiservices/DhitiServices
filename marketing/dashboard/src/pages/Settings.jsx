@@ -101,7 +101,7 @@ export default function Settings() {
   const daysMismatch = form.publish_days.length !== form.blogs_per_week;
 
   return (
-    <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
+    <div className="mx-auto max-w-[924px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader className="max-w-[860px]" title="Settings" subtitle="What the weekly run makes, who it writes for, and when blogs go live." />
 
       {loading ? (

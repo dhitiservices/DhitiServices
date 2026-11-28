@@ -86,8 +86,16 @@
 .slide--cover .bottom .url { color: rgba(255, 255, 255, 0.78); }
 .slide--cover.no-photo .content { justify-content: center; }
 
+/* ---------- Shared rhythm (v3.2) ----------
+   Every non-cover slide is top-anchored: the eyebrow sits at the same y on every swipe and the headline starts
+   right below it, so nothing jumps between slides. One numbering system only: the header counter. */
+.slide--point .content, .slide--stat .content, .slide--quote .content, .slide--cta .content {
+  justify-content: flex-start;
+  padding-top: 200px;
+}
+
 /* ---------- Point ---------- */
-.slide--point .content { justify-content: center; gap: calc(64px * var(--fit, 1)); }
+.slide--point .content { gap: calc(64px * var(--fit, 1)); }
 .numeral {
   font-size: calc(170px * var(--fit, 1));
   font-weight: 800;
@@ -105,16 +113,16 @@
 .slide--point .text { gap: 0; }
 .slide--point .eyebrow { margin-bottom: calc(30px * var(--fit, 1)); }
 .slide--point .headline {
-  font-size: calc(86px * var(--fit, 1));
+  font-size: calc(100px * var(--fit, 1));
   line-height: 1.04;
   letter-spacing: -0.02em;
   color: var(--ink);
 }
 .slide--point .rule { margin: calc(44px * var(--fit, 1)) 0 calc(36px * var(--fit, 1)); }
-.slide--point .body { font-size: calc(38px * var(--fit, 1)); line-height: 1.42; max-width: 880px; }
+.slide--point .body { font-size: calc(43px * var(--fit, 1)); line-height: 1.42; max-width: 880px; }
 
 /* Point with photo: framed photo on top, text below. */
-.slide--point.has-photo .content { justify-content: flex-start; gap: calc(52px * var(--fit, 1)); padding-top: 52px; }
+.slide--point.has-photo .content { gap: calc(52px * var(--fit, 1)); padding-top: 52px; }
 .slide--point.has-photo .numeral { font-size: calc(150px * var(--fit, 1)); }
 .figure {
   position: relative; flex: none;
@@ -132,7 +140,6 @@
 .slide--point.has-photo .row { display: flex; align-items: flex-start; gap: 40px; }
 
 /* ---------- Stat ---------- */
-.slide--stat .content { justify-content: center; }
 .slide--stat .eyebrow { margin-bottom: calc(56px * var(--fit, 1)); }
 .stat {
   display: flex; align-items: baseline; flex-wrap: nowrap;
@@ -144,10 +151,11 @@
   width: 100%;
   overflow: hidden;
   padding-bottom: 0.06em;
+  flex: none;
 }
 .stat .main { font-size: calc(300px * var(--fit, 1)); font-variant-numeric: lining-nums; }
 .stat .pre { font-size: calc(170px * var(--fit, 1)); color: var(--red-bright); margin-right: 0.06em; letter-spacing: -0.02em; }
-.stat .unit { font-size: calc(150px * var(--fit, 1)); color: var(--red-bright); margin-left: 0.08em; letter-spacing: -0.035em; }
+.stat .unit { font-size: calc(150px * var(--fit, 1)); color: var(--red-bright); margin-left: -0.045em; letter-spacing: -0.035em; }
 .stat .unit.word { font-size: calc(110px * var(--fit, 1)); letter-spacing: -0.03em; margin-left: 0.22em; }
 .slide--stat .headline {
   margin-top: calc(56px * var(--fit, 1));
@@ -170,7 +178,6 @@
 }
 
 /* ---------- Quote ---------- */
-.slide--quote .content { justify-content: center; }
 .qmark {
   width: calc(150px * var(--fit, 1));
   margin-bottom: calc(56px * var(--fit, 1));
@@ -196,7 +203,7 @@
 
 /* ---------- CTA ---------- */
 .slide--cta .top .wordmark { height: 46px; }
-.slide--cta .content { justify-content: center; }
+
 .slide--cta .eyebrow { margin-bottom: calc(40px * var(--fit, 1)); }
 .slide--cta .headline {
   font-size: calc(96px * var(--fit, 1));
@@ -218,6 +225,13 @@
   background: var(--white); color: var(--red);
   font-size: calc(34px * var(--fit, 1)); font-weight: 750; letter-spacing: -0.01em;
   box-shadow: 0 24px 50px -22px rgba(60, 0, 0, 0.55);
+}
+.action {
+  display: inline-flex; align-items: center;
+  padding: 22px 0 0;
+  border-top: 4px solid rgba(255, 255, 255, 0.85);
+  font-size: calc(46px * var(--fit, 1)); font-weight: 750; letter-spacing: -0.015em;
+  color: var(--white);
 }
 .btn .arrow {
   width: 48px; height: 48px; border-radius: 50%;

@@ -5,6 +5,7 @@ import { IdleLock } from "./components/IdleLock.jsx";
 import { Sidebar, TabBar, MobileHeader, NAV, isActive } from "./components/Shell.jsx";
 import { CommandPalette } from "./components/CommandPalette.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { CloudOff, RotateCw, LogOut } from "lucide-react";
 import { AppMark, Button } from "./components/ui.jsx";
 import { DataProvider, useData } from "./lib/store.jsx";
 import { createSupabaseBackend } from "./lib/backend.js";
@@ -202,6 +203,38 @@ function PageFallback() {
   );
 }
 
+/**
+ * The first data load failed: say so plainly. Never show empty states ("all caught up", zero counts) for data that
+ * was never loaded.
+ */
+function LoadError({ error, onRetry, onSignOut }) {
+  const [busy, setBusy] = useState(false);
+  const retry = async () => { setBusy(true); try { await onRetry(); } finally { setBusy(false); } };
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  return (
+    <div className="flex min-h-[calc(100dvh-140px)] items-center justify-center px-4 py-10 lg:min-h-dvh" role="alert" aria-live="assertive" data-testid="load-error">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }} className="card w-full max-w-[440px] p-7 text-center sm:p-8">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-warn/[0.12] text-warn shadow-[inset_0_0_0_1px_rgb(var(--warn)/0.18)]">
+          <CloudOff className="h-6 w-6" strokeWidth={1.9} />
+        </span>
+        <h1 className="mt-5 text-title-2 font-bold text-ink">Couldn't load your studio</h1>
+        <p className="mt-2 text-body text-ink-mute">
+          {offline ? "You're offline. Reconnect, then try again." : "The data didn't arrive, so nothing is shown rather than an empty queue. Your drafts are safe."}
+        </p>
+        {error?.message && (
+          <p className="tnum mx-auto mt-4 max-w-full break-words rounded-xl bg-ink/[0.04] px-3.5 py-2.5 text-left text-[12.5px] leading-[18px] text-ink-soft">
+            <span className="font-semibold text-ink">Error: </span>{error.message}
+          </p>
+        )}
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">
+          <Button variant="ghost" icon={LogOut} onClick={onSignOut}>Sign out</Button>
+          <Button variant="primary" icon={RotateCw} onClick={retry} loading={busy} disabled={busy}>{busy ? "Retrying…" : "Retry"}</Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function Shell({ onSignOut, demo }) {
   const { pathname } = useLocation();
   const [palette, setPalette] = useState(false);
@@ -246,7 +279,11 @@ function Shell({ onSignOut, demo }) {
               slow or interrupted exit can never leave the screen blank. */}
           <motion.div key={section} variants={page} initial="initial" animate="animate">
             <ErrorBoundary resetKey={pathname}>
-              <Suspense fallback={<PageFallback />}>{route ? route.r.el(route.p) : null}</Suspense>
+              {data.status === "error" ? (
+                <LoadError error={data.error} onRetry={data.actions.reload} onSignOut={onSignOut} />
+              ) : (
+                <Suspense fallback={<PageFallback />}>{route ? route.r.el(route.p) : null}</Suspense>
+              )}
             </ErrorBoundary>
           </motion.div>
         </main>

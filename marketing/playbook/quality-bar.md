@@ -107,7 +107,8 @@ adjectives ("fast, reliable and scalable"); rhetorical question openers; a closi
 you just said; "Here's the thing"; "The best part?"; sentences beginning "Additionally," "Furthermore,"
 "Moreover," more than once per piece.
 
-**Social-only bans:** "Swipe to learn more", "Link in bio" anywhere except the last line of an Instagram caption,
+**Social-only bans:** "Swipe to learn more", "Link in bio" anywhere except the last line of an Instagram caption
+and the engine's Instagram CTA slide (`cta_instagram`, which never appears in the LinkedIn PDF),
 "Drop a comment", "Thoughts?", "Agree?", engagement bait, more than one question in a caption, hashtags inside
 LinkedIn body text.
 
@@ -171,6 +172,24 @@ A piece is done only when all of these are true. If one is not, fix it before sa
 - **Reel:** the first two seconds name a problem the viewer has; every scene is one idea; footage is real,
   relevant and Indian/South Asian where people appear; the voiceover script sounds natural spoken aloud.
 - **Stock:** authentic, editorial, on-topic, high resolution, no text/logos/watermarks, never cheesy, never AI.
+
+## 7b. Set-level rules (blog + carousel + graphics + reel are one set)
+
+- **One photo or clip per creative.** No stock id appears in two creatives of the same blog, and the blog cover
+  stays on the blog (it is also every link preview's og:image). The engine refuses a `make-*` that reuses one.
+- **One hook per format.** The carousel cover, the reel hook and the graphics each open with a different line
+  (for example carousel "Right ticket. Wrong GSTIN.", reel "11 flights missing from the client's GSTR-2B", graphics
+  the stat or the tip). Captions follow their own format's hook. No two creatives share a near-identical headline.
+- **Dates are checked against the publish date** (`scheduled_for`): a creative never sells a deadline that has
+  passed, or falls on the publish day, as urgent. Give dated claims their year ("14 November 2027") or make them
+  evergreen. `preview --publish-date <date>` and `make-*` print a `warnings` list of dates to re-check.
+- **No self-quotes of unsourced claims.** Dhiti never quotes itself as an authority; a "most"/"rarely" line without
+  a source becomes a softened plain statement or a labelled illustrative example.
+- **People: Indian context, verified from the provider.** Ethnicity comes from the provider's title or tags, never
+  from looking at the photo, and the spec's `stock[].note` says which. Reject frames with non-Indian airport codes,
+  currency, signage, home sets, or trading-floor/stock-market screens.
+- **Faces stay clear of text.** Every photo or clip with a person declares its face box as `subject` with an
+  explicit `focus`; the renderer fails a slide, graphic or reel scene whose text crosses it.
 
 ## 8. Self-review loop (use it on everything)
 

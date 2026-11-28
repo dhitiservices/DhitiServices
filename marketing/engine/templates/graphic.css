@@ -73,9 +73,10 @@
   font-weight: 800; line-height: 0.86; letter-spacing: -0.055em;
   color: var(--white); overflow: hidden; width: 100%;
   padding-bottom: 0.05em;
+  flex: none; /* never let the column flexbox squeeze (and clip) the number */
 }
 .g-stat .stat .pre, .g-stat .stat .unit { color: var(--red-bright); }
-.g-stat .stat .unit { margin-left: 0.08em; letter-spacing: -0.035em; }
+.g-stat .stat .unit { margin-left: -0.045em; letter-spacing: -0.035em; }
 .g-stat .stat .unit.word { margin-left: 0.2em; letter-spacing: -0.03em; }
 .g-stat .headline { color: var(--white); text-wrap: balance; }
 .g-stat .note {
@@ -151,3 +152,37 @@
 .g-land.has-photo.g-tip .textcol { padding: 48px 56px 44px 64px; }
 .g-land.has-photo.g-tip .headline { font-size: calc(46px * var(--fit, 1)); }
 .g-land.has-photo.g-tip .body { font-size: calc(22px * var(--fit, 1)); }
+
+/* ========== v3.2: comparison row (stat) and column chips (tip) ========== */
+.compare { display: flex; gap: calc(20px * var(--fit, 1)); flex-wrap: nowrap; }
+.cmp {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: calc(8px * var(--fit, 1));
+  padding: calc(20px * var(--fit, 1)) calc(24px * var(--fit, 1));
+  border-radius: calc(18px * var(--fit, 1));
+  border: 2px solid rgba(255, 255, 255, 0.16);
+}
+.cmp b { font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--white); font-variant-numeric: lining-nums; }
+.cmp span { font-weight: 600; line-height: 1.25; color: rgba(255, 255, 255, 0.7); }
+.cmp.on { border-color: var(--red-bright); background: rgba(255, 58, 38, 0.12); }
+.cmp.on b { color: var(--red-bright); }
+.g-square .compare { margin-top: calc(44px * var(--fit, 1)); }
+.g-square .cmp b { font-size: calc(64px * var(--fit, 1)); }
+.g-square .cmp span { font-size: calc(26px * var(--fit, 1)); }
+.g-land .compare { margin-top: calc(22px * var(--fit, 1)); gap: 14px; }
+.g-land .cmp { padding: calc(12px * var(--fit, 1)) calc(16px * var(--fit, 1)); border-radius: 12px; }
+.g-land .cmp b { font-size: calc(36px * var(--fit, 1)); }
+.g-land .cmp span { font-size: calc(17px * var(--fit, 1)); }
+
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: calc(14px * var(--fit, 1)); }
+.chips li {
+  padding: calc(12px * var(--fit, 1)) calc(22px * var(--fit, 1));
+  border-radius: 999px;
+  background: var(--white);
+  border: 2px solid rgba(22, 17, 16, 0.12);
+  color: var(--ink);
+  font-weight: 600; line-height: 1.15; white-space: nowrap;
+}
+.g-square.g-tip .chips li { font-size: calc(34px * var(--fit, 1)); }
+.g-land.g-tip .chips { gap: 10px; max-width: 1000px; }
+.g-land.g-tip .chips li { font-size: calc(22px * var(--fit, 1)); padding: 8px 16px; }

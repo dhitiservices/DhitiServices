@@ -149,7 +149,7 @@ export function SignedAudio({ path, className, label = "Voiceover" }) {
       </button>
       <div className="group relative h-6 flex-1">
         <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-ink/[0.1]" />
-        <div className="pointer-events-none absolute left-0 top-1/2 h-1 w-full origin-left -translate-y-1/2 rounded-full bg-violet" style={{ transform: `translateY(-50%) scaleX(${pct / 100})` }} />
+        <div className="pointer-events-none absolute left-0 top-1/2 h-1 w-full origin-left -translate-y-1/2 rounded-full bg-brand" style={{ transform: `translateY(-50%) scaleX(${pct / 100})` }} />
         {/* A real range input: keyboard (arrows, Home/End) and screen readers work. */}
         <input
           type="range"

@@ -11,7 +11,7 @@ export const TYPE_META = {
 // tone -> chip colours (see components/ui.jsx StatusChip)
 export const ITEM_STATUS = {
   generating: { label: "Generating", tone: "neutral", pulse: true },
-  awaiting_voiceover: { label: "Needs voiceover", tone: "violet" },
+  awaiting_voiceover: { label: "Needs voiceover", tone: "brand" },
   pending_review: { label: "Needs review", tone: "brand" },
   changes_requested: { label: "Changes requested", tone: "warn" },
   approved: { label: "Approved", tone: "ok" },
@@ -22,7 +22,7 @@ export const ITEM_STATUS = {
 
 export const TOPIC_STATUS = {
   planned: { label: "Planned", tone: "neutral" },
-  producing: { label: "Producing", tone: "violet", pulse: true },
+  producing: { label: "Producing", tone: "active", pulse: true },
   ready: { label: "Ready", tone: "ok" },
   skipped: { label: "Skipped", tone: "neutral" },
   failed: { label: "Failed", tone: "danger" },
@@ -30,13 +30,13 @@ export const TOPIC_STATUS = {
 
 export const JOB_STATUS = {
   queued: { label: "Queued", tone: "neutral", pulse: true },
-  running: { label: "Running", tone: "violet", pulse: true },
+  running: { label: "Running", tone: "active", pulse: true },
   done: { label: "Done", tone: "ok" },
   failed: { label: "Failed", tone: "danger" },
 };
 
 export const RUN_STATUS = {
-  running: { label: "Running", tone: "violet", pulse: true },
+  running: { label: "Running", tone: "active", pulse: true },
   succeeded: { label: "Succeeded", tone: "ok" },
   failed: { label: "Failed", tone: "danger" },
 };

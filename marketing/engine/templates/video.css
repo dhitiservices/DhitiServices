@@ -1,6 +1,7 @@
 /* Reel overlays, 1080 x 1920. Rendered to transparent PNGs and composited by ffmpeg.
-   Safe area for text: x 90..920, y 280..1500 (keeps clear of Instagram / LinkedIn UI: the Reels action rail
-   covers about x 930..1080, y 1100..1650). */
+   Text band (v3.2): eyebrow from y 770, text inside y 770..1240, x 90..920. Meta keeps text out of the bottom ~35%
+   of a Reel (y > 1250: caption, username row, audio ticker) and LinkedIn video draws its UI there too; the action
+   rail covers about x 930..1080. The wordmark sits top-left or top-right at y 288 (below the top bar). */
 
 .v { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
 
@@ -10,12 +11,14 @@
   position: absolute; inset: 0;
   background:
     linear-gradient(180deg, rgba(22, 17, 16, 0.62) 0px, rgba(22, 17, 16, 0.36) 300px, rgba(22, 17, 16, 0.0) 620px),
-    linear-gradient(0deg, rgba(22, 17, 16, 0.90) 0px, rgba(22, 17, 16, 0.80) 420px, rgba(22, 17, 16, 0.60) 800px, rgba(22, 17, 16, 0.26) 1100px, rgba(22, 17, 16, 0.0) 1380px);
+    linear-gradient(0deg, rgba(22, 17, 16, 0.42) 0px, rgba(22, 17, 16, 0.46) 520px, rgba(22, 17, 16, 0.58) 680px, rgba(22, 17, 16, 0.55) 1000px, rgba(22, 17, 16, 0.42) 1180px, rgba(22, 17, 16, 0.12) 1340px, rgba(22, 17, 16, 0.0) 1440px);
 }
 .v-brand {
-  position: absolute; left: 90px; top: 288px;
+  position: absolute; top: 288px;
   display: flex; align-items: center; gap: 18px;
 }
+.v-brand.left { left: 90px; }
+.v-brand.right { right: 90px; }
 .v-brand img { height: 50px; width: auto; filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.35)); }
 .v-count {
   position: absolute; right: 90px; top: 300px;
@@ -29,8 +32,8 @@
 
 /* ---------- Text layer (animated in) ---------- */
 .v-safe {
-  position: absolute; left: 90px; right: 160px; top: 380px; bottom: 420px; /* x 90..920, bottom edge = y 1500 */
-  display: flex; flex-direction: column; justify-content: flex-end;
+  position: absolute; left: 90px; right: 160px; top: 770px; bottom: 680px; /* x 90..920, y 770..1240 */
+  display: flex; flex-direction: column; justify-content: flex-end; /* the block ends at y 1240; short text sits lower, clear of faces */
 }
 .v-kicker {
   display: inline-flex; align-items: center; gap: 14px; align-self: flex-start;
@@ -44,24 +47,29 @@
   margin: 0;
   font-size: calc(92px * var(--fit, 1));
   font-weight: 800;
-  line-height: 1.06;
+  line-height: 1.14;
   letter-spacing: -0.024em;
   word-spacing: 0.03em;
   color: #fff;
   text-wrap: balance;
   text-shadow: 0 2px 28px rgba(0, 0, 0, 0.32);
 }
-.v-text.hook { font-size: calc(108px * var(--fit, 1)); line-height: 1.02; letter-spacing: -0.028em; }
+.v-text.hook { font-size: calc(108px * var(--fit, 1)); line-height: 1.12; letter-spacing: -0.028em; }
+/* Highlight box: a band from just above cap height to just below the descenders, not the whole inline content box
+   (whose top reaches into the line above and clipped its g and y). The render pass checks the band against the
+   glyphs of the line above using --hl-cut-top. */
 .v-text .hl {
+  --hl-cut-top: 0.2;
   color: #fff;
-  background: var(--red);
-  padding: 0 0.14em 0.02em;
+  background: linear-gradient(180deg, transparent 0.2em, var(--red) 0.2em, var(--red) calc(100% - 0.02em), transparent calc(100% - 0.02em));
+  padding: 0 0.14em;
   margin: 0 -0.04em;
   border-radius: 0.1em;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   text-shadow: none;
 }
+.no-hl-box .v-text .hl { background: none; text-shadow: 0 2px 28px rgba(0, 0, 0, 0.32); }
 .v-rule { width: 120px; height: 10px; border-radius: 5px; background: var(--red); margin-top: calc(44px * var(--fit, 1)); flex: none; }
 
 /* ---------- Outro card ---------- */

@@ -253,7 +253,9 @@ of time, finished blogs are what the owner needs. For each topic:
 
 For each saved blog, make `carousels_per_blog` carousels, `graphics_per_blog` graphics and `videos_per_blog` reels
 (1, 2, 1 by default). Always: write the spec, lint it, `preview`, **Read the rendered PNGs/frames yourself**, fix,
-and only then `make-*`. Reuse the blog cover photo where it fits (no extra credits).
+and only then `make-*`. One photo or clip per creative: the blog cover stays on the blog, and no stock id appears in
+two creatives of the same blog (the engine refuses it). Each format gets its own hook. Preview with
+`--publish-date <planned_publish_date>` and resolve its date `warnings` (`quality-bar.md` section 7b).
 
 1. **Carousel** (`carousel.md`): 7 to 9 slides, hook cover, one idea per slide, body at most 30 words, CTA slide;
    LinkedIn caption 120 to 220 words with a hooky first line; Instagram caption + 8 to 15 hashtags; 1 to 2 photos.
@@ -338,12 +340,13 @@ credits; searches and previews are free.
 
 - **Weekly cap:** `settings.magnific_weekly_credit_cap` if set, otherwise 10,000 credits per weekly batch
   (3 blogs). Revisions runs: `settings.magnific_revision_credit_cap` if set, otherwise 1,500 per run.
-- **Per blog plan (default):** cover 40 to 150; carousel and graphics reuse the cover plus at most 2 more photos;
-  reel at most 5 clips (3 to 4 is the norm) plus 2 to 3 stills. About 2,600 to 3,300 credits per blog.
+- **Per blog plan (default):** cover 40 to 150; carousel cover photo 40 to 150 (graphics usually need no photo);
+  reel 4 to 5 clips plus at most 1 still (owner library first). About 2,600 to 3,450 credits per blog.
 - **Before every purchase** check the running total
   (`jq -s 'map(.credit_cost) | add' "$WORK/credits.jsonl"`) against the cap and the remaining work. When the
-  remaining budget is tight: prefer free photos, reuse the cover, cut reel clips to 3, then 2, then use stills only.
-  A reel made of good stills with Ken Burns motion is acceptable; a reel with weak footage is not.
+  remaining budget is tight: prefer free photos, use text-only carousel covers and graphics, cut reel clips to 4,
+  then 3, and fill with owner library media; log every compromise. Never reuse the blog cover in a creative to
+  save credits. A reel with weak footage is not acceptable; a reel of mostly stills reads as a slideshow.
 - **Low balance:** if `account_balance` shows fewer credits than the plan needs, prioritise in this order: blog
   covers, carousels, graphics, reels. Log a clear owner action ("Magnific credits low: N left").
 - **Never download the same item twice in a run** (check `$WORK/stock/` first). Log every download in

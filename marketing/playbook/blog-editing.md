@@ -24,6 +24,11 @@ Score each criterion 1 to 5 with one specific note. Be honest; 5 means nothing i
 9. **Voice and hygiene.** Plain British/Indian English, calm, practical. No em dashes, banned phrases, hype,
    exclamation marks, filler, repetition or fabricated facts.
 10. **Length.** 1,300 to 1,900 words (ideal 1,450 to 1,750).
+11. **Currency and accuracy.** Score 5 only when every item of `blog-writing.md` section 1, points 6 to 10, was done
+    and noted: the superseded-rule search for each rule (with what it found), conditions counted exactly, the
+    scenario's causes walked through the system, every deadline computed against `planned_publish_date` (and the
+    publish-day case stated with its year), descriptors quoted exactly. A finance reader who knows the law must
+    find nothing out of date. Any score below 5 here blocks saving.
 
 ## Step 2: rewrite
 

@@ -1,9 +1,15 @@
 import { cx } from "../ui.jsx";
 
-export function MetaSection({ title, children, className }) {
+/** `aside`: a right-aligned value next to the title, in normal case (durations like "28 s" must not become "28 S"). */
+export function MetaSection({ title, aside, children, className }) {
   return (
     <section className={cx("px-5 py-4 [&+&]:border-t [&+&]:border-[color:var(--hairline)]", className)}>
-      {title && <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">{title}</h3>}
+      {title && (
+        <div className="mb-2.5 flex items-baseline justify-between gap-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">{title}</h3>
+          {aside && <span className="tnum shrink-0 text-[11.5px] font-medium text-ink-mute">{aside}</span>}
+        </div>
+      )}
       {children}
     </section>
   );

@@ -37,11 +37,19 @@ deploy from a machine that has them in `public/fonts/`: `npm run build && npx ne
    `Your code: {{ .Token }}` to **Magic Link** (every later sign-in) and to **Confirm signup** (your very first
    sign-in creates the account, and Supabase sends that template the first time). Keep the link as well: it works too,
    on any device, and the app removes it from the address bar after signing in.
-3. **Authentication → Providers → Email**: keep **Email OTP length** at 6 (the app has six boxes) and the OTP
-   expiry at 3600 seconds or less.
-4. Optional, after your first successful sign-in: **Authentication → Sign In / Providers → Allow new users to sign up**
-   off. The database already rejects any address that is not in `allowed_users`; this adds a second layer.
-5. Optional: Supabase's built-in mailer sends only a few emails per hour. If codes stop arriving, add your own SMTP
+3. **Authentication → Providers → Email**: keep **Email OTP length** at 6 (the app has six boxes) and set the
+   **OTP expiry to 600 seconds** (10 minutes; the sign-in screen says so). A short expiry shrinks the window for
+   guessing a code.
+4. **Do your first sign-in now**, then turn **Authentication → Sign In / Providers → Allow new users to sign up**
+   off. Until the owner account exists, the allowlisted address is the only one the database accepts as a new user.
+   Passwords cannot be planted on it (the `strip_password` trigger blanks every password, so the password grant never
+   works), but closing sign-ups ends the window completely. Before that first sign-in you can confirm nothing is
+   waiting: `select count(*) from auth.users where email_confirmed_at is null;` must be 0 (delete any such row).
+5. **Authentication → Rate Limits**: lower the limits for sending OTP emails and for verifying tokens (for example 5
+   emails and 15 verifications per hour per IP) so a code cannot be brute-forced. Optional extra: Supabase CAPTCHA
+   (Cloudflare Turnstile); it needs `challenges.cloudflare.com` added to the CSP in `netlify.toml`, which relaxes the
+   "no third-party scripts" rule, so it is off by default.
+6. Optional: Supabase's built-in mailer sends only a few emails per hour. If codes stop arriving, add your own SMTP
    under **Authentication → Emails → SMTP Settings**.
 
 To give someone access, add their email to `public.allowed_users` (SQL editor). To remove access, delete the row,
@@ -80,23 +88,34 @@ brings the item back as `pending_review`. Approve (blog: pick publish time, IST)
 | `/library` | Owner photos (JPG/PNG/WebP; HEIC refused with a how-to), voiceovers (MP3/M4A/WAV) and footage (MP4/MOV): drag-drop anywhere or browse, type checked by file content, upload progress, thumbnails and waveforms, title/tags/notes, delete. Storage `library/<uuid>/<file>` + a `library_assets` row |
 | `/settings` | `settings.data` fields (cadence, publish days, audience, avoid topics, extra guidance; other keys are preserved), appearance, runs with expandable logs |
 
-Keyboard: `⌘K`/`Ctrl K` or `/` command menu · Review: `J`/`K` next/previous, `A` approve, `R` request changes,
+Keyboard: `⌘K`/`Ctrl K` or `/` command menu · Review: `J`/`K` next/previous, `A` approve, `R` request changes, `U` upload voiceover (reels waiting for one),
 `E` edit blog, `⌘S` save, `Esc` close. Arrow keys move carousel slides.
 
 ## Data and writes
 
 Everything is in `src/lib/backend.js` (Supabase) and `src/lib/store.jsx` (state, optimistic actions, toasts).
 Writes used, all allowed by RLS for team members: `content_items` update, `topics` update, `settings` update,
-`jobs` insert with `status: 'queued'`, `library_assets` insert/delete, storage upload/delete under `library/`.
+`jobs` insert, `library_assets` insert/update (title, notes, tags only)/delete, storage upload/delete under `library/`.
+The database checks each write itself (migrations `jobs_insert_policy_strict`, `library_uploads_type_and_path_checks`,
+`least_privilege_table_grants`): a job must be one of the four shapes the dashboard sends, queued by the signed-in
+address, for an item in the right state (`regenerate` needs `changes_requested`, `publish_now` an approved or published
+blog, `render_video` a reel in `awaiting_voiceover` and a voiceover that is unassigned or recorded for that reel;
+feedback up to 4,000 characters); a library row must point at `library/<uuid>/<file>`, use an allowed media type and
+name the uploader; the bucket accepts only images, MP4/MOV/WebM video, PDF and MP3/M4A/WAV audio. `anon` has no table
+privileges at all.
 Media come from the private `marketing` bucket through batched `createSignedUrls` (1 h, cached, refreshed 5 min
 before expiry). Live updates: Realtime `postgres_changes` on `content_items`, `jobs`, `runs`, `topics`,
-`library_assets`, plus a 30 s poll and refresh on focus as a fallback.
+`library_assets`, plus a 30 s poll and refresh on focus as a fallback. A failed first load shows "Couldn't load your studio"
+with Retry and Sign out (never an empty queue); a failed background refresh keeps the data on screen and replaces the
+Live dot with an amber "Offline · synced N min ago" pill until the next refresh succeeds.
 
 ## Design
 
 Type: **SF Pro Display** for everything, from the owner's licensed OTF files in `public/fonts/`
 (`SF-Pro-Display-Regular|Medium|Bold.otf`, gitignored and never committed), loaded with `@font-face` (400/500/700,
-`font-display: swap`, `local()` first) in `src/index.css`. Stack: `"SF Pro Display", -apple-system,
+`font-display: swap`, `local()` first) in `src/index.css`. With no Semibold file, Tailwind's `font-semibold` maps to
+500 and the Medium face also covers 600, so nothing renders as Bold by accident; 700 is for titles and numbers.
+Form fields focus with an ink ring; red borders mean an error (`aria-invalid`). Stack: `"SF Pro Display", -apple-system,
 BlinkMacSystemFont, system-ui, sans-serif`. CSP `font-src 'self'`. The splash waits up to 0.9 s for the font so the
 first screen does not swap fonts. Creatives (carousel, graphics, reel, covers) use Inter, embedded by the engine.
 

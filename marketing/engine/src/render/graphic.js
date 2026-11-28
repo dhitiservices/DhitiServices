@@ -9,7 +9,10 @@
 //   tip   : headline = the tip, body = how/why. Off-white with "Operations tip" label (body.eyebrow overrides).
 //           Photo -> square: photo band on top; landscape: photo panel right.
 // Text supports **highlight**. Em dashes are removed (brand rule). body.focus steers the photo crop (see parseFocus).
-import { withPage, resolveBrand, htmlDocument, photoDataUri, richText, cleanText, splitStat, escapeHtml } from './browser.js';
+// v3.2: stat graphics take an optional body.compare ([{label, value}], 2 or 3 items, e.g. economy 5% | other 18%),
+// tip graphics an optional body.chips (short column or step names shown as chips instead of a comma sentence).
+// body.subject ({x,y,w,h} of the source photo) fails the render when text crosses it (needs an explicit focus).
+import { withPage, resolveBrand, htmlDocument, photoDataUri, richText, cleanText, splitStat, escapeHtml, coverCropRect, subjectInOutput, subjectMarker, photoSize, assertNoCollisions } from './browser.js';
 import { QUOTE_SVG } from './carousel.js';
 
 export const GRAPHIC_SIZES = Object.freeze({
@@ -34,6 +37,9 @@ function normalize(body) {
     attribution: cleanText(body.attribution),
     photo: typeof body.photo === 'string' && body.photo.trim() ? body.photo.trim() : null,
     focus: body.focus ?? null,
+    subject: body.subject ?? null,
+    compare: (Array.isArray(body.compare) ? body.compare : []).map((c) => ({ label: cleanText(c?.label), value: cleanText(c?.value), active: Boolean(c?.active) })).filter((c) => c.label && c.value).slice(0, 3),
+    chips: (Array.isArray(body.chips) ? body.chips : []).map((c) => cleanText(c)).filter(Boolean).slice(0, 10),
   };
   if (kind === 'quote' && !g.headline) [g.headline, g.body] = [g.body, ''];
   if (!g.headline && kind !== 'stat') throw new Error('renderGraphic: headline is required');
@@ -54,6 +60,24 @@ function attribHtml(g) {
   return a || c ? `<div class="rule"></div><div class="attrib">${a}${c}</div>` : '';
 }
 
+function compareHtml(g) {
+  if (g.compare.length < 2) return '';
+  return `<div class="compare">${g.compare.map((c) => `<div class="cmp${c.active ? ' on' : ''}"><b>${escapeHtml(c.value)}</b><span>${escapeHtml(c.label)}</span></div>`).join('')}</div>`;
+}
+
+function chipsHtml(g) {
+  if (!g.chips.length) return '';
+  return `<ul class="chips">${g.chips.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul>`;
+}
+
+async function subjectBox(g, size) {
+  if (!g.photo || !g.subject) return '';
+  const { width: iw, height: ih } = await photoSize(g.photo);
+  const crop = coverCropRect(iw, ih, { ...size, focus: g.focus });
+  if (!crop) throw new Error('renderGraphic: "subject" needs an explicit focus ({x,y}) so the crop is known');
+  return subjectMarker(subjectInOutput(g.subject, crop, iw, ih), 'face');
+}
+
 function noteHtml(g) {
   const parts = [g.body, g.attribution ? `Source: ${g.attribution}` : ''].filter(Boolean).map((t) => richText(t));
   return parts.length ? `<p class="note">${parts.join('<br>')}</p>` : '';
@@ -66,8 +90,8 @@ async function squareHtml(g, brand) {
     const photo = g.photo ? await photoDataUri(g.photo, { width, height, focus: g.focus }) : '';
     return `
 <div class="frame g g-square g-quote ${photo ? 'has-photo on-dark bg-ink' : 'bg-paper'}">
-  ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full"></div>` : ''}
-  <main class="g-main" data-fit-box="quote" data-fit-min="0.5">
+  ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full"></div>${await subjectBox(g, { width, height })}` : ''}
+  <main class="g-main" data-fit-box="quote" data-fit-min="0.5" data-text-scope>
     <div class="qmark">${QUOTE_SVG}</div>
     <blockquote class="quote">${richText(g.headline)}</blockquote>
     ${attribHtml(g)}
@@ -80,10 +104,11 @@ async function squareHtml(g, brand) {
     return `
 <div class="frame g g-square g-stat bg-ink on-dark ${photo ? 'has-photo-bg' : ''}">
   ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full" style="background:rgba(22,17,16,0.84)"></div>` : ''}
-  <main class="g-main" data-fit-box="stat" data-fit-min="0.5">
+  <main class="g-main" data-fit-box="stat" data-fit-min="0.5" data-text-scope>
     ${g.eyebrow ? `<div class="eyebrow">${escapeHtml(g.eyebrow)}</div>` : ''}
     ${statHtml(g.stat)}
     ${g.headline ? `<h1 class="headline">${richText(g.headline)}</h1>` : ''}
+    ${compareHtml(g)}
     ${noteHtml(g)}
   </main>
   ${foot(logo.reverse)}
@@ -91,14 +116,14 @@ async function squareHtml(g, brand) {
   }
   // tip
   const label = `<div class="label">${TIP_ICON}${escapeHtml(g.eyebrow || 'Operations tip')}</div>`;
-  const text = `<h1 class="headline">${richText(g.headline)}</h1>${g.body ? `<div class="rule"></div><p class="body">${richText(g.body)}</p>` : ''}`;
+  const text = `<h1 class="headline">${richText(g.headline)}</h1>${g.body || g.chips.length ? '<div class="rule"></div>' : ''}${g.body ? `<p class="body">${richText(g.body)}</p>` : ''}${chipsHtml(g)}`;
   const photo = g.photo ? await photoDataUri(g.photo, { width, height: 430, focus: g.focus }) : '';
   if (photo) {
     return `
 <div class="frame g g-square g-tip has-photo bg-paper">
   <div class="band"><img src="${photo}" alt="">${label}</div>
   <div class="lower">
-    <main class="g-main" data-fit-box="tip" data-fit-min="0.5" style="justify-content:center">${text}</main>
+    <main class="g-main" data-fit-box="tip" data-fit-min="0.5" data-text-scope style="justify-content:center">${text}</main>
     ${foot(logo.color)}
   </div>
 </div>`;
@@ -106,7 +131,7 @@ async function squareHtml(g, brand) {
   return `
 <div class="frame g g-square g-tip bg-paper">
   <img class="bigmark" src="${mark.color}" alt="">
-  <main class="g-main" data-fit-box="tip" data-fit-min="0.5">${label}${text}</main>
+  <main class="g-main" data-fit-box="tip" data-fit-min="0.5" data-text-scope>${label}${text}</main>
   ${foot(logo.color)}
 </div>`;
 }
@@ -152,8 +177,9 @@ async function landscapeHtml(g, brand) {
       ${g.eyebrow ? `<div class="eyebrow">${escapeHtml(g.eyebrow)}</div>` : ''}
       ${statHtml(g.stat)}
     </div>
-    <main class="right" data-fit-box="stat" data-fit-min="0.5">
+    <main class="right" data-fit-box="stat" data-fit-min="0.5" data-text-scope>
       ${g.headline ? `<h1 class="headline">${richText(g.headline)}</h1>` : ''}
+      ${compareHtml(g)}
       ${noteHtml(g)}
     </main>
   </div>
@@ -161,13 +187,13 @@ async function landscapeHtml(g, brand) {
 </div>`;
   }
   const label = `<div class="label">${TIP_ICON}${escapeHtml(g.eyebrow || 'Operations tip')}</div>`;
-  const text = `${label}<h1 class="headline">${richText(g.headline)}</h1>${g.body ? `<div class="rule"></div><p class="body">${richText(g.body)}</p>` : ''}`;
+  const text = `${label}<h1 class="headline">${richText(g.headline)}</h1>${g.body || g.chips.length ? '<div class="rule"></div>' : ''}${g.body ? `<p class="body">${richText(g.body)}</p>` : ''}${chipsHtml(g)}`;
   const photo = g.photo ? await photoDataUri(g.photo, { width: 440, height, focus: g.focus }) : '';
   if (photo) {
     return `
 <div class="frame g-land g-tip has-photo bg-paper">
   <div class="textcol">
-    <main class="g-main" data-fit-box="tip" data-fit-min="0.5" style="justify-content:center">${text}</main>
+    <main class="g-main" data-fit-box="tip" data-fit-min="0.5" data-text-scope style="justify-content:center">${text}</main>
     ${foot(logo.color)}
   </div>
   <div class="panel"><img src="${photo}" alt=""></div>
@@ -176,7 +202,7 @@ async function landscapeHtml(g, brand) {
   return `
 <div class="frame g g-land g-tip bg-paper">
   <img class="bigmark" src="${mark.color}" alt="">
-  <main class="g-main" data-fit-box="tip" data-fit-min="0.5">${text}</main>
+  <main class="g-main" data-fit-box="tip" data-fit-min="0.5" data-text-scope>${text}</main>
   ${foot(logo.color)}
 </div>`;
 }
@@ -194,6 +220,7 @@ export async function renderGraphic(body, { brand } = {}) {
     const html = htmlDocument({ body: inner, css, colors: resolved.colors, ...size });
     await withPage(size, async (render) => {
       const { buffer, report } = await render(html);
+      assertNoCollisions(report, `graphic ${name}`);
       out[name] = buffer;
       out.reports[name] = report;
     });

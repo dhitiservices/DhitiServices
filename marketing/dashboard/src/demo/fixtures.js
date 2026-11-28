@@ -1,6 +1,6 @@
 // Demo fixtures. Only bundled when __DEMO__ is true (vite dev, or VITE_DEMO=1); never in production builds.
 // Media paths starting with "demo/" resolve to /demo-media/<file> (not committed: copy sample stock there locally).
-import { addDays, weekStartIST } from "../lib/format.js";
+import { addDays, weekStartIST, countWords } from "../lib/format.js";
 
 const at = (ymd, hhmm = "10:00") => new Date(`${ymd}T${hhmm}:00+05:30`).toISOString();
 const ago = (mins) => new Date(Date.now() - mins * 60000).toISOString();
@@ -47,80 +47,192 @@ function slideSvg({ w = 1080, h = 1350, kind, eyebrow, headline, body, stat, ind
 }
 
 /* ---------- content ---------- */
-const ADM_MD = `It is 6:40 pm on a Friday. An airline debit memo for ₹38,400 lands in the inbox of a mid-sized agency in Pune. The fare was right when it was ticketed. The fare basis was not. Nobody notices until the settlement report closes.
+const ADM_MD = `It is 6:40 pm on a Friday. An airline debit memo for ₹38,400 lands in the inbox of a mid-sized agency in Pune. The fare was right when it was ticketed. The fare basis was not. Nobody notices until the settlement report closes, and by then the ticket cannot be voided.
 
 **Most ADMs are not caused by bad agents. They are caused by a missing second look.**
 
 ## Why ADMs keep coming back
 
-IATA's own [BSP data](https://www.iata.org/en/services/finance/bsp/) shows that agencies lose a measurable share of margin to debit memos every year, and the reasons repeat: wrong fare basis, missing endorsements, reissues without the right penalty, and duplicate bookings left open.
+IATA's own [BSP overview](https://www.iata.org/en/services/finance/bsp/) explains how every ticket an agency issues flows into one settlement cycle, and every airline audits that cycle on its own schedule. The reasons memos arrive are the same each month: the wrong fare basis, a missing endorsement, a reissue without the right penalty, a duplicate booking left open past the ticketing deadline, or a tour code that does not match the deal.
+
+None of these are hard to catch. They are hard to catch at 6 pm, when the same agent who built the booking is also answering the next call. The person who made the mistake is the person least likely to see it, because they read what they meant to type.
+
+That is why training alone rarely moves the ADM rate. Agents already know the rules. What they lack is a calm, separate moment where someone else checks the work before the void window closes.
 
 ## What a second-check desk actually does
 
-A second-check desk is a small team that reviews every ticket within a fixed window after issue. The checks are boring on purpose:
+A second-check desk is a small team that reviews every ticket within a fixed window after issue. The checks are boring on purpose, and the same every day:
 
 - Fare basis and booking class match the filed fare
 - Reissue penalties and residual values are applied correctly
 - Duplicate and churned segments are cancelled before ticketing deadlines
-- Tour codes and endorsements match the deal
+- Tour codes and endorsements match the corporate or consolidator deal
+- Names match the passport format the airline expects
+
+The desk does not rebook or reprice. When it finds a problem, it flags the ticket to the issuing agent with the fix written out, and the agent corrects it while the ticket can still be voided or reissued for free. The desk owns the check; the agent owns the booking.
+
+## Who should sit on the desk
+
+The best second-check reviewers are not the fastest ticketing agents. They are the most patient ones. Look for people who enjoy reading a fare rule twice, who keep their own notes on airline quirks, and who are comfortable telling a senior colleague that a ticket is wrong.
+
+Two people are enough for most agencies issuing under 2,500 tickets a month. One reviews the morning batch and one the afternoon batch, and they cover for each other. Rotating a ticketing agent onto the desk for one week a quarter also helps: they come back to the counter with a sharper eye for the errors they used to make.
 
 ## The numbers that matter
 
-Illustrative example: an agency issuing 1,800 tickets a month with a 0.6% ADM rate and an average memo of ₹9,500 loses about ₹1.03 lakh a month. Cutting the rate in half pays for a two-person desk several times over.
+Illustrative example: an agency issuing 1,800 tickets a month with a 0.6% ADM rate and an average memo of ₹9,500 receives about 11 memos and loses roughly ₹1.03 lakh a month. Halving the rate saves more than ₹6 lakh a year, which pays for a two-person desk several times over, before counting the hours spent disputing memos.
+
+The savings are not only financial. Every ADM dispute takes an agent away from selling, and every memo that reaches a corporate client's invoice costs trust that is slow to rebuild.
+
+There is also a compounding effect. Each memo the desk prevents is one fewer dispute to research, one fewer conversation with the airline's revenue accounting team, and one fewer adjustment to explain at month-end close. Agencies that track the hours spent on disputes are usually surprised by how much senior time the memos consume, often a full day a week across the finance and ticketing leads. The desk gives that time back to work that grows the business, such as corporate account reviews and supplier negotiations.
 
 ## How to start in two weeks
 
-1. Pull the last six months of ADMs and tag each by cause.
-2. Write a checklist for the top five causes only.
-3. Review every ticket issued after 4 pm first, because that is when most errors happen.
-4. Share a weekly one-page report with the ticketing team.
+1. Pull the last six months of ADMs and tag each one by cause. Most agencies find that five causes explain four memos out of five.
+2. Write a one-page checklist for those top five causes only. Resist the urge to cover every rule on day one.
+3. Review every ticket issued after 4 pm first, because that is when most errors happen and when the void window is shortest.
+4. Agree a simple handover: the desk flags, the issuing agent fixes, the desk confirms the fix in the same thread.
+5. Share a weekly one-page report with the ticketing team that shows what was caught, not who made the error.
+
+## Common mistakes when setting one up
+
+The most common mistake is making the desk feel like an audit. If agents see flags as blame, they stop asking questions and start hiding small fixes. Keep the weekly report about patterns and keep individual feedback private and specific.
+
+The second mistake is checking too late. A review that happens the next morning finds errors that can no longer be voided. Set a window, four hours from issue is a good start, and measure the desk against it.
+
+The third is letting the checklist grow without limit. Add a new check only when a new cause shows up in the memos twice.
 
 ## What to measure
 
-Track ADM count, ADM value, and time from issue to check. Anything checked within four hours can usually still be voided.
+Track three numbers every week: ADM count, ADM value, and the time from issue to check. Anything checked within four hours can usually still be voided, so the share of tickets checked inside that window is the number that predicts next month's memos. Add a fourth, the number of flags per hundred tickets, to see whether training at the counter is working.
+
+Review the numbers with the ticketing team once a month, and close the loop on every pattern: if one airline's reissue rules keep causing flags, write a short guide for that airline and pin it where agents issue tickets.
 
 ## The short version
 
-A second-check desk is cheap, calm work. Done every day, it turns ADMs from a monthly surprise into a rare exception.`;
+A second-check desk is cheap, calm work. Done every day, inside the void window, with a short checklist and a blame-free report, it turns ADMs from a monthly surprise into a rare exception.`;
 
-const ROOMING_MD = `The group lands in Jaipur at 11 am. The hotel has 22 rooms blocked. The rooming list says 24. Somebody is going to spend the afternoon on the phone.
+const ROOMING_MD = `The group lands in Jaipur at 11 am. The hotel has 22 rooms blocked. The rooming list says 24. Two couples are standing in the lobby with their luggage, and somebody is going to spend the afternoon on the phone.
 
 **A rooming list is only as good as the last time someone checked it against the hotel.**
 
 ## The 48-hour window
 
-Most hotel group desks want final names 48 to 72 hours out. That is also when late changes pile up.
+Most hotel group desks want final names 48 to 72 hours before arrival. That is also when late changes pile up: a guest drops out, two colleagues decide to share, a family adds a child, a VIP asks for a suite. Every change made after the list is sent creates a gap between what the agency believes and what the hotel has loaded.
+
+The fix is not a better spreadsheet. It is a fixed routine inside that window, run the same way for every group, whether it is a 12-person incentive trip or a 300-guest wedding.
+
+The routine matters more as groups get larger. A 12-person trip can survive one wrong room because the coordinator can fix it in person. A 300-guest wedding spread across two hotels cannot, because every wrong room becomes a queue at the front desk and a call to the family that booked it.
+
+## Why lists drift
+
+Rooming lists drift for three reasons. First, changes arrive through different channels: email, WhatsApp, a call to the sales manager. Second, the hotel's system holds the list in its own format, so every update is retyped by someone at the property. Third, nobody owns the final comparison between the two versions.
+
+Hotel associations such as the [American Hotel and Lodging Association](https://www.ahla.com/) publish group booking guidance that says the same thing in different words: one source of truth, one owner, and written confirmation of every change.
+
+Each of these is small on its own. Together they explain why a list that was perfect on Monday is wrong by Thursday, even when everyone involved is careful.
 
 ## The checklist
 
-- Names exactly as on ID
-- Room type and bedding per pair
-- Arrival and departure per guest, not per group
-- Special requests copied into the hotel's own format
+Run this checklist at 72 hours, again at 48 hours, and once more the evening before arrival:
+
+- Names exactly as on the ID each guest will show at check-in
+- Room type and bedding for every pair, not just the room count
+- Arrival and departure dates per guest, not per group
+- Children, extra beds and accessible rooms flagged clearly
+- Special requests copied into the hotel's own format, word for word
+- Billing instructions per room: what the group pays and what the guest pays
+
+Each run ends with the same step: ask the hotel to send its version back, and compare it line by line with yours.
 
 ## Who owns it
 
-One named coordinator per group, with a back-up.
+One named coordinator owns each group from contract to checkout, with a named back-up who has read the file. The coordinator is the only person who sends changes to the hotel. Everyone else, including sales, sends changes to the coordinator.
+
+This sounds slow. It is the opposite. When one person holds the list, a change takes one message instead of three, and the hotel learns that a message from that coordinator is always final.
+
+The back-up matters as much as the owner. Groups do not wait for holidays or sick days, and a back-up who has never opened the file is no back-up at all. Ask the back-up to run the 48-hour checklist once for every group, so they know the file before they ever need it.
+
+## Handling late changes
+
+Late changes are normal, so plan for them instead of fighting them. Agree a cut-off with the client, usually 24 hours before arrival, after which changes are handled on site. Keep two or three rooms on a flexible hold where the contract allows it. Log every late change with the time it was sent and the name of the person at the hotel who confirmed it.
+
+Illustrative example: a 40-room wedding group with six late changes and no change log can easily lose an hour at check-in. The same group with a log and a confirmed list from the hotel checks in during the welcome drink.
+
+Share the cut-off with the client in writing when the contract is signed, and repeat it in the reminder you send a week before arrival. Clients rarely object to a clear rule; they object to surprises at the front desk. A short note that explains how on-site changes will be handled, and who to call, turns a late change from a crisis into a routine request.
+
+## What to measure
+
+Measure three things for every group: the number of differences found at each checklist run, the number of guests who had a problem at check-in, and the time from arrival to the last key handed over. The first number should fall from run to run. The second should be zero. The third is the one the client remembers.
+
+Review these numbers after every large group, not only when something goes wrong. Patterns appear quickly: a hotel that always loses bedding requests, a sales channel that sends changes late, a type of group that always adds guests in the last day. Each pattern becomes one more line on the checklist, or one more conversation with the hotel before the next contract is signed.
+
+## Working with the hotel
+
+The hotel's group coordinator is on your side, but they are juggling many groups at once. Make their job easy: send changes in the hotel's format, number every version, and never send a full list when only one line changed. A short call the day before arrival, walking through the final list together, saves more time than any email.
+
+After checkout, send the hotel a short thank-you with two or three notes on what worked and what did not. Coordinators remember the agencies that make their job easier, and that goodwill pays back the next time you need a late room on a sold-out night.
 
 ## The short version
 
-Check twice, send once, and confirm in writing.`;
+Check twice, send once, and confirm in writing. One owner, one list, one comparison against the hotel's own version at 72 hours, 48 hours and the night before. That routine turns check-in from a scramble into a welcome.`;
 
-const SUPPORT_MD = `A customer writes in at 9 pm asking why their refund has not arrived. The answer is in three systems. The agent who knows all three has gone home.
+const SUPPORT_MD = `A customer writes in at 9 pm asking why their refund has not arrived. The answer is in three systems. The agent who knows all three has gone home, and the agent on shift sends a polite holding reply. The customer writes again the next morning, a little less politely.
 
 **Support quality is a process problem long before it is a people problem.**
 
 ## Where the cost hides
 
-Repeat contacts, escalations and refunds issued to stop complaints.
+Support costs rarely sit where the budget says they do. The visible cost is headcount. The hidden costs are repeat contacts, escalations to senior staff, and refunds or goodwill credits issued simply to stop a complaint. Each repeat contact costs roughly as much as the first one and earns nothing.
+
+Research from groups such as [Gartner's customer service practice](https://www.gartner.com/en/customer-service-support) has shown for years that customers value low effort more than delight. A customer who gets a complete answer the first time is more loyal than one who gets a friendly answer twice.
+
+The costs also show up outside support. Sales teams spend time calming clients who should never have needed calming. Finance teams process refunds and credits that a clear first answer would have avoided. Senior staff spend evenings on escalations instead of on the work they were hired for. When these costs are added up, the true price of a weak support process is often twice the line in the budget.
+
+Start by pricing one repeat contact. Multiply the average handling time by the loaded cost of an agent hour, then add the share of repeats that become escalations. The number is usually large enough to justify fixing the top three causes immediately.
+
+## What repeat contacts tell you
+
+Every repeat contact is a free diagnosis. Tag them for two weeks and the causes appear quickly: a status that is not visible to agents, a policy that agents interpret differently, a handover between teams that drops the context. These are process gaps, and no amount of coaching fixes them.
+
+Illustrative example: a travel support team handling 6,000 contacts a month finds that 1,100 are repeats about refund status. Giving agents read access to the refund tracker removes most of them within a month.
+
+## Why stable teams answer better
+
+Product knowledge in travel and hospitality is deep and specific: fare rules, supplier policies, payment flows, local exceptions. It takes months to build and leaves the moment an experienced agent does. Teams with high attrition are permanently re-learning the same lessons.
+
+Stable teams compound. An agent in their second year has seen most edge cases and knows which colleague to ask about the rest. They also write better notes, which makes the next agent faster.
+
+Stability also changes how agents treat customers. An agent who expects to be in the same role next year cares about the reputation of the team and the quality of the notes they leave behind. An agent who expects to leave in three months optimises for closing the ticket in front of them.
+
+Stable teams also onboard new colleagues faster. A new agent sitting next to someone with two years of context learns in weeks what would otherwise take months, and the team's quality holds steady through the change instead of dipping every time someone joins.
 
 ## What a rural team changes
 
-Stable teams, lower attrition and time to build real product knowledge.
+Rural operations teams tend to stay longer, because good jobs are scarcer and closer to home. That stability gives a support operation time to build real product knowledge, to document it, and to keep quality steady through peak season without a hiring scramble.
+
+Lower living costs also mean a team can be staffed for quality rather than squeezed for volume. Agents get time to finish a case properly instead of closing it fast.
+
+Dhiti's own teams work from Pune district, and the pattern is consistent: agents who have handled a supplier's quirks for a year resolve those cases in one reply, where a new agent would escalate. That is not a talent difference; it is the value of time in the role, protected by low attrition.
+
+## Designing for first-contact resolution
+
+First-contact resolution is designed, not demanded. Give agents the access they need to answer without escalating. Write short, current answers for the twenty questions that make up most of the volume. Define clear ownership for every handover, so a case never waits in a shared inbox. Review a small sample of closed cases every week, and fix the process behind each miss.
+
+## Writing answers agents trust
+
+A knowledge base only helps if agents believe it. Keep each answer short, dated and owned by a named person. Write it in the words customers use, not the words of the internal system. Delete answers that are out of date rather than leaving them with a warning, because one wrong answer teaches agents to stop looking. Review the top twenty answers every month, and ask the agents who use them most to suggest changes. When agents see their suggestions published within a week, they start contributing more, and the knowledge base becomes a shared tool instead of a manager's document.
+
+Illustrative example: a team that rewrites its ten most-used refund answers in plain language, with the exact steps and the expected timelines, typically sees fewer escalations within a few weeks, because agents can answer with confidence instead of passing the case upward.
+
+## What to measure
+
+Track the repeat-contact rate, first-contact resolution, and time to full resolution, not just first reply. Add a weekly sample of quality reviews scored against a simple rubric: was the answer correct, complete, and clear? Share the patterns with the whole team and the individual notes privately.
+
+Resist the pull of speed metrics alone. A team that is measured only on first reply time learns to send fast, empty replies. A team measured on resolution learns to send complete ones. Look at both together, and when they disagree, trust resolution.
 
 ## The short version
 
-Good support is designed, not hired.`;
+Good support is designed, not hired. Fix the process gaps that create repeat contacts, keep the team stable long enough to build real knowledge, and measure resolution rather than speed. Quality follows, and cost falls with it.`;
 
 export function buildFixtures() {
   n = 0;
@@ -208,7 +320,7 @@ export function buildFixtures() {
     slug,
     frontmatter: { title: topic.title, description, category: topic.category, image: `${slug}.webp`, imageAlt: "Operations team at work", order: 15, date: topic.planned_publish_date },
     markdown: md,
-    word_count: md.split(/\s+/).length * 3,
+    word_count: countWords(md),
     meta: { primary_keyword: topic.primary_keyword, secondary_keywords: ["debit memo", "BSP", "ticketing audit"], faq: [{ q: "What is an ADM?", a: "An Agency Debit Memo is a charge an airline raises against an agency for a ticketing error." }] },
     sources: [{ title: "IATA Billing and Settlement Plan", url: "https://www.iata.org/en/services/finance/bsp/" }, { title: "Ministry of Tourism statistics", url: "https://www.tourism.gov.in/" }],
     checks: { passed: true, messages: [] },

@@ -45,7 +45,7 @@ export default function Ready() {
               <h2 className="text-headline font-semibold">{topic?.title || "Other"}</h2>
               {topic?.planned_publish_date && <span className="text-callout text-ink-mute">Blog {formatDate(dateOnly(topic.planned_publish_date), { weekday: "short", day: "numeric", month: "short" })}</span>}
             </div>
-            <motion.div layout className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <motion.div layout className="grid gap-4 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
               <AnimatePresence>
                 {list.map((item) => {
                   const base = item.body?.slug || topic?.primary_keyword || topic?.title || item.type;

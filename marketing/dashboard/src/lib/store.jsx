@@ -31,6 +31,9 @@ export function DataProvider({ backend, user, children }) {
   const [error, setError] = useState(null);
   const [live, setLive] = useState(false);
   const [lastSync, setLastSync] = useState(null);
+  // A background refresh that failed after the first successful load: { at: Date, message }. Cleared by the next
+  // successful load. The shell shows "Offline · last synced …" instead of the green Live dot while it is set.
+  const [syncError, setSyncError] = useState(null);
   const pending = useRef(new Map()); // item id -> in-flight mutation count
   const assetTimers = useRef(new Map());
   const email = user?.email || "team";
@@ -38,6 +41,8 @@ export function DataProvider({ backend, user, children }) {
   const itemsRef = useRef(new Map()); // item id -> last known status (to notice a reel coming back from rendering)
   const liveRef = useRef(false);
   liveRef.current = live;
+  const statusRef = useRef(status);
+  statusRef.current = status;
   const load = useCallback(async ({ silent } = {}) => {
     try {
       // While realtime is connected it keeps asset rows fresh, so silent polls skip the (large) asset table.
@@ -49,9 +54,15 @@ export function DataProvider({ backend, user, children }) {
       });
       setStatus("ready");
       setError(null);
+      setSyncError(null);
       setLastSync(new Date());
     } catch (e) {
-      if (!silent) { setError(e); setStatus((s) => (s === "ready" ? s : "error")); }
+      const failure = { at: new Date(), message: e?.message || "Request failed" };
+      if (silent) { setSyncError(failure); return; }
+      setError(e);
+      // After the first load the data on screen is still valid (just stale): keep it, flag the shell as offline.
+      if (statusRef.current === "ready") setSyncError(failure);
+      else setStatus("error");
     }
   }, [backend]);
 
@@ -157,7 +168,11 @@ export function DataProvider({ backend, user, children }) {
   }, [mutateItem, toast]);
 
   const actions = useMemo(() => ({
-    reload: () => load(),
+    /** Full reload; from the error screen it shows the loading skeletons again until it settles. */
+    reload: async () => {
+      setStatus((s) => (s === "error" ? "loading" : s));
+      await load();
+    },
 
     approve(item, { scheduledFor } = {}) {
       const patch = { status: "approved", approved_at: new Date().toISOString(), approved_by: email };
@@ -320,7 +335,7 @@ export function DataProvider({ backend, user, children }) {
       if (busy) throw new Error("A render with your voice is already in progress for this reel.");
       if (item.status !== "awaiting_voiceover") throw new Error("This reel isn't waiting for a voiceover any more.");
       const job = await insertJob("render_video", { content_item_id: item.id, library_asset_id: libraryRow.id });
-      toast({ tone: "ok", title: "Rendering with your voice", description: "The reel is re-timed to your recording and comes back here for review." });
+      toast({ tone: "ok", title: "Queued to render with your voice", description: "The reel is re-timed to your recording and comes back here for review." });
       return job;
     },
 
@@ -362,8 +377,8 @@ export function DataProvider({ backend, user, children }) {
     return { topicById, itemById, reviewCount, readyCount, activeJobs, jobLabel: (k) => JOB_KIND[k] || k };
   }, [data]);
 
-  const value = useMemo(() => ({ ...data, ...derived, status, error, live, lastSync, actions, user, backend }),
-    [data, derived, status, error, live, lastSync, actions, user, backend]);
+  const value = useMemo(() => ({ ...data, ...derived, status, error, syncError, live, lastSync, actions, user, backend }),
+    [data, derived, status, error, syncError, live, lastSync, actions, user, backend]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
