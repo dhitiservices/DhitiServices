@@ -296,7 +296,7 @@ async function newestChild(blogId: string, type: string): Promise<string | null>
 // ---------------------------------------------------------------------------------------------------------------
 
 async function shaBytes(b: Uint8Array): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", b);
+  const buf = await crypto.subtle.digest("SHA-256", b as unknown as BufferSource);
   return Array.from(new Uint8Array(buf), (x) => x.toString(16).padStart(2, "0")).join("");
 }
 async function readStorage(path: string): Promise<Uint8Array | null> {
