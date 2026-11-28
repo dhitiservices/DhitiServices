@@ -20,6 +20,8 @@ import { retry, istToUTC, todayIST, addDays, nextPublishDates, mimeFromPath, ext
 import * as store from './store.js';
 import { checkBlogText, checkBlogFile } from './blogcheck.js';
 import { getBrandContext } from './brand.js';
+import { verifyClaims, storedClaims, usedSources, defaultSourcesDir, recordSource, sha256 } from './claims.js';
+import { validateCaption, validateFirstComment, captionHouseChecks, validateReason, buildCommentary, commentText, normaliseCaption, SOCIAL_FORMATS } from './social.js';
 
 const HELP = `Dhiti marketing engine
 
@@ -29,9 +31,15 @@ const HELP = `Dhiti marketing engine
   run finish --id <id> --status succeeded|failed [--log <file>] [--error <msg>] [--usage <json|file>]
   save-brief <brief.json> [--run <runId>]   insert research brief -> {id}
   save-topics <topics.json>                 insert topics -> [{id,title,planned_publish_date}]
-  check-blog <draft.md> [--slug <slug>]     site rules for one post -> {passed,messages,words,sections}
-  save-blog --topic <id> --md <draft.md> --cover <photo> --stock <stock.json> [--meta <meta.json>] [--item <id>]
-            [--focus x,y] [--owner-note "<text shown to the owner above the post>"]
+  fetch-source <url> [<url> ...] [--dir <sources dir>]   fetch a source page/PDF for the claims ledger (sha256 + text)
+  restore-sources --item <blogId> [--dir <sources dir>]  bring back the verified source texts of a saved blog (revisions)
+  check-blog <draft.md> [--slug <slug>] [--claims <claims.json> --meta <meta.json>]   site rules (+ claims ledger)
+  save-blog --topic <id> --md <draft.md> --claims <claims.json> --cover <photo> --stock <stock.json> [--meta <meta.json>]
+            [--item <id>] [--focus x,y] [--sources-dir <dir>] [--owner-note "<text shown to the owner above the post>"]
+  save-social --blog <id> --format carousel|video|graphic --source-item <id> --caption <caption.txt>
+            --first-comment <comment.txt> --reason "<one line the owner sees>" [--item <socialPostId>] [--draft]
+  social list [--blog <id>] | social get --id <id>
+  sweep [--run <runId>] [--hours 2]             mark stuck 'generating' items failed (never items of a running run)
   make-carousel --parent <blogId> --spec <carousel.json> [--item <id>]
   make-graphic  --parent <blogId> --spec <graphic.json>  [--item <id>]
   make-video    --parent <blogId> --spec <video.json>    [--item <id>] [--voiceover <file>] [--voiceover-asset <id>]
@@ -50,7 +58,7 @@ const HELP = `Dhiti marketing engine
 // Args
 // =====================================================================================================================
 
-const BOOL_FLAGS = new Set(['dry-list', 'help', 'keep-work', 'force-new']);
+const BOOL_FLAGS = new Set(['dry-list', 'help', 'keep-work', 'force-new', 'draft']);
 
 /** Minimal parser: positionals, --key value, --key=value, boolean --flags. Repeated keys become arrays. */
 export function parseArgs(argv) {
@@ -200,16 +208,22 @@ async function openItem({ itemId, type, topicId, parentId, title }) {
     const prevStatus = item.status;
     if (prevStatus !== 'generating') {
       try {
-        await store.updateItem(item.id, { status: 'generating' });
+        await store.updateItem(item.id, { status: 'generating', body: { ...(item.body || {}), generating: generatingMark(prevStatus) } });
       } catch (err) {
         if (err.status === 409) throw new UsageError(`item ${itemId} was approved or published meanwhile; it can no longer be revised`);
         throw err;
       }
     }
-    return { item, version: (Number(item.version) || 1) + 1, isNew: false, prevStatus };
+    return { item, version: (Number(item.version) || 1) + 1, isNew: false, prevStatus, prevBody: item.body || {} };
   }
-  const item = await store.insertItem({ type, topic_id: topicId ?? null, parent_id: parentId ?? null, title: title || '', status: 'generating', body: {}, version: 1 });
+  const item = await store.insertItem({ type, topic_id: topicId ?? null, parent_id: parentId ?? null, title: title || '', status: 'generating', body: { generating: generatingMark() }, version: 1 });
   return { item, version: 1, isNew: true };
+}
+
+/** Who is making this item: the run (RUN_ID from `run start`, kept in env.sh) and when it started. */
+function generatingMark(prevStatus = null) {
+  const runId = process.env.RUN_ID && isUuid(process.env.RUN_ID) ? process.env.RUN_ID.toLowerCase() : null;
+  return { run_id: runId, started_at: new Date().toISOString(), prev_status: prevStatus };
 }
 
 const RESTORABLE = new Set(['awaiting_voiceover', 'pending_review', 'changes_requested', 'failed']);
@@ -224,7 +238,7 @@ async function failItem(ctx, err) {
     if (ctx.isNew) await store.updateItem(ctx.item.id, { status: 'failed', error: errorMessage(err) });
     else {
       const status = RESTORABLE.has(ctx.prevStatus) ? ctx.prevStatus : 'pending_review';
-      await store.updateItem(ctx.item.id, { status, error: `revision v${ctx.version} failed: ${errorMessage(err)}` });
+      await store.updateItem(ctx.item.id, { status, error: `revision v${ctx.version} failed: ${errorMessage(err)}`, ...(ctx.prevBody ? { body: ctx.prevBody } : {}) });
     }
   } catch (e) {
     log.warn(`could not record the failure on item ${ctx.item.id}: ${e.message}`);
@@ -512,7 +526,97 @@ async function cmdCheckBlog({ pos, opts }) {
   if (!existsSync(file)) throw new UsageError(`file not found: ${path.resolve(file)}`);
   const r = await checkBlogFile(file, { slug: optStr(opts, 'slug') });
   const out = { passed: r.passed, messages: r.messages, warnings: r.warnings, words: r.words, sections: r.sections, minutes: r.minutes, slug: r.slug, toc: r.toc.map((t) => t.text) };
-  return { result: out, exitCode: r.passed ? 0 : 2 };
+  const claimsFile = optStr(opts, 'claims');
+  if (claimsFile) {
+    const meta = await readMeta(optStr(opts, 'meta'));
+    const ledger = await checkLedger(claimsFile, { markdown: r.markdown, frontmatter: r.frontmatter, faq: meta.faq, sourcesDir: optStr(opts, 'sources-dir') });
+    out.claims = { passed: ledger.passed, messages: ledger.messages, warnings: ledger.warnings, stats: ledger.stats };
+    out.passed = r.passed && ledger.passed;
+  } else out.warnings = [...(out.warnings || []), 'no --claims given: save-blog will refuse the post until every factual sentence is in a verified claims.json'];
+  return { result: out, exitCode: out.passed ? 0 : 2 };
+}
+
+/** Runs the claims ledger (claims.js) for a post. */
+async function checkLedger(claimsFile, { markdown, frontmatter, faq, sourcesDir }) {
+  const claims = await readJsonFile(claimsFile, 'claims');
+  const dir = path.resolve(sourcesDir || defaultSourcesDir());
+  const ledger = await verifyClaims(claims, { markdown, frontmatter, faq, sourcesDir: dir });
+  ledger.sourcesDir = dir;
+  return ledger;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sources for the claims ledger
+// ---------------------------------------------------------------------------------------------
+
+const SOURCE_UA = 'Mozilla/5.0 (compatible; DhitiMarketingEngine/1.0; source check)';
+
+async function cmdFetchSource({ pos, opts }) {
+  const urls = [...pos, ...[].concat(opts.url ?? [])].map(String).filter(Boolean);
+  if (!urls.length) throw new UsageError('usage: fetch-source <url> [<url> ...] [--dir <sources dir>]');
+  const dir = path.resolve(optStr(opts, 'dir') || defaultSourcesDir());
+  const results = [];
+  for (const url of urls) {
+    if (!/^https:\/\//i.test(url)) {
+      results.push({ url, ok: false, error: 'only https sources can be cited' });
+      continue;
+    }
+    try {
+      const res = await retry(
+        async () => {
+          let r;
+          try {
+            r = await store.httpRequest(url, { method: 'GET', timeoutMs: 120_000, maxRedirects: 8, headers: { 'user-agent': SOURCE_UA, accept: 'text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8', 'accept-language': 'en-IN,en;q=0.9' } });
+          } catch (err) {
+            throw Object.assign(new Error(`network error: ${err.message}`), { retryable: !/ENOTFOUND|EAI_AGAIN/.test(err.code || err.message) });
+          }
+          if (r.status !== 200) throw Object.assign(new Error(`HTTP ${r.status}`), { retryable: r.status === 429 || r.status >= 500 });
+          return r;
+        },
+        { retries: 2, baseMs: 1500, label: `fetch-source ${url}`, shouldRetry: (e) => e.retryable === true },
+      );
+      if (!res.body?.length) throw new Error('empty response');
+      const h = res.headers?.['content-type'] ?? '';
+      const mime = String(Array.isArray(h) ? h[0] : h).split(';')[0].trim().toLowerCase();
+      const entry = await recordSource(dir, { url, finalUrl: res.url, buffer: res.body, mime });
+      const warn = entry.text_chars < 400 ? 'almost no text was extracted: the page may need JavaScript. Find a static copy (for example the PDF) of the same document and cite that URL' : undefined;
+      results.push({ ok: true, url, final_url: entry.final_url ?? null, sha256: entry.sha256, kind: entry.kind, mime: entry.mime, bytes: entry.bytes, pages: entry.pages ?? null, text_chars: entry.text_chars, title: entry.title, fetched_at: entry.fetched_at, text_file: path.join(dir, entry.text_file), ...(warn ? { warning: warn } : {}) });
+      log(`fetched source ${url} -> ${entry.text_file} (${entry.text_chars} chars)`);
+    } catch (err) {
+      results.push({ ok: false, url, error: errorMessage(err), hint: 'a source the engine cannot fetch cannot back a claim: cite another primary page that says the same thing, or drop the claim' });
+    }
+  }
+  const failed = results.filter((r) => !r.ok).length;
+  return { result: { dir, fetched: results.length - failed, failed, sources: results }, exitCode: failed ? 1 : 0 };
+}
+
+/**
+ * Revisions: brings back the source texts a saved blog was verified against (items/<id>/v<n>/sources/<sha>.txt),
+ * checked against the text_sha256 recorded in body.claims, so the claims of unchanged sentences verify again.
+ */
+async function cmdRestoreSources({ opts }) {
+  ensureAuth();
+  const itemId = needUuid(opts, 'item');
+  const dir = path.resolve(optStr(opts, 'dir') || defaultSourcesDir());
+  const item = await store.getItem(itemId);
+  if (!item) throw new UsageError(`item ${itemId} not found`);
+  const claims = Array.isArray(item.body?.claims) ? item.body.claims : [];
+  if (!claims.length) throw new UsageError(`item ${itemId} has no stored claims; fetch the sources again with fetch-source`);
+  const seen = new Map();
+  for (const c of claims) for (const q of [c, ...(c.extra_quotes || [])]) if (q.source_text_path && q.sha256 && !seen.has(q.sha256)) seen.set(q.sha256, q);
+  const restored = [];
+  for (const q of seen.values()) {
+    try {
+      const buf = await store.downloadFile(q.source_text_path);
+      if (q.text_sha256 && sha256(buf) !== q.text_sha256) throw new Error('stored text does not match its recorded sha256');
+      const entry = await recordSource(dir, { url: q.source_url, buffer: buf, mime: 'text/plain', origin: `stored:${q.source_text_path}`, fetchedAt: q.fetched_at, text: buf.toString('utf8'), title: q.source_title, sha: q.sha256 });
+      restored.push({ ok: true, url: q.source_url, sha256: entry.sha256, fetched_at: entry.fetched_at, from: q.source_text_path });
+    } catch (err) {
+      restored.push({ ok: false, url: q.source_url, error: errorMessage(err) });
+    }
+  }
+  const failed = restored.filter((r) => !r.ok).length;
+  return { result: { dir, restored: restored.length - failed, failed, sources: restored, note: 'restored texts keep their original fetched_at; fetch a source again (fetch-source) to check it for newer rules' }, exitCode: failed ? 1 : 0 };
 }
 
 /**
@@ -566,6 +670,7 @@ async function cmdSaveBlog({ opts }) {
   const mdFile = path.resolve(need(opts, 'md'));
   const coverFile = path.resolve(need(opts, 'cover', 'a downloaded Magnific stock photo'));
   const stockFile = need(opts, 'stock', 'JSON with the Magnific id/title/url_preview of the cover');
+  const claimsFile = need(opts, 'claims', 'claims.json: every factual sentence mapped to a source the engine fetched (playbook/blog-writing.md section 1)');
   const itemId = optStr(opts, 'item') ? needUuid(opts, 'item') : undefined;
   if (!existsSync(mdFile)) throw new UsageError(`--md not found: ${mdFile}`);
   if (!existsSync(coverFile)) throw new UsageError(`--cover not found: ${coverFile}`);
@@ -594,6 +699,16 @@ async function cmdSaveBlog({ opts }) {
     err.details = { passed: false, messages: check.messages, warnings: check.warnings, words: check.words, sections: check.sections, slug: check.slug };
     throw err;
   }
+  const faqSrc = Array.isArray(meta.faq) ? meta.faq : extra.faq;
+  const faq = Array.isArray(faqSrc) ? faqSrc.filter((f) => f && (f.q || f.question)).map((f) => ({ q: String(f.q ?? f.question), a: String(f.a ?? f.answer ?? '') })) : [];
+
+  // The claims ledger: no override. A wrong or unsourced fact never reaches the owner.
+  const ledger = await checkLedger(claimsFile, { markdown: check.markdown, frontmatter: check.frontmatter, faq, sourcesDir: optStr(opts, 'sources-dir') });
+  if (!ledger.passed) {
+    const err = new Error(`claims check failed with ${ledger.messages.length} problem(s); fix or remove each sentence: ${ledger.messages.slice(0, 3).join(' | ')}${ledger.messages.length > 3 ? ' | ...' : ''}`);
+    err.details = { passed: false, claims: { messages: ledger.messages, warnings: ledger.warnings, stats: ledger.stats } };
+    throw err;
+  }
   if (topic.category && check.frontmatter.category !== topic.category) log.warn(`category "${check.frontmatter.category}" differs from the topic's "${topic.category}"`);
 
   // Other blog items (not yet published) must not already use this slug.
@@ -605,12 +720,18 @@ async function cmdSaveBlog({ opts }) {
   const planned = topic.planned_publish_date || null;
   const scheduledFor = planned ? istToUTC(planned, config.publishTimeIST) : null;
   const frontmatter = { ...check.frontmatter, image: `${check.slug}.webp`, ...(planned ? { date: planned } : {}) };
-  const faqSrc = Array.isArray(meta.faq) ? meta.faq : extra.faq;
-  const faq = Array.isArray(faqSrc) ? faqSrc.filter((f) => f && (f.q || f.question)).map((f) => ({ q: String(f.q ?? f.question), a: String(f.a ?? f.answer ?? '') })) : [];
 
   const ctx = await openItem({ itemId, type: 'blog', topicId, title: frontmatter.title });
   try {
     if (!ctx.isNew && ctx.item.topic_id && ctx.item.topic_id !== topicId) throw new UsageError(`item ${ctx.item.id} belongs to topic ${ctx.item.topic_id}, not ${topicId}`);
+    // The exact source texts the claims were verified against, next to this version.
+    const textPaths = new Map();
+    for (const src of usedSources(ledger.claims)) {
+      const storagePath = `items/${ctx.item.id}/v${ctx.version}/sources/${src.sha256}.txt`;
+      await store.uploadFile(storagePath, await fs.readFile(src.local_text), 'text/plain');
+      textPaths.set(src.sha256, storagePath);
+    }
+    log(`stored ${textPaths.size} verified source text(s) under items/${ctx.item.id}/v${ctx.version}/sources/`);
     const assets = await replaceAssets(ctx.item.id, ctx.version, [
       {
         name: 'cover.webp',
@@ -634,6 +755,8 @@ async function cmdSaveBlog({ opts }) {
         faq,
       },
       sources: extractSources(check.markdown, meta.sources),
+      claims: storedClaims(ledger.claims, textPaths),
+      claims_check: { passed: true, stats: ledger.stats, warnings: ledger.warnings, checked_at: new Date().toISOString() },
       owner_note: ownerNote,
       checks: { passed: true, messages: [], warnings: check.warnings, sections: check.sections, minutes: check.minutes, checked_at: new Date().toISOString() },
       cover_stock: { id: stock[0].id, title: stock[0].title, provider: stock[0].provider, url_preview: stock[0].url_preview },
@@ -657,7 +780,9 @@ async function cmdSaveBlog({ opts }) {
       scheduled_for: item.scheduled_for,
       words: check.words,
       sections: check.sections,
-      warnings: check.warnings,
+      warnings: [...check.warnings, ...ledger.warnings],
+      claims: ledger.stats,
+      source_texts: [...textPaths.values()],
       assets: assetSummary(assets),
     };
   } catch (err) {
@@ -1109,6 +1234,157 @@ async function cmdItem({ opts, pos }) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// LinkedIn post (social_posts, LINKEDIN.md 2.5 and 5). Sessions create or edit; only the owner approves.
+// ---------------------------------------------------------------------------------------------
+
+async function readTextArg(file, label) {
+  const full = path.resolve(file);
+  try {
+    return await fs.readFile(full, 'utf8');
+  } catch (err) {
+    throw new UsageError(`cannot read ${label} file ${full}: ${err.code || err.message}`);
+  }
+}
+
+async function cmdSaveSocial({ opts }) {
+  ensureAuth();
+  const blogId = needUuid(opts, 'blog');
+  const format = need(opts, 'format', SOCIAL_FORMATS.join('|'));
+  if (!SOCIAL_FORMATS.includes(format)) throw new UsageError(`--format must be one of ${SOCIAL_FORMATS.join(', ')}`);
+  const sourceId = needUuid(opts, 'source-item');
+  const caption = normaliseCaption(await readTextArg(need(opts, 'caption', 'caption.txt'), 'caption'));
+  const firstComment = (await readTextArg(need(opts, 'first-comment', 'comment.txt'), 'first comment')).replace(/\r\n?/g, '\n').trim();
+  const reason = String(need(opts, 'reason', 'one line the owner sees, e.g. "Carousel: the 5-step routine reads best as slides"')).trim();
+  const postId = optStr(opts, 'item') ? needUuid(opts, 'item') : undefined;
+
+  const problems = [];
+  const e1 = validateCaption(caption);
+  if (e1) problems.push(e1);
+  const e2 = validateFirstComment(firstComment);
+  if (e2) problems.push(e2);
+  const e3 = validateReason(reason);
+  if (e3) problems.push(e3);
+
+  const blog = await store.getItem(blogId);
+  if (!blog) throw new UsageError(`blog ${blogId} not found`);
+  if (blog.type !== 'blog') throw new UsageError(`item ${blogId} is a ${blog.type}, not a blog`);
+  const slug = blog.body?.slug;
+  if (!slug) throw new UsageError(`blog ${blogId} has no slug yet`);
+  const house = captionHouseChecks(caption, { blogBody: blog.body });
+  problems.push(...house.errors);
+  const warnings = [...house.warnings];
+
+  // The source creative: a child of this blog with the chosen format, and the newest one (the server derives it).
+  const src = await store.getItem(sourceId);
+  if (!src) throw new UsageError(`--source-item ${sourceId} not found`);
+  if (src.parent_id !== blogId) problems.push(`--source-item ${sourceId} is not a creative of blog ${blogId}`);
+  if (src.type !== format) problems.push(`--source-item is a ${src.type}; the post format is ${format}`);
+  if (['rejected', 'failed'].includes(src.status)) problems.push(`--source-item is ${src.status}; make the ${format} again first`);
+  const kids = (await store.listItems({ parent_id: blogId, type: format })).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  if (kids[0] && kids[0].id !== sourceId) problems.push(`--source-item is not the newest ${format} of this blog (${kids[0].id}); the post always uses the newest one`);
+  if (format === 'video' && !src.body?.voiceover?.library_asset_id && !src.body?.voiceover?.duration) problems.push('recommend video only when the reel has the owner\'s voiceover (LINKEDIN.md 5.1); recommend the carousel or a graphic now');
+  if (!['approved', 'published'].includes(src.status)) warnings.push(`the ${format} is ${src.status}: the owner must approve it before this post can be approved`);
+  if (problems.length) {
+    const err = new UsageError(`LinkedIn post not saved: ${problems.join(' | ')}`);
+    err.details = { passed: false, messages: problems, warnings };
+    throw err;
+  }
+
+  const row = {
+    caption,
+    first_comment: firstComment,
+    format,
+    recommended_format: SOCIAL_FORMATS.includes(optStr(opts, 'recommended') || '') ? optStr(opts, 'recommended') : format,
+    recommendation_reason: reason,
+    ...(optStr(opts, 'scheduled-for') ? { scheduled_for: optStr(opts, 'scheduled-for') } : {}),
+  };
+  let saved;
+  if (postId) {
+    const cur = await store.getSocialPost(postId);
+    if (cur.blog_item_id !== blogId) throw new UsageError(`social post ${postId} belongs to blog ${cur.blog_item_id}`);
+    saved = await store.updateSocialPost(postId, { ...row, ...(opts.draft ? {} : cur.status === 'draft' ? { status: 'pending_review' } : {}) });
+  } else {
+    saved = await store.insertSocialPost({ blog_item_id: blogId, source_item_id: sourceId, ...row, status: opts.draft ? 'draft' : 'pending_review' });
+  }
+  const commentary = buildCommentary(caption);
+  if (commentary.length > 3000) warnings.push(`after little-text escaping the commentary is ${commentary.length} characters; LinkedIn's limit is about 3,000`);
+  return {
+    id: saved.id,
+    status: saved.status,
+    blog_item_id: blogId,
+    format: saved.format,
+    recommended_format: saved.recommended_format,
+    recommendation_reason: saved.recommendation_reason,
+    source_item_id: saved.source_item_id,
+    caption_chars: caption.length,
+    hook: caption.slice(0, 200),
+    commentary_chars: commentary.length,
+    first_comment_preview: commentText(firstComment, slug),
+    warnings,
+  };
+}
+
+async function cmdSocial({ pos, opts }) {
+  ensureAuth();
+  if (pos[0] === 'get') return store.getSocialPost(needUuid(opts, 'id'));
+  if (pos[0] === 'list' || !pos[0]) return store.listSocialPosts({ blog_item_id: optStr(opts, 'blog'), status: optStr(opts, 'status'), limit: Number(optStr(opts, 'limit') || 50) });
+  throw new UsageError('usage: social list [--blog <id>] [--status pending_review] | social get --id <id>');
+}
+
+// ---------------------------------------------------------------------------------------------
+// sweep: never leave items in generating, never touch items another live run is still making
+// ---------------------------------------------------------------------------------------------
+
+const RUN_DEAD_AFTER_H = 12; // a run 'running' for longer than this (run_weekly lease is 10 h) is a dead session
+
+async function cmdSweep({ opts }) {
+  ensureAuth();
+  const myRun = (optStr(opts, 'run') || process.env.RUN_ID || '').toLowerCase() || null;
+  if (myRun && !isUuid(myRun)) throw new UsageError('--run must be a run id (uuid)');
+  const hours = Number(optStr(opts, 'hours') || 2);
+  const cutoff = Date.now() - hours * 3600e3;
+  const rows = await store.listItems({ status: 'generating' }, { limit: 500 });
+  const runIds = [...new Set(rows.map((r) => r.body?.generating?.run_id).filter((x) => x && x !== myRun))];
+  let runs = null;
+  if (runIds.length) {
+    try {
+      runs = new Map((await store.listRuns({ ids: runIds, limit: 200 })).map((r) => [r.id, r]));
+    } catch (err) {
+      log.warn(`list_runs is not available (${err.message}); falling back to the ${hours} h updated_at rule`);
+    }
+  }
+  const failed = [];
+  const kept = [];
+  for (const r of rows) {
+    const g = r.body?.generating || {};
+    const touched = Date.parse(r.updated_at || g.started_at || r.created_at);
+    let why = null;
+    if (myRun && g.run_id === myRun) why = 'this run ended before it was finished';
+    else if (g.run_id && runs) {
+      const run = runs.get(g.run_id);
+      if (!run) why = 'its run no longer exists';
+      else if (run.status !== 'running') why = `its run is ${run.status}`;
+      else if (Date.parse(run.started_at) < Date.now() - RUN_DEAD_AFTER_H * 3600e3) why = `its run has been running for over ${RUN_DEAD_AFTER_H} h (dead session)`;
+    } else if (touched < cutoff) why = `not touched for over ${hours} h`;
+    if (!why) {
+      kept.push({ id: r.id, type: r.type, reason: g.run_id ? 'another run is still making it' : `updated less than ${hours} h ago` });
+      continue;
+    }
+    if (opts['dry-list']) {
+      failed.push({ id: r.id, type: r.type, reason: why, dry: true });
+      continue;
+    }
+    // A revision goes back to where it was (previous body and assets are intact); a new item fails.
+    const content = Object.fromEntries(Object.entries(r.body || {}).filter(([k]) => k !== 'generating'));
+    const back = RESTORABLE.has(g.prev_status) ? g.prev_status : null;
+    const prev = back && Object.keys(content).length ? { status: back, body: content } : { status: 'failed' };
+    await store.updateItem(r.id, { ...prev, error: 'The session ended before this was finished. Ask for changes to make it again.' }).catch((e) => log.warn(`sweep ${r.id}: ${e.message}`));
+    failed.push({ id: r.id, type: r.type, reason: why, status: prev.status });
+  }
+  return { failed, kept, run_id: myRun };
+}
+
+// ---------------------------------------------------------------------------------------------
 // publish
 // ---------------------------------------------------------------------------------------------
 
@@ -1249,6 +1525,11 @@ const COMMANDS = {
   'save-brief': cmdSaveBrief,
   'save-topics': cmdSaveTopics,
   'check-blog': cmdCheckBlog,
+  'fetch-source': cmdFetchSource,
+  'restore-sources': cmdRestoreSources,
+  'save-social': cmdSaveSocial,
+  social: cmdSocial,
+  sweep: cmdSweep,
   'save-blog': cmdSaveBlog,
   'make-carousel': (a) => cmdMake('carousel', a),
   'make-graphic': (a) => cmdMake('graphic', a),

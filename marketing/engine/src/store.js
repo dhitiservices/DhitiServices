@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as cfg from './config.js';
 import * as logmod from './log.js';
+import * as socialRules from './social.js';
 
 // =====================================================================================================================
 // Configuration
@@ -187,7 +188,7 @@ export function httpRequest(url, { method = 'GET', headers = {}, body, timeoutMs
       }
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
-      res.on('end', () => resolve({ status, headers: res.headers, body: Buffer.concat(chunks) }));
+      res.on('end', () => resolve({ status, headers: res.headers, body: Buffer.concat(chunks), url: u.href }));
       res.on('error', reject);
     });
     req.on('socket', (s) => {
@@ -239,6 +240,7 @@ async function withRetry(label, fn, { retries = 4, baseMs = 800, maxMs = 15_000,
 const IDEMPOTENT = new Set([
   'get_settings', 'context', 'get_brief', 'get_topic', 'list_topics', 'get_item', 'list_items', 'list_assets',
   'sign_upload', 'sign_download', 'update_topic', 'update_item', 'finish_run', 'finish_job', 'delete_assets', 'delete_files', 'list_jobs',
+  'list_runs', 'get_social_post', 'list_social_posts', 'update_social_post',
 ]);
 const RETRY_STATUS_ANY = new Set([408, 425, 429, 500, 502, 503, 504, 546]);
 const RETRY_STATUS_UNSENT = new Set([429, 503]); // the gateway refused before the function ran
@@ -326,6 +328,7 @@ const PUBLISHER_JOB_KINDS = ['publish_now'];
 const ownJobKinds = (kind) => (kind === 'publisher' ? PUBLISHER_JOB_KINDS : kind === 'session' ? SESSION_JOB_KINDS : ENUMS.jobKind);
 const PUBLISHER_ITEM_STATUSES = ['published', 'failed'];
 const LOCKED_FOR_SESSION = ['approved', 'published'];
+const RUN_STATUSES = ['running', 'succeeded', 'failed'];
 const PUBLISHER_ACTIONS = new Set(['get_settings', 'list_items', 'get_item', 'list_assets', 'sign_download', 'update_item', 'create_run', 'finish_run', 'claim_jobs', 'finish_job', 'list_jobs']);
 
 const TABLE_DEFAULTS = {
@@ -335,6 +338,22 @@ const TABLE_DEFAULTS = {
   content_items: () => ({ topic_id: null, parent_id: null, title: '', status: 'generating', body: {}, feedback: null, version: 1, scheduled_for: null, approved_at: null, approved_by: null, published_at: null, published_url: null, error: null, created_at: nowISO(), updated_at: nowISO() }),
   assets: () => ({ width: null, height: null, position: 0, meta: {}, created_at: nowISO() }),
   jobs: () => ({ payload: {}, status: 'queued', requested_by: null, error: null, created_at: nowISO(), started_at: null, finished_at: null }),
+  social_posts: () => ({
+    source_item_id: null, platform: 'linkedin', recommended_format: null, recommendation_reason: null, caption: '', first_comment: '',
+    status: 'pending_review', stage: null, comment_status: 'none', approved_at: null, approved_by: null, scheduled_for: null, media_urn: null,
+    media_status: null, thumbnail_urn_uploaded: false, post_urn: null, post_url: null, comment_id: null, comment_urn: null, comment_text_sent: null,
+    attempts: 0, comment_attempts: 0, next_attempt_at: null, lock_until: null, last_error: null, published_at: null, created_by: 'engine',
+    created_at: nowISO(), updated_at: nowISO(),
+  }),
+};
+// LINKEDIN.md 2.5: what a session may do with social_posts (the owner approves in the dashboard; the linkedin
+// function publishes).
+const SOCIAL = {
+  formats: ['carousel', 'video', 'graphic'],
+  statuses: ['draft', 'pending_review', 'approved', 'publishing', 'published', 'failed', 'cancelled'],
+  insert: ['blog_item_id', 'format', 'recommended_format', 'recommendation_reason', 'caption', 'first_comment', 'scheduled_for', 'status', 'source_item_id'],
+  patch: ['caption', 'first_comment', 'format', 'recommended_format', 'recommendation_reason', 'scheduled_for', 'status'],
+  locked: ['approved', 'publishing', 'published', 'cancelled'],
 };
 const TABLES = ['settings', ...Object.keys(TABLE_DEFAULTS)];
 
@@ -435,6 +454,26 @@ function assertItemWritable(data, id, label, kind) {
   const item = findRow(data, 'content_items', id);
   if (!item) fail(404, `${label}: item ${id} not found`);
   if (kind !== 'any' && LOCKED_FOR_SESSION.includes(item.status)) fail(409, `${label}: item ${id} is ${item.status}; its files can no longer change`);
+}
+/** Newest child of a blog with this type, in any status (LINKEDIN.md 2.5), or null. */
+function newestChild(data, blogId, type) {
+  const kids = data.content_items.filter((i) => i.parent_id === blogId && i.type === type).sort(byCreated(false));
+  return kids[0]?.id ?? null;
+}
+/** Caption / first comment / reason rules of LINKEDIN.md 5.3 (400 on failure). */
+function socialTextChecks(row) {
+  if (row.caption !== undefined) {
+    const e = socialRules.validateCaption(row.caption);
+    if (e) bad(e);
+    row.caption = socialRules.normaliseCaption(row.caption);
+  }
+  if (row.first_comment !== undefined) {
+    const e = socialRules.validateFirstComment(row.first_comment);
+    if (e) bad(e);
+    row.first_comment = String(row.first_comment).trim();
+  }
+  if (row.recommendation_reason != null && (typeof row.recommendation_reason !== 'string' || row.recommendation_reason.length > 500)) bad('recommendation_reason must be a string of at most 500 characters');
+  if (row.scheduled_for != null && Number.isNaN(Date.parse(row.scheduled_for))) bad('scheduled_for must be an ISO timestamp or null');
 }
 const settingsData = (data) => data.settings.find((r) => r.id === 1)?.data ?? { ...CONTRACT_SETTINGS };
 
@@ -681,6 +720,68 @@ const localActions = {
     if (row.status !== 'running') fail(409, `job ${id} is ${row.status}, not running; claim it first`);
     const error = p.error == null ? null : truncateTail(p.error, 8000);
     return Object.assign(row, status === 'queued' ? { status, started_at: null, finished_at: null, error } : { status, finished_at: nowISO(), error });
+  },
+
+  /** Read-only run lookup (sessions): {ids?, status?, kind?, limit?}. Used by the generating clean-up. */
+  list_runs(p, k, data) {
+    if (k === 'publisher') fail(403, 'publisher tokens may not call list_runs');
+    const limit = int(p.limit, 'limit', { min: 1, max: 200, dflt: 50 });
+    const ids = p.ids === undefined ? undefined : Array.isArray(p.ids) ? p.ids.map((x, i) => uuid(x, `ids[${i}]`)) : bad('ids must be an array');
+    const status = inList(p.status, RUN_STATUSES, 'status');
+    const kinds = inList(p.kind, ENUMS.runKind, 'kind');
+    return data.runs
+      .filter((r) => (!ids || ids.includes(r.id)) && (!status || status.includes(r.status)) && (!kinds || kinds.includes(r.kind)))
+      .sort(byCreated(false)).slice(0, limit)
+      .map((r) => ({ id: r.id, kind: r.kind, status: r.status, started_at: r.started_at, finished_at: r.finished_at }));
+  },
+
+  // ---- social posts (LINKEDIN.md 2.5) ----
+  insert_social_post(p, k, data) {
+    if (k === 'publisher') fail(403, 'publisher tokens may not call insert_social_post');
+    const row = pick(p, SOCIAL.insert, 'insert_social_post');
+    row.blog_item_id = uuid(row.blog_item_id, 'blog_item_id');
+    const blog = findRow(data, 'content_items', row.blog_item_id);
+    if (!blog) fail(404, `blog ${row.blog_item_id} not found`);
+    if (blog.type !== 'blog') bad(`item ${row.blog_item_id} is a ${blog.type}, not a blog`);
+    oneOf(row.format, SOCIAL.formats, 'format');
+    if (row.recommended_format != null) oneOf(row.recommended_format, SOCIAL.formats, 'recommended_format');
+    row.status = row.status === undefined ? 'pending_review' : oneOf(row.status, ['draft', 'pending_review'], 'status (session token)');
+    socialTextChecks(row);
+    if (data.social_posts.some((r) => r.blog_item_id === row.blog_item_id && r.platform === 'linkedin' && r.status !== 'cancelled')) {
+      fail(409, `insert_social_post: duplicate key value violates unique constraint "social_posts_one_per_blog" (blog ${row.blog_item_id} already has an active LinkedIn post; update it instead)`);
+    }
+    const derived = newestChild(data, row.blog_item_id, row.format);
+    if (row.source_item_id !== undefined && row.source_item_id !== null && uuid(row.source_item_id, 'source_item_id') !== derived) {
+      fail(409, `source_item_id ${row.source_item_id} is not the newest ${row.format} of this blog (${derived ?? 'none'})`);
+    }
+    row.source_item_id = derived;
+    return insertRow(data, 'social_posts', row);
+  },
+
+  update_social_post(p, k, data) {
+    if (k === 'publisher') fail(403, 'publisher tokens may not call update_social_post');
+    const id = uuid(p.id);
+    const patch = nonEmpty(pick(obj(p.patch, 'patch'), SOCIAL.patch, 'update_social_post'), 'update_social_post');
+    const row = findRow(data, 'social_posts', id) || fail(404, `social post ${id} not found`);
+    if (SOCIAL.locked.includes(row.status)) fail(409, `social post ${id} is ${row.status}; a session can no longer change it`);
+    if (patch.status !== undefined) {
+      oneOf(patch.status, ['draft', 'pending_review'], 'status (session token)');
+      if (patch.status !== row.status && !(row.status === 'draft' && patch.status === 'pending_review')) fail(409, `status may only go from draft to pending_review (it is ${row.status})`);
+    }
+    if (patch.format !== undefined) oneOf(patch.format, SOCIAL.formats, 'format');
+    if (patch.recommended_format != null) oneOf(patch.recommended_format, SOCIAL.formats, 'recommended_format');
+    socialTextChecks(patch);
+    if (patch.format !== undefined && patch.format !== row.format) Object.assign(patch, { source_item_id: newestChild(data, row.blog_item_id, patch.format), media_urn: null, media_status: null });
+    return Object.assign(row, patch, { updated_at: nowISO() });
+  },
+
+  get_social_post: (p, k, data) => findRow(data, 'social_posts', uuid(p.id)) || fail(404, `social post ${p.id} not found`),
+
+  list_social_posts(p, k, data) {
+    const limit = int(p.limit, 'limit', { min: 1, max: 200, dflt: 50 });
+    const blog = p.blog_item_id === undefined ? undefined : uuid(p.blog_item_id, 'blog_item_id');
+    const status = inList(p.status, SOCIAL.statuses, 'status');
+    return data.social_posts.filter((r) => (blog === undefined || r.blog_item_id === blog) && (!status || status.includes(r.status))).sort(byCreated(false)).slice(0, limit);
   },
 
   // DRY_RUN only (the live API has no insert_job: the dashboard inserts jobs under RLS).
@@ -1011,6 +1112,18 @@ export function insertJob(kind, payload = {}, requestedBy = 'engine') {
   }
   return engineCall('insert_job', { kind, payload, requested_by: requestedBy });
 }
+
+// ---- runs (read-only) ----
+
+/** Runs by id/status/kind (sessions). Throws EngineError 400 'unknown action' on an older engine API. */
+export const listRuns = ({ ids, status, kind, limit } = {}) => engineCall('list_runs', { ...(ids ? { ids } : {}), ...(status ? { status } : {}), ...(kind ? { kind } : {}), ...(limit ? { limit } : {}) });
+
+// ---- social posts (LINKEDIN.md 2.5) ----
+
+export const insertSocialPost = (row) => engineCall('insert_social_post', normalizeFks(row));
+export const updateSocialPost = (id, patch) => engineCall('update_social_post', { id: idOf(id), patch });
+export const getSocialPost = (id) => engineCall('get_social_post', { id: idOf(id) });
+export const listSocialPosts = ({ blog_item_id, status, limit } = {}) => engineCall('list_social_posts', { ...(blog_item_id ? { blog_item_id: idOf(blog_item_id) } : {}), ...(status ? { status } : {}), ...(limit ? { limit } : {}) });
 
 // ---- helpers ----
 

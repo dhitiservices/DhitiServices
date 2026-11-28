@@ -4,18 +4,20 @@ import { useToast } from "../components/Toast.jsx";
 import { formatDateTime } from "./format.js";
 import { setDownloadErrorHandler } from "./media.js";
 import { TYPE_META, JOB_KIND } from "./model.js";
+import { friendlyError, FORMAT_LABEL } from "./linkedin.js";
 
 const DataContext = createContext(null);
 export const useData = () => useContext(DataContext);
 
-const EMPTY = { settings: {}, runs: [], briefs: [], topics: [], items: [], assets: [], jobs: [], library: [] };
-const TABLE_KEY = { content_items: "items", jobs: "jobs", runs: "runs", topics: "topics", library_assets: "library" };
+const EMPTY = { settings: {}, runs: [], briefs: [], topics: [], items: [], assets: [], jobs: [], library: [], socialPosts: [], linkedin: null };
+const TABLE_KEY = { content_items: "items", jobs: "jobs", runs: "runs", topics: "topics", library_assets: "library", social_posts: "socialPosts" };
 const SORTS = {
   items: (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
   jobs: (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
   runs: (a, b) => (b.started_at || "").localeCompare(a.started_at || ""),
   topics: (a, b) => (b.week_start || "").localeCompare(a.week_start || "") || (a.priority ?? 0) - (b.priority ?? 0),
   library: (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
+  socialPosts: (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
 };
 
 function upsert(list, row, key) {
@@ -50,7 +52,7 @@ export function DataProvider({ backend, user, children }) {
       setData((prev) => {
         // Keep optimistic local copies of rows that still have a mutation in flight.
         const items = fresh.items.map((r) => (pending.current.get(r.id) ? prev.items.find((p) => p.id === r.id) || r : r));
-        return { ...fresh, assets: fresh.assets ?? prev.assets, items };
+        return { ...fresh, assets: fresh.assets ?? prev.assets, items, socialPosts: fresh.socialPosts ?? [], linkedin: fresh.linkedin ?? null };
       });
       setStatus("ready");
       setError(null);
@@ -93,10 +95,15 @@ export function DataProvider({ backend, user, children }) {
         setLastSync(new Date());
         return;
       }
+      if (table === "linkedin_connection") {
+        if (row) setData((d) => ({ ...d, linkedin: { ...(d.linkedin || {}), ...row } }));
+        setLastSync(new Date());
+        return;
+      }
       const key = TABLE_KEY[table];
       if (!key) return;
       if (table === "content_items" && row && row.type === "video" && row.status === "pending_review" && itemsRef.current.get(row.id) === "awaiting_voiceover") {
-        toast({ tone: "ok", title: "Your reel is ready", description: "Rendered with your voice. It's back in review." });
+        toast({ tone: "ok", title: "Your reel is ready", description: "Your voice is on it. Take a look." });
       }
       setData((d) => {
         if (eventType === "DELETE") return { ...d, [key]: d[key].filter((r) => r.id !== old?.id) };
@@ -148,10 +155,30 @@ export function DataProvider({ backend, user, children }) {
     return row;
   }, [backend, email]);
 
+  /** Optimistic social_posts update (RLS + the guard trigger); reverts and explains on failure. */
+  const socialRef = useRef([]);
+  socialRef.current = data.socialPosts;
+  const writeSocial = useCallback(async (post, patch, { errorTitle = "Couldn't save the LinkedIn post", quiet } = {}) => {
+    const setLocal = (p) => setData((d) => ({ ...d, socialPosts: d.socialPosts.map((r) => (r.id === post.id ? { ...r, ...p } : r)) }));
+    const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, post[k] ?? null]));
+    setLocal(patch);
+    try {
+      const row = await backend.updateSocialPost(post.id, patch);
+      setLocal(row);
+      return row;
+    } catch (e) {
+      setLocal(prev);
+      const m = String(e?.message || "");
+      const first = m.match(/approve the (\w+) first/i);
+      if (!quiet) toast({ tone: "danger", title: errorTitle, description: first ? `Approve the ${FORMAT_LABEL[first[1]]?.toLowerCase() || first[1]} first.` : m || "Try again." });
+      throw e;
+    }
+  }, [backend, toast]);
+
   // ---- actions ---------------------------------------------------------------------------------------
-  const undoable = useCallback((item, patch, toastOpts) => {
+  const undoable = useCallback((item, patch, toastOpts, { after, onUndo } = {}) => {
     const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, item[k] ?? null]));
-    const p = mutateItem(item, patch).catch(() => null);
+    const p = mutateItem(item, patch).then((row) => (row && after ? after(row).then(() => row) : row)).catch(() => null);
     toast({
       ...toastOpts,
       duration: UNDO_MS,
@@ -160,6 +187,7 @@ export function DataProvider({ backend, user, children }) {
         onClick: async () => {
           await p;
           await mutateItem({ ...item, ...patch }, prev, { errorTitle: "Couldn't undo" }).catch(() => {});
+          if (onUndo) await onUndo().catch(() => {});
           toast({ title: "Undone", tone: "neutral", duration: 2200 });
         },
       },
@@ -174,24 +202,53 @@ export function DataProvider({ backend, user, children }) {
       await load();
     },
 
-    approve(item, { scheduledFor } = {}) {
+    /**
+     * Approve. For a blog: optional publish time, and `social` = {post, format, caption, first_comment} to also approve
+     * its LinkedIn post (the creative it posts is approved too, because the owner saw it in the post preview).
+     */
+    approve(item, { scheduledFor, social } = {}) {
       const patch = { status: "approved", approved_at: new Date().toISOString(), approved_by: email };
       if (item.type === "blog" && scheduledFor !== undefined) patch.scheduled_for = scheduledFor;
       const when = item.type === "blog" ? (patch.scheduled_for ?? item.scheduled_for) : null;
+      const label = TYPE_META[item.type]?.label || "It";
+      let socialDone = null;
+      const after = social?.post ? async () => {
+        try {
+          socialDone = await actions.approveSocial(social.post, social, { quiet: false });
+        } catch { /* toast shown */ }
+      } : undefined;
+      const onUndo = social?.post ? async () => { if (socialDone) await writeSocial(socialDone, { status: "pending_review" }, { quiet: true }); } : undefined;
       return undoable(item, patch, {
         tone: "ok",
-        title: `${TYPE_META[item.type]?.label || "Item"} approved`,
-        description: item.type === "blog" ? (when ? `Publishes ${formatDateTime(when)} IST` : "Publishes at the next publish slot") : "Moved to Ready to post",
-      });
+        title: `${label} approved`,
+        description: item.type === "blog"
+          ? `${when ? `Goes live ${formatDateTime(when)}` : "Goes live at the next slot"}${social?.post ? ". Then it posts on LinkedIn." : "."}`
+          : "It's in Ready to post.",
+      }, { after, onUndo });
+    },
+
+    /** Approve the LinkedIn post of a blog, approving the creative it posts if it still waits for review. */
+    async approveSocial(post, { format, caption, first_comment } = {}, opts = {}) {
+      const fmt = format || post.format;
+      const kids = itemsRef.list.filter((i) => i.parent_id === post.blog_item_id && i.type === fmt);
+      const ready = kids.find((i) => ["approved", "published"].includes(i.status));
+      const waiting = !ready && kids.find((i) => i.status === "pending_review");
+      if (waiting) await mutateItem(waiting, { status: "approved", approved_at: new Date().toISOString(), approved_by: email });
+      const patch = { status: "approved" };
+      if (fmt !== post.format) patch.format = fmt;
+      if (caption != null && caption !== post.caption) patch.caption = caption;
+      if (first_comment != null && first_comment !== post.first_comment) patch.first_comment = first_comment;
+      const row = await writeSocial(post, patch, { errorTitle: "Couldn't approve the LinkedIn post", ...opts });
+      return row;
     },
 
     async unapprove(item) {
       await mutateItem(item, { status: "pending_review", approved_at: null, approved_by: null });
-      toast({ tone: "neutral", title: "Moved back to review", duration: 2600 });
+      toast({ tone: "neutral", title: "Approval undone", description: "It's back in Review.", duration: 2600 });
     },
 
     reject(item) {
-      return undoable(item, { status: "rejected" }, { tone: "neutral", title: `${TYPE_META[item.type]?.label || "Item"} rejected`, description: "It won't be published or posted." });
+      return undoable(item, { status: "rejected" }, { tone: "neutral", title: "Not used", description: "It won't go live or be posted." });
     },
 
     async requestChanges(item, feedback) {
@@ -199,9 +256,9 @@ export function DataProvider({ backend, user, children }) {
       await mutateItem(item, { status: "changes_requested", feedback: text });
       try {
         await insertJob("regenerate", { content_item_id: item.id, feedback: text });
-        toast({ tone: "warn", title: "Sent back for changes", description: "The next revision run rewrites it with your notes." });
+        toast({ tone: "warn", title: "Sent back", description: "We fix it with your notes and send it back, usually within a day." });
       } catch (e) {
-        toast({ tone: "danger", title: "Feedback saved, but the revision job failed", description: e.message });
+        toast({ tone: "danger", title: "Your note is saved, but the fix didn't start", description: e.message });
       }
     },
 
@@ -211,10 +268,68 @@ export function DataProvider({ backend, user, children }) {
       }
       try {
         await insertJob("publish_now", { content_item_id: item.id });
-        toast({ tone: "ok", title: "Publishing now", description: "The publisher picks this up within about 30 minutes." });
+        toast({ tone: "ok", title: "Going live soon", description: "It goes live on the website within about 30 minutes." });
       } catch (e) {
-        toast({ tone: "danger", title: "Couldn't queue publishing", description: e.message });
+        toast({ tone: "danger", title: "Couldn't put it live", description: e.message });
       }
+    },
+
+    /* ---- LinkedIn posts ---- */
+    async saveSocial(post, patch) {
+      await writeSocial(post, patch);
+      toast({ tone: "ok", title: "LinkedIn post saved", duration: 2200 });
+    },
+    async unapproveSocial(post) {
+      await writeSocial(post, { status: "pending_review" });
+      toast({ tone: "neutral", title: "Won't post yet", description: "Approve it again when you're ready.", duration: 2600 });
+    },
+    async cancelSocial(post) {
+      await writeSocial(post, { status: "cancelled" });
+      toast({ tone: "neutral", title: "Won't post on LinkedIn", description: "The blog still goes live as planned.", duration: 2800 });
+    },
+    async retrySocial(post) {
+      await writeSocial(post, { status: "approved" });
+      toast({ tone: "ok", title: "Trying again", description: "It goes out on LinkedIn in a few minutes.", duration: 2800 });
+    },
+    async publishSocialNow(post) {
+      try {
+        const r = await backend.linkedin("publish_now", { body: { social_post_id: post.id } });
+        setData((d) => ({ ...d, socialPosts: d.socialPosts.map((x) => (x.id === post.id ? { ...x, ...r } : x)) }));
+        toast({ tone: "ok", title: "Posting on LinkedIn now", description: "It shows up on the Dhiti Services page in a minute or two." });
+      } catch (e) {
+        toast({ tone: e?.code === "BLOG_NOT_LIVE" ? "neutral" : "danger", title: e?.code === "BLOG_NOT_LIVE" ? "Not yet" : "Couldn't post", description: friendlyError(e) });
+      }
+    },
+    async retryComment(post) {
+      try {
+        const r = await backend.linkedin("retry_comment", { body: { social_post_id: post.id } });
+        setData((d) => ({ ...d, socialPosts: d.socialPosts.map((x) => (x.id === post.id ? { ...x, ...r } : x)) }));
+        toast({ tone: "ok", title: "Sending the comment again", duration: 2600 });
+      } catch (e) {
+        toast({ tone: "danger", title: "Couldn't send the comment", description: friendlyError(e) });
+      }
+    },
+
+    /* ---- LinkedIn connection (Settings) ---- */
+    linkedinStatus: () => backend.linkedin("status", { method: "GET" }),
+    /** Sends the keys straight to the linkedin function. The caller clears its fields right after. */
+    linkedinSaveApp: (clientId, clientSecret) => backend.linkedin("save_app", { body: { client_id: clientId, client_secret: clientSecret } }),
+    async linkedinConnect() {
+      const r = await backend.linkedin("oauth/start", { body: {} });
+      const url = String(r?.authorize_url || "");
+      // Top-level navigation only to LinkedIn's consent page (or the demo's own callback).
+      if (!/^https:\/\/www\.linkedin\.com\/oauth\/v2\/authorization\?/.test(url) && !(backend.kind === "demo" && url.startsWith(window.location.origin))) {
+        throw Object.assign(new Error("LinkedIn sent back an unexpected link. Nothing was opened."), { code: "BAD_URL" });
+      }
+      window.location.assign(url);
+    },
+    linkedinSelectOrg: (orgUrn) => backend.linkedin("select_org", { body: { org_urn: orgUrn } }),
+    linkedinDisconnect: (forgetApp) => backend.linkedin("disconnect", { body: forgetApp ? { forget_app: true } : {} }),
+    async linkedinPause(paused) {
+      const row = await backend.setLinkedinPaused(paused);
+      setData((d) => ({ ...d, linkedin: { ...(d.linkedin || {}), ...row } }));
+      toast({ tone: "neutral", title: paused ? "LinkedIn posting paused" : "LinkedIn posting is on again", duration: 2400 });
+      return row;
     },
 
     async saveBlog(item, { title, description, markdown, wordCount }) {
@@ -233,12 +348,12 @@ export function DataProvider({ backend, user, children }) {
 
     async reschedule(item, scheduledFor) {
       await mutateItem(item, { scheduled_for: scheduledFor });
-      toast({ tone: "ok", title: "Rescheduled", description: `Publishes ${formatDateTime(scheduledFor)} IST`, duration: 3000 });
+      toast({ tone: "ok", title: "New time saved", description: `Goes live ${formatDateTime(scheduledFor)}`, duration: 3000 });
     },
 
     markPosted(item, url) {
       const patch = { status: "published", published_at: new Date().toISOString(), published_url: url?.trim() || null };
-      return undoable(item, patch, { tone: "info", title: "Marked as posted", description: "Moved to Published." });
+      return undoable(item, patch, { tone: "info", title: "Marked as posted", description: "You'll find it in Live." });
     },
 
     async skipTopic(topic) {
@@ -249,11 +364,11 @@ export function DataProvider({ backend, user, children }) {
         await backend.updateTopic(topic.id, { status: "skipped" });
       } catch (e) {
         apply(prev);
-        toast({ tone: "danger", title: "Couldn't skip topic", description: e.message });
+        toast({ tone: "danger", title: "Couldn't skip it", description: e.message });
         return;
       }
       toast({
-        tone: "neutral", title: "Topic skipped", description: topic.title, duration: UNDO_MS,
+        tone: "neutral", title: "Skipped", description: topic.title, duration: UNDO_MS,
         action: { label: "Undo", onClick: async () => { apply(prev); await backend.updateTopic(topic.id, { status: prev }).catch(() => {}); } },
       });
     },
@@ -264,19 +379,19 @@ export function DataProvider({ backend, user, children }) {
       apply(status);
       try {
         await backend.updateTopic(topic.id, { status });
-        toast({ tone: "ok", title: "Topic restored", description: topic.title, duration: 2600 });
+        toast({ tone: "ok", title: "Brought back", description: topic.title, duration: 2600 });
       } catch (e) {
         apply(prev);
-        toast({ tone: "danger", title: "Couldn't restore topic", description: e.message });
+        toast({ tone: "danger", title: "Couldn't bring it back", description: e.message });
       }
     },
 
     async runWeekly() {
       try {
         await insertJob("run_weekly", { source: "dashboard" });
-        toast({ tone: "ok", title: "Weekly run queued", description: "Research, topics and drafts arrive here as they're made." });
+        toast({ tone: "ok", title: "Making this week's blogs", description: "New blogs show up here as they're ready, in a few hours." });
       } catch (e) {
-        toast({ tone: "danger", title: "Couldn't queue the run", description: e.message });
+        toast({ tone: "danger", title: "Couldn't start", description: e.message });
       }
     },
 
@@ -287,7 +402,7 @@ export function DataProvider({ backend, user, children }) {
       try {
         const row = await backend.updateSettings(next);
         setData((d) => ({ ...d, settings: row.data }));
-        toast({ tone: "ok", title: "Settings saved", description: "The next weekly run uses them.", duration: 2600 });
+        toast({ tone: "ok", title: "Settings saved", description: "We use them from the next batch of blogs.", duration: 2600 });
       } catch (e) {
         setData((d) => ({ ...d, settings: prev }));
         toast({ tone: "danger", title: "Couldn't save settings", description: e.message });
@@ -332,10 +447,10 @@ export function DataProvider({ backend, user, children }) {
     /** Queue the reel re-render with a voiceover that is already in the library (render_video job). */
     async renderWithVoiceover(item, libraryRow) {
       const busy = data.jobs.find((j) => j.kind === "render_video" && j.payload?.content_item_id === item.id && (j.status === "queued" || j.status === "running"));
-      if (busy) throw new Error("A render with your voice is already in progress for this reel.");
-      if (item.status !== "awaiting_voiceover") throw new Error("This reel isn't waiting for a voiceover any more.");
+      if (busy) throw new Error("Your voice is already being added to this reel.");
+      if (item.status !== "awaiting_voiceover") throw new Error("This reel doesn't need your voice any more.");
       const job = await insertJob("render_video", { content_item_id: item.id, library_asset_id: libraryRow.id });
-      toast({ tone: "ok", title: "Queued to render with your voice", description: "The reel is re-timed to your recording and comes back here for review." });
+      toast({ tone: "ok", title: "Got your voice", description: "We time the reel to it and send it back to you, usually within a day." });
       return job;
     },
 
@@ -351,7 +466,7 @@ export function DataProvider({ backend, user, children }) {
     async deleteLibrary(row) {
       const rendering = data.jobs.some((j) => j.kind === "render_video" && j.payload?.library_asset_id === row.id && (j.status === "queued" || j.status === "running"));
       if (rendering) {
-        toast({ tone: "warn", title: "This voiceover is being rendered", description: "Delete it after the reel is back in review." });
+        toast({ tone: "warn", title: "This recording is in use right now", description: "Delete it after the reel is ready." });
         return;
       }
       setData((d) => ({ ...d, library: d.library.filter((r) => r.id !== row.id) }));
@@ -363,9 +478,10 @@ export function DataProvider({ backend, user, children }) {
         toast({ tone: "danger", title: "Couldn't remove", description: e.message });
       }
     },
-  }), [backend, data.settings, data.jobs, email, insertJob, load, mutateItem, toast, undoable]);
+  }), [backend, data.settings, data.jobs, email, insertJob, load, mutateItem, toast, undoable, writeSocial]);
 
   useEffect(() => { itemsRef.current = new Map(data.items.map((i) => [i.id, i.status])); }, [data.items]);
+  itemsRef.list = data.items;
 
   // ---- derived ------------------------------------------------------------------------------------------
   const derived = useMemo(() => {
@@ -374,7 +490,10 @@ export function DataProvider({ backend, user, children }) {
     const reviewCount = data.items.filter((i) => i.status === "pending_review" || i.status === "awaiting_voiceover").length;
     const readyCount = data.items.filter((i) => i.type !== "blog" && i.status === "approved").length;
     const activeJobs = data.jobs.filter((j) => j.status === "queued" || j.status === "running");
-    return { topicById, itemById, reviewCount, readyCount, activeJobs, jobLabel: (k) => JOB_KIND[k] || k };
+    // The LinkedIn post of each blog: the newest row that is not cancelled (one active row per blog).
+    const socialByBlog = new Map();
+    for (const p of data.socialPosts) if (p.status !== "cancelled" && !socialByBlog.has(p.blog_item_id)) socialByBlog.set(p.blog_item_id, p);
+    return { topicById, itemById, reviewCount, readyCount, activeJobs, socialByBlog, jobLabel: (k) => JOB_KIND[k] || k };
   }, [data]);
 
   const value = useMemo(() => ({ ...data, ...derived, status, error, syncError, live, lastSync, actions, user, backend }),

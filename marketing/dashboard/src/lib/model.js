@@ -8,41 +8,45 @@ export const TYPE_META = {
   video: { label: "Reel", plural: "Reels", icon: Clapperboard, order: 3 },
 };
 
-// tone -> chip colours (see components/ui.jsx StatusChip)
+// tone -> chip colours (see components/ui.jsx StatusChip). Labels are the owner's words (ARCHITECTURE v3.2).
 export const ITEM_STATUS = {
-  generating: { label: "Generating", tone: "neutral", pulse: true },
-  awaiting_voiceover: { label: "Needs voiceover", tone: "brand" },
-  pending_review: { label: "Needs review", tone: "brand" },
-  changes_requested: { label: "Changes requested", tone: "warn" },
+  generating: { label: "Making it", tone: "neutral", pulse: true },
+  awaiting_voiceover: { label: "Needs your voice", tone: "brand" },
+  pending_review: { label: "Ready for you", tone: "brand" },
+  changes_requested: { label: "Sent back", tone: "warn" },
   approved: { label: "Approved", tone: "ok" },
-  rejected: { label: "Rejected", tone: "neutral" },
-  published: { label: "Published", tone: "info" },
-  failed: { label: "Failed", tone: "danger" },
+  rejected: { label: "Not used", tone: "neutral" },
+  published: { label: "Live", tone: "info" },
+  failed: { label: "Something went wrong", tone: "danger" },
 };
 
 export const TOPIC_STATUS = {
   planned: { label: "Planned", tone: "neutral" },
-  producing: { label: "Producing", tone: "active", pulse: true },
+  producing: { label: "Making it", tone: "active", pulse: true },
   ready: { label: "Ready", tone: "ok" },
   skipped: { label: "Skipped", tone: "neutral" },
-  failed: { label: "Failed", tone: "danger" },
+  failed: { label: "Something went wrong", tone: "danger" },
 };
 
 export const JOB_STATUS = {
-  queued: { label: "Queued", tone: "neutral", pulse: true },
-  running: { label: "Running", tone: "active", pulse: true },
+  queued: { label: "Waiting", tone: "neutral", pulse: true },
+  running: { label: "Working", tone: "active", pulse: true },
   done: { label: "Done", tone: "ok" },
-  failed: { label: "Failed", tone: "danger" },
+  failed: { label: "Didn't work", tone: "danger" },
 };
 
 export const RUN_STATUS = {
-  running: { label: "Running", tone: "active", pulse: true },
-  succeeded: { label: "Succeeded", tone: "ok" },
-  failed: { label: "Failed", tone: "danger" },
+  running: { label: "Working", tone: "active", pulse: true },
+  succeeded: { label: "Done", tone: "ok" },
+  failed: { label: "Didn't work", tone: "danger" },
 };
 
-export const RUN_KIND = { weekly: "Weekly run", jobs: "Revisions", publish: "Publisher", manual: "Manual run" };
-export const JOB_KIND = { run_weekly: "Weekly run", regenerate: "Revision", publish_now: "Publish now", render_video: "Render reel" };
+export const RUN_KIND = { weekly: "Making this week's blogs", jobs: "Daily fixes", publish: "Posting to the website", manual: "Extra work" };
+export const JOB_KIND = { run_weekly: "Making this week's blogs", regenerate: "Fixing something you sent back", publish_now: "Putting a blog live now", render_video: "Adding your voice to a reel" };
+
+/** Graphic styles (body.kind) in plain words. */
+export const GRAPHIC_KIND = { stat: "Number", tip: "Tip", quote: "Quote" };
+export const graphicKind = (k) => GRAPHIC_KIND[k] || (k ? k[0].toUpperCase() + k.slice(1) : "");
 
 export const REVIEWABLE = ["pending_review", "awaiting_voiceover"];
 

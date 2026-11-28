@@ -116,8 +116,8 @@ export function socialStatus(post, blog) {
   if (!post) return null;
   const live = blog?.status === "published";
   switch (post.status) {
-    case "draft":
-    case "pending_review": return { label: "Ready for you", tone: "brand", text: "Check the post, then approve it with the blog." };
+    case "draft": return { label: "Draft", tone: "neutral", text: "Still being written. You can check it soon." };
+    case "pending_review": return { label: "Ready for you", tone: "brand", text: blog && ["approved", "published"].includes(blog.status) ? "Check the post, then approve it." : "Check the post. You approve it together with the blog." };
     case "approved": return live
       ? { label: "Posting soon", tone: "active", pulse: true, text: "The blog is live, so this goes out in the next few minutes." }
       : { label: "Will post after the blog is live", tone: "ok", text: "It goes out on LinkedIn a few minutes after the blog is live." };

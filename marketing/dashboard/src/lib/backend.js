@@ -56,6 +56,15 @@ export function createSupabaseBackend() {
     return data;
   };
 
+  // LinkedIn tables (migration linkedin_core) may not exist yet: their reads fall back quietly, so the rest of the
+  // studio keeps working while LinkedIn is dormant.
+  const optional = async (q, fallback) => {
+    try {
+      const { data, error } = await q;
+      return error ? fallback : data ?? fallback;
+    } catch { return fallback; }
+  };
+
   const ITEM_COLS = "id,topic_id,parent_id,type,title,status,body,feedback,version,scheduled_for,approved_at,approved_by,published_at,published_url,error,created_at,updated_at";
   const RUN_COLS = "id,kind,status,started_at,finished_at,usage,error";
 
@@ -108,6 +117,10 @@ export function createSupabaseBackend() {
 
     /** Everything the app shows. `withAssets: false` skips the asset rows (polls while realtime keeps them fresh). */
     async fetchAll({ withAssets = true } = {}) {
+      const extra = Promise.all([
+        optional(sb.from("social_posts").select("*").order("created_at", { ascending: false }).limit(200), []),
+        optional(sb.from("linkedin_connection").select("*").eq("id", 1).maybeSingle(), null),
+      ]);
       const [settings, runs, briefs, topics, items, assets, jobs, library] = await Promise.all([
         sb.from("settings").select("data,updated_at").eq("id", 1).maybeSingle().then(must),
         sb.from("runs").select(RUN_COLS).order("started_at", { ascending: false }).limit(40).then(must),
@@ -118,7 +131,8 @@ export function createSupabaseBackend() {
         sb.from("jobs").select("*").order("created_at", { ascending: false }).limit(60).then(must),
         sb.from("library_assets").select("*").order("created_at", { ascending: false }).limit(400).then(must),
       ]);
-      return { settings: settings?.data ?? {}, settingsUpdatedAt: settings?.updated_at ?? null, runs, briefs, topics, items, assets, jobs, library };
+      const [socialPosts, linkedin] = await extra;
+      return { settings: settings?.data ?? {}, settingsUpdatedAt: settings?.updated_at ?? null, runs, briefs, topics, items, assets, jobs, library, socialPosts, linkedin };
     },
 
     async fetchItem(id) {
@@ -143,6 +157,45 @@ export function createSupabaseBackend() {
     },
     async insertJob(kind, payload, requestedBy) {
       return must(await sb.from("jobs").insert({ kind, payload, status: "queued", requested_by: requestedBy }).select("*").single());
+    },
+
+    /** RLS update of a social post (columns: caption, first_comment, format, status, scheduled_for; LINKEDIN.md 2.4). */
+    async updateSocialPost(id, patch) {
+      return must(await sb.from("social_posts").update(patch).eq("id", id).select("*").single());
+    },
+    /** The owner's kill switch (the only column the team may write on linkedin_connection). */
+    async setLinkedinPaused(paused) {
+      return must(await sb.from("linkedin_connection").update({ paused }).eq("id", 1).select("*").single());
+    },
+
+    /**
+     * Calls a route of the `linkedin` Edge Function as the signed-in owner (team JWT). Secrets go only in the POST
+     * body of save_app and are never kept, logged or returned. Throws Error with `.code` (the function's code, or
+     * UNAVAILABLE while the function is not deployed, or NETWORK).
+     */
+    async linkedin(route, { method = "POST", body } = {}) {
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      if (!token) throw Object.assign(new Error("Your sign-in has ended. Sign in again."), { code: "UNAUTHORIZED" });
+      let res;
+      try {
+        res = await fetch(`${SUPABASE_URL}/functions/v1/linkedin/${route}`, {
+          method,
+          headers: { authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY, ...(body ? { "content-type": "application/json" } : {}) },
+          body: body ? JSON.stringify(body) : undefined,
+          cache: "no-store",
+          credentials: "omit",
+          referrerPolicy: "no-referrer",
+        });
+      } catch {
+        throw Object.assign(new Error("Couldn't reach LinkedIn setup. Check your connection and try again."), { code: "NETWORK" });
+      }
+      let j = null;
+      try { j = await res.json(); } catch { /* not JSON */ }
+      if (res.status === 404 && (!j || j.code === "NOT_FOUND" || /function was not found/i.test(j?.message || ""))) {
+        throw Object.assign(new Error("LinkedIn posting is not switched on yet on the server."), { code: "UNAVAILABLE", status: 404 });
+      }
+      if (!res.ok || !j?.ok) throw Object.assign(new Error(j?.error || `Request failed (${res.status})`), { code: j?.code, status: res.status });
+      return j.data;
     },
 
     async signUrls(paths, expiresIn) {
@@ -213,7 +266,15 @@ export function createSupabaseBackend() {
         if (err) console.warn("realtime:", status, err.message || err);
         onStatus?.(status === "SUBSCRIBED");
       });
-      return () => { sb.removeChannel(ch); };
+      // LinkedIn tables on their own channel: while they don't exist yet, a failure here must not mark the studio
+      // offline. The 30 s poll keeps them fresh either way.
+      const li = sb.channel("dashboard-linkedin");
+      for (const table of ["social_posts", "linkedin_connection"]) {
+        li.on("postgres_changes", { event: "*", schema: "public", table }, (p) =>
+          onChange({ table, eventType: p.eventType, row: p.new && Object.keys(p.new).length ? p.new : null, old: p.old }));
+      }
+      li.subscribe(() => {});
+      return () => { sb.removeChannel(ch); sb.removeChannel(li); };
     },
   };
 }

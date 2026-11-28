@@ -12,6 +12,8 @@ import { SignedImage } from "../Media.jsx";
 import { Button, Counter, Field, Kbd, cx } from "../ui.jsx";
 import { MetaSection, MetaRow } from "./Meta.jsx";
 import { safeHref } from "../../lib/safe.js";
+import { FactsBanner, FactsPanel } from "./Facts.jsx";
+import { LinkedInPostCard } from "../linkedin/PostCard.jsx";
 
 function AutoTextarea({ value, onChange, className, ...rest }) {
   const ref = useRef(null);
@@ -43,12 +45,12 @@ export function clientChecks({ markdown = "", description = "", title = "" }, { 
   const words = Number.isFinite(knownWords) && knownWords > 0 ? knownWords : countWords(markdown);
   const sections = (markdown.match(/^##\s+\S/gm) || []).length;
   if (words < 1000) messages.push(`${words.toLocaleString("en-IN")} words (minimum 1,000)`);
-  if (sections !== 8) messages.push(`${sections} "##" sections (the site expects exactly 8)`);
-  if (/\u2014/.test(markdown + description + title)) messages.push("Remove em dashes (\u2014)");
-  if (description.length > 160) messages.push(`Description is ${description.length} characters (limit 160)`);
-  if (!/\]\(https:/.test(markdown)) messages.push("Add at least one linked https source");
-  if (/<\/?[a-z][^>]*>/i.test(markdown)) messages.push("Raw HTML is not allowed");
-  if (/^ {0,3}\[[^\]]+\]:\s*\S+/m.test(markdown)) messages.push("Use inline links [text](https://...), not reference-style links");
+  if (sections !== 8) messages.push(`${sections} section titles (lines starting with ##). The website needs exactly 8.`);
+  if (/\u2014/.test(markdown + description + title)) messages.push("Remove the long dashes (\u2014)");
+  if (description.length > 160) messages.push(`Google summary is ${description.length} letters (160 at most)`);
+  if (!/\]\(https:/.test(markdown)) messages.push("Add at least one source link");
+  if (/<\/?[a-z][^>]*>/i.test(markdown)) messages.push("Remove the HTML code");
+  if (/^ {0,3}\[[^\]]+\]:\s*\S+/m.test(markdown)) messages.push("Write links as [text](https://...)");
   return { passed: messages.length === 0, messages, words, sections };
 }
 
@@ -65,7 +67,7 @@ export function blogVerdict(b = {}) {
   const local = b.markdown ? clientChecks(input, { words }) : { passed: words >= 1000, messages: words >= 1000 ? [] : [`${words} words (minimum 1,000)`] };
   const stored = b.checks || {};
   const messages = [...new Set([...(stored.passed === false ? stored.messages || [] : []), ...local.messages])];
-  if (stored.passed === false && !messages.length) messages.push("The engine's checks did not pass");
+  if (stored.passed === false && !messages.length) messages.push("The website checks did not pass");
   return { passed: messages.length === 0, messages, words, stale: false };
 }
 
@@ -114,6 +116,7 @@ export function BlogArticle({ item, editing, setEditing }) {
           <div className="min-w-0 text-callout text-ink-soft"><span className="font-semibold text-ink">Check before approving. </span>{item.body.owner_note}</div>
         </div>
       )}
+      <FactsBanner body={item.body} />
       <div className="relative">
         <SignedImage path={cover?.storage_path} alt={fm.imageAlt || ""} eager className="aspect-[16/9] w-full rounded-[18px] shadow-[0_0_0_1px_var(--hairline),0_20px_50px_-20px_rgb(var(--shadow)/0.35)]" />
         {cover && (
@@ -133,13 +136,13 @@ export function BlogArticle({ item, editing, setEditing }) {
             <Field label="Title" counter={<Counter value={draft.title} max={70} />}>
               <AutoTextarea rows={1} aria-label="Title" className="input text-[22px] font-bold leading-7 tracking-[-0.02em]" value={draft.title} onChange={(v) => setDraft({ ...draft, title: v.replace(/\n/g, " ") })} />
             </Field>
-            <Field label="Meta description" counter={<Counter value={draft.description} max={160} />} hint="Shown in Google results. Keep it under 160 characters.">
+            <Field label="Google summary" counter={<Counter value={draft.description} max={160} />} hint="Shown under the title in Google. 160 letters at most.">
               <AutoTextarea rows={2} className="input leading-[22px]" value={draft.description} onChange={(v) => setDraft({ ...draft, description: v.replace(/\n/g, " ") })} />
             </Field>
             <Field
-              label="Article (Markdown)"
+              label="Blog text"
               counter={<span className={cx("tnum text-[12px] font-semibold", draftWords < 1000 ? "text-warn" : "text-ink-faint")}>{draftWords.toLocaleString("en-IN")} words</span>}
-              hint="Use ## for sections. No raw HTML and no em dashes; the site's checks run again before publishing."
+              hint="Start each section title with ##. No HTML and no long dashes (\u2014). We check it again before it goes live."
             >
               <AutoTextarea rows={18} className="input min-h-[420px] text-[14.5px] leading-[23px] tracking-normal" value={draft.markdown} onChange={(v) => setDraft({ ...draft, markdown: v })} spellCheck />
             </Field>
@@ -188,6 +191,8 @@ export function BlogArticle({ item, editing, setEditing }) {
                 </div>
               </section>
             )}
+            <FactsPanel body={item.body} />
+            <LinkedInPostCard blog={item} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -211,10 +216,10 @@ export function BlogMeta({ item, topic }) {
   return (
     <>
       {(item.status === "approved" || item.status === "pending_review") && (
-        <MetaSection title={item.status === "approved" ? "Scheduled" : "Planned publish"}>
+        <MetaSection title="Goes live">
           <PublishTimePicker compact idPrefix="meta" value={when} onChange={setWhen} publishDays={settings?.publish_days || []} plannedDay={topic?.planned_publish_date} />
           <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="text-[12px] text-ink-mute">{item.scheduled_for ? `${formatDateTime(item.scheduled_for)} IST` : "Not scheduled"}</span>
+            <span className="text-[12px] text-ink-mute">{item.scheduled_for ? `${formatDateTime(item.scheduled_for)} (India time)` : "No time set yet"}</span>
             <AnimatePresence>
               {changed && (
                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
@@ -234,10 +239,10 @@ export function BlogMeta({ item, topic }) {
         </MetaSection>
       )}
 
-      <MetaSection title="Search">
-        <MetaRow label="Slug"><span className="truncate">/blog/{b.slug}/</span></MetaRow>
+      <MetaSection title="Google">
+        <MetaRow label="Web address"><span className="truncate">/blog/{b.slug}/</span></MetaRow>
         <MetaRow label="Category">{fm.category}</MetaRow>
-        <MetaRow label="Keyword">{b.meta?.primary_keyword || topic?.primary_keyword}</MetaRow>
+        <MetaRow label="Search words">{b.meta?.primary_keyword || topic?.primary_keyword}</MetaRow>
         {b.meta?.secondary_keywords?.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {b.meta.secondary_keywords.map((k) => <span key={k} className="rounded-md bg-ink/[0.05] px-1.5 py-0.5 text-[11.5px] font-medium text-ink-soft">{k}</span>)}
@@ -245,25 +250,24 @@ export function BlogMeta({ item, topic }) {
         )}
         <div className="mt-3 rounded-xl bg-ink/[0.035] p-3">
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-[11.5px] font-semibold text-ink-mute">Description</span>
+            <span className="text-[11.5px] font-semibold text-ink-mute">Google summary</span>
             <Counter value={desc} max={160} />
           </div>
-          <p className="text-[12.5px] leading-[18px] text-ink-soft">{desc || "No description"}</p>
+          <p className="text-[12.5px] leading-[18px] text-ink-soft">{desc || "No summary yet"}</p>
           <div className="mt-2 h-1 overflow-hidden rounded-full bg-ink/[0.06]">
             <motion.div className={cx("h-full rounded-full", desc.length > 160 ? "bg-brand" : desc.length > 144 ? "bg-warn" : "bg-ok")} initial={{ scaleX: 0 }} animate={{ scaleX: Math.min(1, desc.length / 160) }} style={{ transformOrigin: "left" }} transition={{ type: "spring", stiffness: 200, damping: 30 }} />
           </div>
         </div>
       </MetaSection>
 
-      <MetaSection title="Quality">
+      <MetaSection title="Website checks">
         <MetaRow label="Words"><span className={cx("tnum", words < 1000 && "text-warn")}>{Number(words).toLocaleString("en-IN")}</span></MetaRow>
-        <MetaRow label="Read time">{readMinutes(words)} min</MetaRow>
-        <MetaRow label="Version">v{item.version || 1}</MetaRow>
+        <MetaRow label="Reading time">{readMinutes(words)} min</MetaRow>
         <div className={cx("mt-2 flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12.5px] font-medium", checks.passed ? "bg-ok/10 text-ok" : "bg-warn/10 text-warn")} data-testid="blog-checks">
           {checks.passed ? <CheckCircle2 className="mt-px h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-px h-4 w-4 shrink-0" />}
           <div className="min-w-0">
             {checks.passed
-              ? (checks.stale ? "Your edit passes the website's checks" : "Passes the website's blog checks")
+              ? (checks.stale ? "Your edit passes the website checks" : "Passes the website checks")
               : checks.messages.length === 1 ? `Check before approving: ${checks.messages[0]}` : "Check before approving"}
             {!checks.passed && checks.messages.length > 1 && <ul className="mt-1 list-disc pl-4 font-normal">{checks.messages.map((m, i) => <li key={i}>{m}</li>)}</ul>}
           </div>
@@ -290,8 +294,8 @@ export function BlogMeta({ item, topic }) {
       )}
 
       {b.cover_stock?.title && (
-        <MetaSection title="Cover licence">
-          <p className="text-[12.5px] text-ink-soft">Magnific stock #{b.cover_stock.id}: {b.cover_stock.title}</p>
+        <MetaSection title="Cover photo">
+          <p className="text-[12.5px] text-ink-soft">Paid stock photo from Magnific, number {b.cover_stock.id}: {b.cover_stock.title}</p>
         </MetaSection>
       )}
     </>

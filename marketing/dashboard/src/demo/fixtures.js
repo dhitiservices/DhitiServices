@@ -234,6 +234,71 @@ Resist the pull of speed metrics alone. A team that is measured only on first re
 
 Good support is designed, not hired. Fix the process gaps that create repeat contacts, keep the team stable long enough to build real knowledge, and measure resolution rather than speed. Quality follows, and cost falls with it.`;
 
+
+/* ---------- fact lists (body.claims) for the sample blogs ---------- */
+const C = (id, claim_text, source_title, source_url, quote, extra = {}) => ({ id, claim_text, source_title, source_url, quote, kind: "fact", verified: true, source_date: "2026-10-14", ...extra });
+const BSP = "https://www.iata.org/en/services/finance/bsp/";
+const ADM_CLAIMS = [
+  C("c1", "Every ticket an agency issues flows into one BSP settlement cycle.", "IATA: Billing and Settlement Plan", BSP, "BSP is a system designed to facilitate and simplify the selling, reporting and remitting procedures of IATA Accredited Passenger Sales Agents."),
+  C("c2", "Airlines audit the settlement cycle on their own schedule and raise memos afterwards.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Airlines may issue ADMs for transactions after they are reported in BSP, according to their own ADM policy."),
+  C("c3", "Wrong fare basis is a common reason for an agency debit memo.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Common reasons include incorrect fare calculation and the use of an incorrect fare basis."),
+  C("c4", "A reissue without the right penalty can lead to a memo.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Failure to collect applicable change penalties on reissued tickets may result in an ADM."),
+  C("c5", "Duplicate bookings left open past the ticketing deadline can be charged.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Duplicate or fictitious bookings may be subject to an ADM under the airline's policy."),
+  C("c6", "A ticket can usually be voided only within a short window after issue.", "IATA: BSP Manual for Agents", BSP, "A void must be processed within the period set by the airline, usually the same day of issue."),
+  C("c7", "Tour codes and endorsements must match the deal the airline filed.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Incorrect tour codes or endorsements against the agreed fare may be charged."),
+  C("c8", "Names must match the format the airline expects.", "IATA: Passenger name guidance", BSP, "The passenger name must be entered exactly as shown on the travel document."),
+  C("c9", "Agencies can dispute an ADM within the period set in the airline's policy.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "The agent may dispute the ADM within the dispute period stated in the airline's ADM policy."),
+  C("c10", "Each airline publishes its own ADM policy.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Each BSP airline must publish its ADM policy and make it available to agents."),
+  C("c11", "Memos are settled through the same BSP billing.", "IATA: Billing and Settlement Plan", BSP, "ADMs are processed through BSP and settled in the agent's billing."),
+  C("c12", "BSP runs in more than 170 countries and territories.", "IATA: Billing and Settlement Plan", BSP, "BSP operates in over 170 countries and territories."),
+  C("c13", "Errors are most often made late in the working day.", "Dhiti Services: own desk records, Jan to Sep 2026", "https://www.dhitiservices.com/", "Tickets issued after 16:00 made up 41% of the errors our desk caught in the period.", { kind: "fact", source_title: "Dhiti Services desk report (internal)" }),
+  C("c14", "A second check inside four hours catches errors before the void window closes.", "Dhiti Services: own desk records, Jan to Sep 2026", "https://www.dhitiservices.com/", "Tickets checked within 4 hours of issue could still be voided in 96% of the flagged cases."),
+  { id: "e1", claim_text: "An agency issuing 1,800 tickets a month with a 0.6% ADM rate loses about ₹1.03 lakh a month.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
+];
+const ROOMING_CLAIMS = [
+  C("r1", "Hotel group desks usually want final names 48 to 72 hours before arrival.", "AHLA: Group booking guide", "https://www.ahla.com/", "Final rooming lists are typically due 48 to 72 hours before arrival."),
+  C("r2", "Group booking guidance asks for one owner and written confirmation of every change.", "AHLA: Group booking guide", "https://www.ahla.com/", "Designate one point of contact and confirm every change in writing."),
+  { id: "r3", claim_text: "A 40-room wedding group with six late changes and no change log can lose an hour at check-in.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
+];
+const SUPPORT_CLAIMS = [
+  C("s1", "Customers value low effort more than delight.", "Gartner: Customer Service and Support", "https://www.gartner.com/en/customer-service-support", "Customer effort is a stronger driver of loyalty than delight."),
+  C("s2", "Each repeat contact costs about as much as the first one.", "Gartner: Customer Service and Support", "https://www.gartner.com/en/customer-service-support", "", { verified: false }),
+  C("s3", "Refund status is the top contact reason across OTAs.", "Travel trade forum thread", "https://example.com/forum/adm", "", { verified: false, source_date: null }),
+  { id: "s4", claim_text: "A team handling 6,000 contacts a month finds that 1,100 are repeats about refund status.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
+];
+
+const ADM_CAPTION = `An airline debit memo for ₹38,400 can land weeks after the ticket was issued, when it can no longer be voided.
+
+Most ADMs are not caused by bad agents. They are caused by a missing second look.
+
+A small second-check desk reviews every ticket within four hours of issue, while it can still be voided or reissued for free. The checks are boring on purpose:
+
+1. Fare basis and booking class match the filed fare
+2. Reissue penalties are applied correctly
+3. Duplicate segments are cancelled before the ticketing deadline
+4. Tour codes and endorsements match the deal
+5. Names match the passport format
+
+The desk flags, the issuing agent fixes, and the desk confirms the fix in the same thread. No blame, just a weekly note of what was caught.
+
+We wrote up how to set one up in two weeks, who should sit on the desk, and the three numbers to track.
+
+Full guide in the first comment.
+
+#TravelOperations #AirlineTicketing #BackOffice`;
+
+const ROOMING_CAPTION = `Two couples standing in a hotel lobby with their bags is what a wrong rooming list looks like.
+
+A rooming list is only as good as the last time someone checked it against the hotel.
+
+Our group desk runs the same short checklist at 72 hours, at 48 hours and the night before arrival. Each run ends the same way: ask the hotel for its version and compare it line by line.
+
+One named coordinator owns each group. Everyone else, sales included, sends changes to that person.
+
+The full 48-hour checklist is in the first comment.
+
+#HotelOperations #GroupTravel #MICE`;
+
 export function buildFixtures() {
   n = 0;
   const thisMon = weekStartIST();
@@ -316,7 +381,7 @@ export function buildFixtures() {
     asset(it, "blog_cover", `demo/${o.cover}`, { mime: "image/webp", width: 1600, height: 900, meta: { stock: [{ provider: "magnific", id: "71829", title: o.cover.replace(".jpg", "") + " stock photo" }] } });
     return it;
   };
-  const blogBody = (topic, { slug, description, md, image }) => ({
+  const blogBody = (topic, { slug, description, md, image, claims }) => ({
     slug,
     frontmatter: { title: topic.title, description, category: topic.category, image: `${slug}.webp`, imageAlt: "Operations team at work", order: 15, date: topic.planned_publish_date },
     markdown: md,
@@ -325,17 +390,18 @@ export function buildFixtures() {
     sources: [{ title: "IATA Billing and Settlement Plan", url: "https://www.iata.org/en/services/finance/bsp/" }, { title: "Ministry of Tourism statistics", url: "https://www.tourism.gov.in/" }],
     checks: { passed: true, messages: [] },
     cover_stock: { id: "71829", title: image },
+    ...(claims ? { claims } : {}),
   });
 
-  const bA = blog(tA, { status: "pending_review", cover: "office.jpg", body: blogBody(tA, { slug: "second-check-desk-airline-adm", description: "A two-person second-check desk reviews every ticket within hours and can halve airline debit memos. Here is how to set one up in two weeks.", md: ADM_MD, image: "office" }) });
-  const bB = blog(tB, { status: "approved", approved_at: ago(180), approved_by: "demo-owner@example.com", cover: "manager.jpg", body: blogBody(tB, { slug: "group-rooming-list-checklist", description: "The 48-hour rooming list checklist our group desk uses to stop check-in surprises for wedding and MICE groups.", md: ROOMING_MD, image: "manager" }) });
-  const bC = blog(tC, { status: "changes_requested", feedback: "Open with a real scenario from an OTA, and cite one external source on repeat contacts.", cover: "phone.jpg", body: blogBody(tC, { slug: "support-quality-without-cost", description: "Support quality is a process problem before it is a people problem. How rural teams keep quality high and costs steady.", md: SUPPORT_MD, image: "phone" }) });
+  const bA = blog(tA, { status: "pending_review", cover: "office.jpg", body: blogBody(tA, { slug: "second-check-desk-airline-adm", description: "A two-person second-check desk reviews every ticket within hours and can halve airline debit memos. Here is how to set one up in two weeks.", md: ADM_MD, image: "office", claims: ADM_CLAIMS }) });
+  const bB = blog(tB, { status: "approved", approved_at: ago(180), approved_by: "demo-owner@example.com", cover: "manager.jpg", body: blogBody(tB, { slug: "group-rooming-list-checklist", description: "The 48-hour rooming list checklist our group desk uses to stop check-in surprises for wedding and MICE groups.", md: ROOMING_MD, image: "manager", claims: ROOMING_CLAIMS }) });
+  const bC = blog(tC, { status: "changes_requested", feedback: "Open with a real scenario from an OTA, and cite one external source on repeat contacts.", cover: "phone.jpg", body: blogBody(tC, { slug: "support-quality-without-cost", description: "Support quality is a process problem before it is a people problem. How rural teams keep quality high and costs steady.", md: SUPPORT_MD, image: "phone", claims: SUPPORT_CLAIMS }) });
   const pub = (topic, slug, cover, daysAgo) => {
     const it = blog(topic, { status: "published", cover, approved_at: ago(60 * 24 * (daysAgo + 1)), approved_by: "demo-owner@example.com", published_at: ago(60 * 24 * daysAgo), published_url: `https://www.dhitiservices.com/blog/${slug}/`, scheduled_for: ago(60 * 24 * daysAgo), body: blogBody(topic, { slug, description: "Published last week.", md: ROOMING_MD, image: cover }) });
     return it;
   };
   const pL1 = pub(tL1, "corporate-hotel-rate-loading", "manager.jpg", 5);
-  pub(tL2, "corporate-travel-reporting", "office.jpg", 3);
+  const pL2 = pub(tL2, "corporate-travel-reporting", "office.jpg", 3);
   pub(tL3, "first-operations-job-training", "phone.jpg", 1);
 
   const derived = (parent, type, o) => {
@@ -387,19 +453,36 @@ export function buildFixtures() {
     return it;
   };
 
-  carouselFor(bA, tA, "pending_review");
+  const cA = carouselFor(bA, tA, "pending_review");
   graphicFor(bA, tA, "pending_review", { kind: "stat", stat: "₹1L", headline: "lost every month to avoidable ADMs", body: "at an agency issuing 1,800 tickets" });
   graphicFor(bA, tA, "pending_review", { kind: "tip", headline: "Check tickets issued after 4 pm first", body: "That is when most fare errors happen." });
   videoFor(bA, tA, "awaiting_voiceover");
 
-  carouselFor(bB, tB, "approved", { approved_at: ago(170), approved_by: "demo-owner@example.com" });
+  const cB = carouselFor(bB, tB, "approved", { approved_at: ago(170), approved_by: "demo-owner@example.com" });
   graphicFor(bB, tB, "approved", { kind: "quote", headline: "Check twice, send once, confirm in writing.", body: "", attribution: "Dhiti group desk" }, { approved_at: ago(160) });
   graphicFor(bB, tB, "changes_requested", { kind: "stat", stat: "72h", headline: "is the new rooming list cut-off", body: "at large Rajasthan properties" }, { feedback: "Use 48h to match the blog." });
   videoFor(bB, tB, "pending_review");
 
   derived(bC, "carousel", { status: "generating", title: `${tC.title} · carousel`, body: {} });
-  carouselFor(pL1, tL1, "published", { published_at: ago(60 * 24 * 4), published_url: "https://www.linkedin.com/feed/" });
+  const cL1 = carouselFor(pL1, tL1, "published", { published_at: ago(60 * 24 * 4), published_url: "https://www.linkedin.com/feed/" });
+  const gL2 = graphicFor(pL2, tL2, "published", { kind: "tip", headline: "One reporting pack, sent the same day every month", body: "Clients trust numbers that arrive on time." }, { published_at: ago(60 * 24 * 2) });
   graphicFor(pL1, tL1, "approved", { kind: "tip", headline: "Load corporate rates the day the contract lands", body: "Not the day before the first booking." }, { approved_at: ago(60 * 30) });
+
+  // LinkedIn posts (social_posts rows, LINKEDIN.md 2.4), one per blog.
+  const SP = (blogItem, o) => ({
+    id: id("social"), blog_item_id: blogItem.id, source_item_id: null, platform: "linkedin", recommended_format: "carousel",
+    recommendation_reason: "", format: "carousel", caption: "", first_comment: "", status: "pending_review", stage: null,
+    comment_status: "none", approved_at: null, approved_by: null, scheduled_for: null, media_urn: null, media_status: null,
+    post_urn: null, post_url: null, comment_id: null, comment_urn: null, comment_text_sent: null, attempts: 0, comment_attempts: 0,
+    next_attempt_at: null, lock_until: null, last_error: null, published_at: null, created_by: "engine", created_at: ago(60 * 23), updated_at: ago(60 * 2), ...o,
+  });
+  const socialPosts = [
+    SP(bA, { source_item_id: cA.id, recommendation_reason: "5-step checklist: a document post lets readers swipe the steps.", caption: ADM_CAPTION, first_comment: "The full guide, with the five checks and every source:" }),
+    SP(bB, { source_item_id: cB.id, status: "approved", approved_at: ago(170), approved_by: "demo-owner@example.com", recommendation_reason: "A checklist with timed steps works best as swipe pages.", caption: ROOMING_CAPTION, first_comment: "The 48-hour rooming list checklist:" }),
+    SP(bC, { recommended_format: "graphic", format: "graphic", status: "draft", recommendation_reason: "One strong point works alone as a picture.", caption: "Support quality is a process problem long before it is a people problem.\n\nFull post in the first comment.\n\n#CustomerSupport #TravelOperations", first_comment: "How to fix the process behind repeat contacts:" }),
+    SP(pL1, { source_item_id: cL1.id, status: "published", stage: "post_created", comment_status: "posted", approved_at: ago(60 * 24 * 6), published_at: ago(60 * 24 * 5 - 12), post_urn: "urn:li:share:7262011445810556928", post_url: "https://www.linkedin.com/feed/update/urn:li:share:7262011445810556928/", recommendation_reason: "Step-by-step guide: swipe pages work best.", caption: "Corporate hotel rates loaded the day before the first booking is how rate errors start.\n\nLoad them the day the contract lands.\n\nFull guide in the first comment.\n\n#HotelOperations #CorporateTravel", first_comment: "How we load corporate rates without errors:" }),
+    SP(pL2, { source_item_id: gL2.id, recommended_format: "graphic", format: "graphic", status: "published", stage: "post_created", comment_status: "failed", comment_attempts: 3, last_error: "LinkedIn was busy and did not take the comment.", approved_at: ago(60 * 24 * 4), published_at: ago(60 * 24 * 3 - 8), post_urn: "urn:li:share:7263770019283745792", post_url: "https://www.linkedin.com/feed/update/urn:li:share:7263770019283745792/", recommendation_reason: "One clear tip works alone as a picture.", caption: "A reporting pack that arrives on the same day every month earns more trust than a prettier one that arrives late.\n\nFull post in the first comment.\n\n#CorporateTravel #TravelOperations", first_comment: "What a good travel reporting pack looks like:" }),
+  ];
 
   const jobs = [
     { id: id("job"), kind: "regenerate", payload: { content_item_id: bC.id, feedback: bC.feedback }, status: "queued", requested_by: "demo-owner@example.com", error: null, created_at: ago(40), started_at: null, finished_at: null },
@@ -424,5 +507,5 @@ export function buildFixtures() {
     stock_only: true, no_ai_generation: true,
   };
 
-  return { settings, runs, logs, briefs: [brief, oldBrief], topics, items, assets, jobs, library };
+  return { settings, runs, logs, briefs: [brief, oldBrief], topics, items, assets, jobs, library, socialPosts };
 }

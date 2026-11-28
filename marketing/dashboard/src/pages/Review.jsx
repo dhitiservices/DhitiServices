@@ -7,7 +7,7 @@ import {
 import { useData } from "../lib/store.jsx";
 import { navigate, useLocation } from "../lib/router.jsx";
 import { useHotkeys } from "../lib/hotkeys.js";
-import { TYPE_META, ITEM_STATUS, byType, itemTitle, blogUrl } from "../lib/model.js";
+import { TYPE_META, ITEM_STATUS, byType, itemTitle, blogUrl, graphicKind } from "../lib/model.js";
 import { formatDate, dateOnly, relative } from "../lib/format.js";
 import { spring, softSpring } from "../lib/motion.js";
 import { Button, IconButton, Segmented, StatusChip, Skeleton, EmptyState, Kbd, Chip, cx } from "../components/ui.jsx";
@@ -25,8 +25,8 @@ import { useToast } from "../components/Toast.jsx";
 import { fromISTInput, addDays, todayIST } from "../lib/format.js";
 
 const FILTERS = {
-  review: { label: "To review", test: (i) => i.status === "pending_review" || i.status === "awaiting_voiceover" },
-  changes: { label: "Changes", test: (i) => i.status === "changes_requested" || i.status === "generating" || i.status === "failed" },
+  review: { label: "For you", test: (i) => i.status === "pending_review" || i.status === "awaiting_voiceover" },
+  changes: { label: "Sent back", test: (i) => i.status === "changes_requested" || i.status === "generating" || i.status === "failed" },
   approved: { label: "Approved", test: (i) => i.status === "approved" },
   all: { label: "All", test: (i) => i.status !== "rejected" },
 };
@@ -109,7 +109,7 @@ export default function Review({ id }) {
   };
 
   const toast = useToast();
-  const why = (item, verb) => toast({ tone: "neutral", title: `Can't ${verb} this ${TYPE_META[item.type]?.label.toLowerCase() || "item"}`, description: `It is ${ITEM_STATUS[item.status]?.label?.toLowerCase() || item.status}.`, duration: 2200 });
+  const why = (item, verb) => toast({ tone: "neutral", title: `Can't ${verb} this ${TYPE_META[item.type]?.label.toLowerCase() || "one"}`, description: `It is ${ITEM_STATUS[item.status]?.label?.toLowerCase() || item.status}.`, duration: 2200 });
   const act = {
     approve: (item = sel) => {
       if (!item) return;
@@ -127,7 +127,7 @@ export default function Review({ id }) {
       advanceFrom(item, "approved");
       d.actions.approve(item, { scheduledFor: slot });
     },
-    approveBlog: (iso) => { advanceFrom(sel, "approved"); d.actions.approve(sel, { scheduledFor: iso }); },
+    approveBlog: (iso, social) => { advanceFrom(sel, "approved"); d.actions.approve(sel, { scheduledFor: iso, social }); },
     reject: (item = sel) => { if (!item) return; advanceFrom(item, "rejected"); d.actions.reject(item); },
     changes: () => { if (!sel) return; if (!canChange(sel)) return why(sel, "send back"); setChangesOpen(true); },
     // Close and move on at once; the write runs in the background (it toasts and reverts on failure).
@@ -184,9 +184,9 @@ export default function Review({ id }) {
           <EmptyState
             icon={filter === "review" ? PartyPopper : Inbox}
             tone={filter === "review" ? "brand" : "neutral"}
-            title={filter === "review" ? "Inbox zero" : "Nothing here"}
+            title={filter === "review" ? "You're all caught up" : "Nothing here"}
           >
-            {filter === "review" ? "Everything has been reviewed. New drafts land here after the weekly run." : "No items match this filter right now."}
+            {filter === "review" ? "New blogs show up here after Monday morning." : "Nothing to show here right now."}
           </EmptyState>
         ) : (
           groups.map((g) => (
@@ -224,14 +224,14 @@ export default function Review({ id }) {
   ) : desktop && !loading ? (
     <div className="flex h-full items-center justify-center">
       {id ? (
-        <EmptyState icon={Sparkles} title="This item no longer exists">It may have been replaced by a newer version.</EmptyState>
+        <EmptyState icon={Sparkles} title="This is gone">It may have been replaced by a newer copy.</EmptyState>
       ) : flat.length ? (
-        <EmptyState icon={Sparkles} title="Pick something to review">Select an item on the left, or press J.</EmptyState>
+        <EmptyState icon={Sparkles} title="Pick one on the left">Or press J to open the first one.</EmptyState>
       ) : filter === "review" ? (
         // The only empty state on screen: the queue column stays quiet so the two never repeat each other.
-        <EmptyState icon={PartyPopper} tone="brand" title="Inbox zero">Everything has been reviewed. Drafts from the next weekly run land here, and you'll see them live.</EmptyState>
+        <EmptyState icon={PartyPopper} tone="brand" title="You're all caught up">New blogs show up here after Monday morning. You'll see them the moment they're ready.</EmptyState>
       ) : (
-        <EmptyState icon={Inbox} title="Nothing here">No items match “{FILTERS[filter].label}” right now.</EmptyState>
+        <EmptyState icon={Inbox} title="Nothing here">Nothing in “{FILTERS[filter].label}” right now.</EmptyState>
       )}
     </div>
   ) : desktop ? <ViewerSkeleton /> : null;
@@ -271,9 +271,9 @@ export default function Review({ id }) {
           <Confirm
             open={publishOpen}
             onClose={() => setPublishOpen(false)}
-            title="Publish this blog now?"
-            description="It is approved (if it isn't already) and committed to dhitiservices.com on the next publisher run, usually within 30 minutes."
-            confirmLabel="Publish now"
+            title="Put this blog live now?"
+            description="This puts it on dhitiservices.com within about 30 minutes. It is approved too, if it isn't yet."
+            confirmLabel="Put it live"
             onConfirm={() => d.actions.publishNow(sel)}
           />
         </>
@@ -292,7 +292,7 @@ function defaultBlogSlot(item, topic) {
 }
 const canChange = (i) => ["pending_review", "awaiting_voiceover", "changes_requested", "failed", "approved"].includes(i.status);
 
-/** The item's status chip; a reel being rendered with the owner's voice shows that state instead of "Needs voiceover". */
+/** The item's status chip; a reel getting the owner's voice shows that state instead of "Needs your voice". */
 function ItemStatus({ item, jobs, size = "sm" }) {
   const vo = voiceoverChip(item, jobs);
   return vo ? <Chip tone={vo.tone} pulse={vo.pulse} size={size}>{vo.label}</Chip> : <StatusChip map={ITEM_STATUS} status={item.status} size={size} />;
@@ -325,10 +325,9 @@ function QueueRow({ item, topic, jobs, active, onClick }) {
         <ItemThumb item={item} className={cx(item.type === "graphic" ? "h-12 w-12" : item.type === "blog" ? "h-12 w-[68px]" : "h-[54px] w-[44px]")} />
       </span>
       <div className="relative min-w-0 flex-1">
-        <div className="line-clamp-2 text-[13.5px] font-semibold leading-[18px] tracking-[-0.006em] text-ink">{T.label === "Blog" ? itemTitle(item, topic) : `${T.label}${item.body?.kind ? ` · ${item.body.kind}` : ""}`}</div>
+        <div className="line-clamp-2 text-[13.5px] font-semibold leading-[18px] tracking-[-0.006em] text-ink">{T.label === "Blog" ? itemTitle(item, topic) : `${T.label}${item.type === "graphic" && item.body?.kind ? ` · ${graphicKind(item.body.kind)}` : ""}`}</div>
         <div className="mt-1 flex items-center gap-1.5">
           <ItemStatus item={item} jobs={jobs} />
-          {item.version > 1 && <span className="text-[11px] font-semibold text-ink-faint">v{item.version}</span>}
           <span className="ml-auto whitespace-nowrap text-[11px] text-ink-faint" title={item.updated_at ? `Updated ${new Date(item.updated_at).toLocaleString("en-IN")}` : undefined}>{item.updated_at ? "Updated " : "Created "}{shortAgo(item.updated_at || item.created_at)}</span>
         </div>
       </div>
@@ -357,7 +356,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
   if (item.status === "generating") {
     stage = (
       <div className="mx-auto max-w-[560px] pt-10">
-        <EmptyState icon={Sparkles} tone="brand" title="Being made right now">This piece appears here as soon as it's rendered. Live updates are on.</EmptyState>
+        <EmptyState icon={Sparkles} tone="brand" title="Making it now">It shows up here as soon as it's ready.</EmptyState>
         <Skeleton className="mx-auto mt-2 aspect-[4/5] w-2/3 rounded-2xl" />
       </div>
     );
@@ -379,14 +378,14 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
     <div className="mx-auto mb-6 flex max-w-[720px] gap-3 rounded-2xl bg-warn/[0.09] p-4 shadow-[inset_0_0_0_1px_rgb(var(--warn)/0.18)]">
       <MessageSquareWarning className="mt-0.5 h-5 w-5 shrink-0 text-warn" />
       <div className="min-w-0 flex-1">
-        <div className="text-callout font-semibold text-ink">Waiting for revision</div>
+        <div className="text-callout font-semibold text-ink">Sent back. We're fixing it.</div>
         <p className="mt-0.5 whitespace-pre-wrap text-callout text-ink-soft">{item.feedback}</p>
       </div>
     </div>
   ) : item.status === "failed" && item.error ? (
     <div className="mx-auto mb-6 flex max-w-[720px] gap-3 rounded-2xl bg-brand/[0.07] p-4">
       <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-brand-ink" />
-      <div className="text-callout text-ink-soft"><span className="font-semibold text-ink">This piece failed. </span>{item.error}</div>
+      <div className="text-callout text-ink-soft"><span className="font-semibold text-ink">Something went wrong. </span>{item.error} Tap Try again and say what to change.</div>
     </div>
   ) : null;
 
@@ -406,20 +405,20 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
         <div className="min-w-0 flex-1 px-1">
           <div className="flex items-center gap-2">
             <T.icon className="h-4 w-4 shrink-0 text-ink-mute" strokeWidth={2} />
-            <span className="truncate text-[14.5px] font-semibold tracking-[-0.01em]">{T.label}{item.body?.kind && item.type === "graphic" ? ` · ${item.body.kind}` : ""}</span>
+            <span className="truncate text-[14.5px] font-semibold tracking-[-0.01em]">{T.label}{item.body?.kind && item.type === "graphic" ? ` · ${graphicKind(item.body.kind)}` : ""}</span>
             <span className="hidden shrink-0 sm:inline"><ItemStatus item={item} jobs={d.jobs} /></span>
           </div>
           {/* Position first, so a long topic title is what truncates, never "5 of 9". */}
           <div className="tnum truncate text-[11.5px] text-ink-faint">
-            {[desktop && total > 0 && index >= 0 ? `${index + 1} of ${total}` : "", item.version > 1 ? `v${item.version}` : "", topic?.title || itemTitle(parentBlog) || ""].filter(Boolean).join(" · ")}
+            {[desktop && total > 0 && index >= 0 ? `${index + 1} of ${total}` : "", topic?.title || itemTitle(parentBlog) || ""].filter(Boolean).join(" · ")}
           </div>
         </div>
         {desktop && actions}
         {!desktop && <span className="sm:hidden"><ItemStatus item={item} jobs={d.jobs} /></span>}
         {!desktop && total > 1 && (
           <div className="flex items-center">
-            <IconButton icon={ChevronUp} label="Previous item" size="sm" onClick={() => onStep(-1)} disabled={index <= 0} />
-            <IconButton icon={ChevronDown} label="Next item" size="sm" onClick={() => onStep(1)} disabled={index === -1 || index >= total - 1} />
+            <IconButton icon={ChevronUp} label="Previous" size="sm" onClick={() => onStep(-1)} disabled={index <= 0} />
+            <IconButton icon={ChevronDown} label="Next" size="sm" onClick={() => onStep(1)} disabled={index === -1 || index >= total - 1} />
           </div>
         )}
       </div>
@@ -450,7 +449,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
                     <div>Created {relative(item.created_at)}</div>
                     {item.updated_at && item.updated_at !== item.created_at && <div>Updated {relative(item.updated_at)}</div>}
                     {item.approved_at && <div>Approved {relative(item.approved_at)}{item.approved_by ? ` by ${item.approved_by.split("@")[0]}` : ""}</div>}
-                    {item.published_at && <div>Published {relative(item.published_at)}</div>}
+                    {item.published_at && <div>Went live {relative(item.published_at)}</div>}
                   </div>
                 </MetaSection>
               </motion.div>
@@ -467,14 +466,14 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
   const d = useData();
   const s = item.status;
   const more = [
-    item.type === "blog" && !["published", "generating"].includes(s) && { label: "Edit article", icon: Pencil, onClick: () => setEditing(true), kbd: "E" },
-    // Never offered while a revision is being made (generating) or the item has no reviewable content.
-    item.type === "blog" && ["pending_review", "changes_requested", "approved"].includes(s) && { label: "Publish now", icon: Rocket, onClick: onPublish },
-    item.type !== "blog" && s === "approved" && { label: "Mark as posted", icon: Send, onClick: onPosted },
-    (s === "approved" || s === "rejected") && { label: "Move back to review", icon: RotateCcw, onClick: () => d.actions.unapprove(item) },
-    item.published_url && { label: "Open live post", icon: ExternalLink, onClick: () => openSafe(item.published_url || blogUrl(item)) },
+    item.type === "blog" && !["published", "generating"].includes(s) && { label: "Edit blog", icon: Pencil, onClick: () => setEditing(true), kbd: "E" },
+    // Never offered while a fix is being made (generating) or there is nothing to look at.
+    item.type === "blog" && ["pending_review", "changes_requested", "approved"].includes(s) && { label: "Put live now", icon: Rocket, onClick: onPublish },
+    item.type !== "blog" && s === "approved" && { label: "I posted it", icon: Send, onClick: onPosted },
+    (s === "approved" || s === "rejected") && { label: s === "approved" ? "Undo approval" : "Bring it back", icon: RotateCcw, onClick: () => d.actions.unapprove(item) },
+    item.published_url && { label: "See it live", icon: ExternalLink, onClick: () => openSafe(item.published_url || blogUrl(item)) },
     "divider",
-    s !== "rejected" && s !== "published" && { label: "Reject", icon: X, danger: true, onClick: () => act.reject(item) },
+    s !== "rejected" && s !== "published" && { label: "Don't use this", icon: X, danger: true, onClick: () => act.reject(item) },
   ].filter(Boolean);
   const cleanMore = more.filter((m, i, arr) => !(m === "divider" && (i === 0 || i === arr.length - 1)));
 
@@ -483,9 +482,9 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
       return (
         <>
           <Button size={compact ? "lg" : "md"} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={compact ? "flex-1" : ""}>
-            {compact ? "Changes" : "Request changes"}
+            Ask for changes
           </Button>
-          <Button size={compact ? "lg" : "md"} variant="primary" icon={Check} onClick={() => act.approve(item)} kbd={compact ? null : "A"} title={item.type === "blog" ? "A: choose the publish time · Shift+A: approve for the planned slot" : "A"} className={compact ? "flex-1" : ""}>
+          <Button size={compact ? "lg" : "md"} variant="primary" icon={Check} onClick={() => act.approve(item)} kbd={compact ? null : "A"} title={item.type === "blog" ? "A: pick the time · Shift+A: approve for the planned day" : "A"} className={compact ? "flex-1" : ""}>
             {s === "changes_requested" ? "Approve anyway" : "Approve"}
           </Button>
         </>
@@ -497,21 +496,21 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
       return (
         <>
           <Button size={compact ? "lg" : "md"} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={compact ? "flex-1" : ""}>
-            {compact ? "Changes" : "Request changes"}
+            Ask for changes
           </Button>
           {!rendering && (
             <Button size={compact ? "lg" : "md"} variant="primary" icon={Mic} onClick={() => requestVoiceoverUpload()} kbd={compact ? null : "U"} title="U: choose your recording" className={compact ? "flex-[1.4]" : ""} data-testid="vo-upload-action">
-              Upload voiceover
+              Upload your voice
             </Button>
           )}
         </>
       );
     }
-    if (s === "approved" && item.type === "blog") return <Button size={compact ? "lg" : "md"} variant="dark" icon={Rocket} onClick={onPublish} className={compact ? "flex-1" : ""}>Publish now</Button>;
-    if (s === "approved") return <Button size={compact ? "lg" : "md"} variant="primary" icon={Send} onClick={onPosted} className={compact ? "flex-1" : ""}>Mark as posted</Button>;
-    if (s === "rejected") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={Undo2} onClick={() => d.actions.unapprove(item)} className={compact ? "flex-1" : ""}>Restore to review</Button>;
-    if (s === "published" && (item.published_url || item.type === "blog")) return <Button size={compact ? "lg" : "md"} variant="secondary" icon={ExternalLink} onClick={() => openSafe(item.published_url || blogUrl(item))} className={compact ? "flex-1" : ""}>View live</Button>;
-    if (s === "failed") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={RotateCcw} onClick={act.changes} className={compact ? "flex-1" : ""}>Retry with notes</Button>;
+    if (s === "approved" && item.type === "blog") return <Button size={compact ? "lg" : "md"} variant="dark" icon={Rocket} onClick={onPublish} className={compact ? "flex-1" : ""}>Put live now</Button>;
+    if (s === "approved") return <Button size={compact ? "lg" : "md"} variant="primary" icon={Send} onClick={onPosted} className={compact ? "flex-1" : ""}>I posted it</Button>;
+    if (s === "rejected") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={Undo2} onClick={() => d.actions.unapprove(item)} className={compact ? "flex-1" : ""}>Bring it back</Button>;
+    if (s === "published" && (item.published_url || item.type === "blog")) return <Button size={compact ? "lg" : "md"} variant="secondary" icon={ExternalLink} onClick={() => openSafe(item.published_url || blogUrl(item))} className={compact ? "flex-1" : ""}>See it live</Button>;
+    if (s === "failed") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={RotateCcw} onClick={act.changes} className={compact ? "flex-1" : ""}>Try again</Button>;
     return null;
   })();
 

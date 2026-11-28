@@ -26,7 +26,7 @@ export function voiceoverChip(item, jobs) {
   if (item?.status !== "awaiting_voiceover") return null;
   const vo = voiceoverState(item, jobs);
   if (vo.state !== "rendering") return null;
-  return vo.job.status === "running" ? { label: "Rendering", tone: "active", pulse: true } : { label: "Queued for render", tone: "active", pulse: true };
+  return vo.job.status === "running" ? { label: "Adding your voice", tone: "active", pulse: true } : { label: "Your voice is next", tone: "active", pulse: true };
 }
 
 /** Where the owner-voiceover step stands for a reel: idle | rendering (queued/running) | failed. */
@@ -53,13 +53,13 @@ export function VideoStage({ item }) {
         {vo.state === "rendering" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="vo-aurora absolute inset-[10px] flex flex-col items-center justify-center rounded-[32px] text-center text-white backdrop-blur-[3px]">
             <Bars className="h-10" />
-            <div className="mt-4 text-headline font-semibold">{vo.job.status === "running" ? "Rendering with your voice" : "Queued: your voice is next"}</div>
-            <div className="mt-1 px-8 text-[12.5px] text-white/70">{vo.job.status === "running" ? "Re-timing scenes and mixing your recording" : "The next revisions run picks it up"}</div>
+            <div className="mt-4 text-headline font-semibold">{vo.job.status === "running" ? "Adding your voice" : "Your voice is next"}</div>
+            <div className="mt-1 px-8 text-[12.5px] text-white/70">{vo.job.status === "running" ? "Timing each scene to your voice" : "This usually takes up to a day"}</div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
-  ) : <EmptyState title="No reel rendered yet" />;
+  ) : <EmptyState title="The reel isn't ready yet" />;
 
   if (!awaiting) return <div className="mx-auto flex w-full flex-col items-center">{phone}</div>;
   return (
@@ -67,7 +67,7 @@ export function VideoStage({ item }) {
       <VoiceoverStudio item={item} vo={vo} />
       <div className="flex flex-col items-center">
         <div className="mb-3 flex items-center gap-2 text-[12.5px] font-medium text-ink-mute">
-          <VolumeX className="h-4 w-4" /> Silent captioned preview. Your recording replaces this.
+          <VolumeX className="h-4 w-4" /> Silent preview. Your voice goes on top.
         </div>
         {phone}
       </div>
@@ -134,7 +134,7 @@ function VoiceoverStudio({ item, vo }) {
     const d = await mediaDuration(f);
     if (d && (d < MIN_S || d > MAX_S)) {
       setFile(null);
-      return setErr(`This recording is ${Math.round(d)} s. Reels need ${MIN_S} to ${MAX_S} s (the script reads in about ${Math.round(target)} s). Record it again at a ${d > MAX_S ? "brisker" : "more relaxed"} pace.`);
+      return setErr(`This recording is ${Math.round(d)} seconds. Reels need ${MIN_S} to ${MAX_S} seconds (the script takes about ${Math.round(target)}). Record it again a little ${d > MAX_S ? "faster" : "slower"}.`);
     }
     setFile(f); setMime(check.mime); setDur(d);
   };
@@ -194,20 +194,20 @@ function VoiceoverStudio({ item, vo }) {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-brand/[0.06] to-transparent" aria-hidden />
         <div className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="eyebrow !text-brand-ink">Your voiceover</div>
+            <div className="eyebrow !text-brand-ink">Your voice</div>
             <h2 id="vo-title" className="mt-1 text-title-2 font-bold text-ink">Record this script</h2>
           </div>
           <div className="flex items-center gap-2">
             <Chip tone="neutral" dot={false} size="md"><span className="tnum">{count} words</span></Chip>
-            <Chip tone="neutral" dot={false} size="md"><Timer className="h-3 w-3" /><span className="tnum">Spoken ~{Math.round(target)} s</span></Chip>
+            <Chip tone="neutral" dot={false} size="md"><Timer className="h-3 w-3" /><span className="tnum">About {Math.round(target)} seconds</span></Chip>
           </div>
         </div>
 
         <blockquote className="relative mt-5 whitespace-pre-wrap rounded-2xl bg-surface-sunken/70 p-5 text-[19px] font-medium leading-[30px] tracking-[-0.012em] text-ink shadow-[inset_0_0_0_1px_var(--hairline)] sm:p-6 sm:text-[21px] sm:leading-[33px]" data-testid="vo-script">
-          {script || <span className="text-ink-faint">No script yet. The next revisions run writes one.</span>}
+          {script || <span className="text-ink-faint">No script yet. It comes with the next update.</span>}
         </blockquote>
         <div className="relative mt-3 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[12.5px] text-ink-mute">Natural pace, about {WPS} words a second. Reels run {MIN_S} to {MAX_S} s; aim for 22 to 35.</span>
+          <span className="text-[12.5px] text-ink-mute">Read at a normal pace. Best length: 22 to 35 seconds ({MIN_S} to {MAX_S} works).</span>
           <CopyButton text={script} label="Copy script" variant="secondary" size="md" />
         </div>
       </div>
@@ -220,13 +220,13 @@ function VoiceoverStudio({ item, vo }) {
               <div className="min-w-0 flex-1">
                 <span className="inline-flex h-5 items-center gap-1.5 rounded-full bg-white/[0.12] px-2 text-[11px] font-semibold text-white/90">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white motion-reduce:animate-none" />
-                  {vo.job.status === "running" ? "Rendering" : "Queued"}
+                  {vo.job.status === "running" ? "Working" : "Waiting"}
                 </span>
-                <div className="mt-2 truncate text-headline font-semibold">{vo.job.status === "running" ? "Rendering with your voice" : "Queued: your voice is next"}</div>
+                <div className="mt-2 truncate text-headline font-semibold">{vo.job.status === "running" ? "Adding your voice" : "Your voice is next"}</div>
                 <div className="mt-0.5 text-[13px] text-white/75">
                   {vo.job.status === "running"
-                    ? "Re-timing every scene to your recording and mixing it at broadcast loudness."
-                    : "The next revisions run picks it up, then the reel comes back here for review."}
+                    ? "Timing every scene to your voice and setting the sound level."
+                    : "It starts soon. The reel comes back here for you to check, usually within a day."}
                 </div>
               </div>
             </motion.div>
@@ -235,7 +235,7 @@ function VoiceoverStudio({ item, vo }) {
               {vo.state === "failed" && (
                 <div className="flex items-start gap-2.5 rounded-xl bg-brand/[0.07] px-3.5 py-3 text-callout text-brand-deep dark:text-brand-bright" role="alert">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div><span className="font-semibold">The last render didn't go through. </span>{vo.job.error || "Upload the recording again."}</div>
+                  <div><span className="font-semibold">Adding your voice didn't work. </span>{vo.job.error || "Upload the recording again."}</div>
                 </div>
               )}
               <div
@@ -258,30 +258,30 @@ function VoiceoverStudio({ item, vo }) {
                       {!busy && <IconButton icon={X} label="Remove recording" size="sm" onClick={() => { setFile(null); setDur(null); }} />}
                     </div>
                     <WavePlayer file={file} label="your recording" bars={64} />
-                    {soft && <div className="flex items-center gap-1.5 text-[12px] font-medium text-warn"><AlertTriangle className="h-3.5 w-3.5" /> Works, but reels feel best at 22 to 35 seconds.</div>}
+                    {soft && <div className="flex items-center gap-1.5 text-[12px] font-medium text-warn"><AlertTriangle className="h-3.5 w-3.5" /> This works, but 22 to 35 seconds feels best.</div>}
                     {busy && (
                       <div className="flex items-center gap-3">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/[0.08]" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Uploading voiceover">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/[0.08]" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Uploading your voice">
                           <motion.div className="h-full rounded-full bg-brand" initial={false} animate={{ width: `${Math.max(3, progress * 100)}%` }} transition={{ ease: "easeOut", duration: 0.2 }} />
                         </div>
                         <span className="tnum text-[12px] font-semibold text-ink-soft">{Math.round(progress * 100)}%</span>
                       </div>
                     )}
                     <Button variant="primary" size="lg" icon={UploadCloud} className="w-full" onClick={upload} loading={busy} disabled={busy}>
-                      {busy ? "Uploading…" : "Upload and render with my voice"}
+                      {busy ? "Uploading…" : "Upload and add my voice"}
                     </Button>
                   </div>
                 ) : (
                   <button ref={zoneButton} type="button" onClick={() => input.current?.click()} className="flex w-full flex-col items-center rounded-xl py-4 text-center">
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-b from-brand/15 to-brand/5 text-brand-ink"><Mic className="h-5 w-5" /></span>
-                    <span className="mt-3 text-body font-semibold text-ink">Upload voiceover</span>
-                    <span className="mt-0.5 text-[12.5px] text-ink-mute">Drop the recording here or click to choose. MP3, M4A or WAV, {MIN_S} to {MAX_S} s.</span>
+                    <span className="mt-3 text-body font-semibold text-ink">Upload your voice</span>
+                    <span className="mt-0.5 text-[12.5px] text-ink-mute">Drop the recording here, or tap to choose. MP3, M4A or WAV, {MIN_S} to {MAX_S} seconds.</span>
                   </button>
                 )}
               </div>
               {!file && takes.length > 0 && (
                 <button type="button" onClick={() => setPicking(true)} className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-callout font-semibold text-ink-soft transition-colors hover:bg-ink/[0.05] hover:text-ink">
-                  <Library className="h-4 w-4" /> Or pick a take from your library ({takes.length})
+                  <Library className="h-4 w-4" /> Or use a recording from your library ({takes.length})
                 </button>
               )}
               {err && <div className="flex items-start gap-2 rounded-xl bg-brand/[0.07] px-3.5 py-2.5 text-[12.5px] font-medium text-brand-deep dark:text-brand-bright" role="alert"><AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />{err}</div>}
@@ -301,14 +301,14 @@ function VoiceoverStudio({ item, vo }) {
                   <div className="text-[15px] leading-[22px] text-ink">{sc.vo_line || <span className="italic text-ink-faint">No line (music only)</span>}</div>
                   {sc.on_screen_text && <div className="mt-0.5 text-[12px] text-ink-mute">On screen: {sc.on_screen_text}</div>}
                 </div>
-                <span className="tnum shrink-0 pt-0.5 text-[11.5px] text-ink-faint">{words(sc.vo_line)} w</span>
+                <span className="tnum shrink-0 pt-0.5 text-[11.5px] text-ink-faint">{words(sc.vo_line)} words</span>
               </li>
             ))}
           </ol>
         </div>
       )}
 
-      <Sheet open={picking} onClose={() => setPicking(false)} title="Pick a take" description="The reel is re-timed to the recording you choose." width={560}>
+      <Sheet open={picking} onClose={() => setPicking(false)} title="Pick a recording" description="The reel is timed to the recording you pick." width={560}>
         <div className="space-y-3">
           {takes.map((t) => (
             <div key={t.id} className="rounded-2xl bg-ink/[0.03] p-3 shadow-[inset_0_0_0_1px_var(--hairline)]">
@@ -317,7 +317,7 @@ function VoiceoverStudio({ item, vo }) {
                   <div className="truncate text-callout font-semibold">{t.title || "Untitled"}</div>
                   <div className="text-[12px] text-ink-mute">{t.content_item_id === item.id ? "Recorded for this reel · " : ""}{relative(t.created_at)}</div>
                 </div>
-                <Button size="sm" variant="primary" onClick={() => applyTake(t)}>Use this take</Button>
+                <Button size="sm" variant="primary" onClick={() => applyTake(t)}>Use this one</Button>
               </div>
               <WavePlayer path={t.storage_path} label={t.title} />
             </div>
@@ -348,7 +348,7 @@ export function VideoMeta({ item, baseName }) {
         <CopyButton text={captionOf(item)} label="Copy caption" className="mt-3 w-full" />
       </MetaSection>
       {b.scenes?.length > 0 && (
-        <MetaSection title={`Scenes · ${b.scenes.length}`} aside={<span title={b.voiceover ? "Length of the reel, synced to your voiceover" : "Total length of the cut (the spoken script estimate is on the script card)"}>{b.voiceover ? "Synced" : "Cut"} {seconds(b.voiceover?.duration || total).replace(/s$/, " s")}</span>}>
+        <MetaSection title={`Scenes · ${b.scenes.length}`} aside={<span title={b.voiceover ? "Length of the reel, timed to your voice" : "Length of the reel now"}>Length {seconds(b.voiceover?.duration || total).replace(/s$/, " s")}</span>}>
           <ol className="space-y-2">
             {b.scenes.map((s, i) => (
               <li key={i} className="flex gap-3 rounded-xl p-2 -mx-2 transition-colors hover:bg-ink/[0.03]">
@@ -361,11 +361,11 @@ export function VideoMeta({ item, baseName }) {
               </li>
             ))}
           </ol>
-          {b.voiceover && <Chip tone="ok" className="mt-3" size="sm">Synced to voiceover · {seconds(b.voiceover.duration)}</Chip>}
+          {b.voiceover && <Chip tone="ok" className="mt-3" size="sm">Timed to your voice · {seconds(b.voiceover.duration)}</Chip>}
         </MetaSection>
       )}
       {video?.meta?.stock?.length > 0 && (
-        <MetaSection title="Footage licence">
+        <MetaSection title="Video licence">
           {video.meta.stock.map((s) => <MetaRow key={s.id} label={`#${s.id}`}>{s.title}</MetaRow>)}
         </MetaSection>
       )}
@@ -376,11 +376,11 @@ export function VideoMeta({ item, baseName }) {
 function VoiceoverStatus({ item }) {
   const { jobs } = useData();
   const vo = voiceoverState(item, jobs);
-  const text = vo.state === "rendering" ? (vo.job.status === "running" ? "Rendering with your voice now." : "Queued to render with your voice.")
-    : vo.state === "failed" ? "The last render failed. Upload the recording again."
-      : "Waiting for your recording. Read the script in the main panel and upload it there.";
+  const text = vo.state === "rendering" ? (vo.job.status === "running" ? "Adding your voice now." : "Your voice is next in line.")
+    : vo.state === "failed" ? "Adding your voice didn't work. Upload it again."
+      : "Waiting for your voice. Read the script and upload it.";
   return (
-    <MetaSection title="Voiceover">
+    <MetaSection title="Your voice">
       <div className={cx("flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-[12.5px] font-medium", vo.state === "failed" ? "bg-brand/[0.07] text-brand-deep dark:text-brand-bright" : "bg-ink/[0.045] text-ink-soft")}>
         <Mic className="mt-px h-4 w-4 shrink-0" /> {text}
       </div>

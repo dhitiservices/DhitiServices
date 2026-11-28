@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, Square, RectangleHorizontal } from "lucide-react";
 import { useData } from "../../lib/store.jsx";
-import { assetsFor, captionOf } from "../../lib/model.js";
+import { assetsFor, captionOf, graphicKind } from "../../lib/model.js";
 import { downloadPath, downloadName } from "../../lib/media.js";
 import { spring } from "../../lib/motion.js";
 import { SignedImage } from "../Media.jsx";
@@ -20,7 +20,7 @@ export function GraphicStage({ item, variant, setVariant }) {
   const { assets } = useData();
   const v = graphicVariants(assets, item);
   const asset = v[variant] || v.square || v.landscape;
-  if (!asset) return <EmptyState title="No graphic rendered yet" />;
+  if (!asset) return <EmptyState title="The graphic isn't ready yet" />;
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-col items-center">
       <Segmented
@@ -28,7 +28,7 @@ export function GraphicStage({ item, variant, setVariant }) {
         onChange={setVariant}
         className="mb-5"
         layoutId={`gv-${item.id}`}
-        options={[{ value: "square", label: "Square · 1080²", icon: Square }, { value: "landscape", label: "Landscape · 1200×627", icon: RectangleHorizontal }]}
+        label="Shape" options={[{ value: "square", label: "Square", icon: Square }, { value: "landscape", label: "Wide", icon: RectangleHorizontal }]}
       />
       <motion.div layout transition={spring} className={variant === "landscape" ? "w-full" : "w-full max-w-[520px]"}>
         <AnimatePresence mode="wait" initial={false}>
@@ -55,7 +55,7 @@ export function GraphicMeta({ item, variant, baseName }) {
       <MetaSection title="Files">
         <div className="grid grid-cols-2 gap-2">
           <Button size="sm" variant={variant === "square" ? "secondary" : "ghost"} icon={Download} disabled={!v.square} onClick={() => downloadPath(v.square.storage_path, downloadName(baseName, v.square, "square"))}>Square</Button>
-          <Button size="sm" variant={variant === "landscape" ? "secondary" : "ghost"} icon={Download} disabled={!v.landscape} onClick={() => downloadPath(v.landscape.storage_path, downloadName(baseName, v.landscape, "landscape"))}>Landscape</Button>
+          <Button size="sm" variant={variant === "landscape" ? "secondary" : "ghost"} icon={Download} disabled={!v.landscape} onClick={() => downloadPath(v.landscape.storage_path, downloadName(baseName, v.landscape, "landscape"))}>Wide</Button>
         </div>
       </MetaSection>
       <MetaSection title="Caption">
@@ -63,10 +63,10 @@ export function GraphicMeta({ item, variant, baseName }) {
         <Hashtags tags={b.hashtags} />
         <CopyButton text={cap} label="Copy caption" className="mt-3 w-full" />
       </MetaSection>
-      <MetaSection title="Content">
-        <MetaRow label="Style">{b.kind ? b.kind[0].toUpperCase() + b.kind.slice(1) : ""}</MetaRow>
-        {b.stat && <MetaRow label="Stat">{b.stat}</MetaRow>}
-        {b.attribution && <MetaRow label="Attribution">{b.attribution}</MetaRow>}
+      <MetaSection title="What it shows">
+        <MetaRow label="Style">{graphicKind(b.kind)}</MetaRow>
+        {b.stat && <MetaRow label="Number">{b.stat}</MetaRow>}
+        {b.attribution && <MetaRow label="Said by">{b.attribution}</MetaRow>}
       </MetaSection>
     </>
   );

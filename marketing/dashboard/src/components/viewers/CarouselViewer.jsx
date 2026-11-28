@@ -26,7 +26,7 @@ export function CarouselStage({ item }) {
 
   useHotkeys({ arrowright: () => go(1), arrowleft: () => go(-1) });
 
-  if (!slides.length) return <EmptyState title="No slides rendered yet" />;
+  if (!slides.length) return <EmptyState title="The slides aren't ready yet" />;
 
   return (
     <div className="mx-auto flex w-full max-w-[560px] flex-col items-center">
@@ -100,7 +100,7 @@ export function CarouselMeta({ item, baseName }) {
         </div>
       </MetaSection>
       <MetaSection title="Caption">
-        <Segmented size="sm" value={tab} onChange={setTab} className="mb-2.5 w-full [&>button]:flex-1 [&>button]:justify-center" options={[{ value: "linkedin", label: "LinkedIn" }, { value: "instagram", label: "Instagram" }]} />
+        <Segmented size="sm" value={tab} onChange={setTab} className="mb-2.5 w-full [&>button]:flex-1 [&>button]:justify-center" label="Caption for" options={[{ value: "linkedin", label: "LinkedIn" }, { value: "instagram", label: "Instagram" }]} />
         <CaptionBox text={caption} />
         <Hashtags tags={b.hashtags} />
         <CopyButton text={full} label="Copy caption" className="mt-3 w-full" />
