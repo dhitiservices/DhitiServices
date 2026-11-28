@@ -47,17 +47,17 @@ function slideSvg({ w = 1080, h = 1350, kind, eyebrow, headline, body, stat, ind
 }
 
 /* ---------- content ---------- */
-const ADM_MD = `It is 6:40 pm on a Friday. An airline debit memo for ₹38,400 lands in the inbox of a mid-sized agency in Pune. The fare was right when it was ticketed. The fare basis was not. Nobody notices until the settlement report closes, and by then the ticket cannot be voided.
+const ADM_MD = `Illustrative example: it is 6:40 pm on a Friday, and an airline debit memo lands in the inbox of a mid-sized agency. The fare was right when it was ticketed. The fare basis was not. Nobody noticed in time, and by then the ticket could not be voided.
 
 **Most ADMs are not caused by bad agents. They are caused by a missing second look.**
 
 ## Why ADMs keep coming back
 
-IATA's own [BSP overview](https://www.iata.org/en/services/finance/bsp/) explains how every ticket an agency issues flows into one settlement cycle, and every airline audits that cycle on its own schedule. The reasons memos arrive are the same each month: the wrong fare basis, a missing endorsement, a reissue without the right penalty, a duplicate booking left open past the ticketing deadline, or a tour code that does not match the deal.
+IATA describes BSP as a system designed to simplify how accredited agents sell, report and remit ticket money. Airlines may raise an ADM after a sale is reported in BSP, under their own ADM policy. Common reasons include the wrong fare basis and a reissue without the change penalty. Each BSP airline must publish its ADM policy. BSP runs in more than 170 countries and territories, so these rules reach almost every agency that issues tickets.
 
 None of these are hard to catch. They are hard to catch at 6 pm, when the same agent who built the booking is also answering the next call. The person who made the mistake is the person least likely to see it, because they read what they meant to type.
 
-That is why training alone rarely moves the ADM rate. Agents already know the rules. What they lack is a calm, separate moment where someone else checks the work before the void window closes.
+That is why training alone rarely moves the ADM rate. Agents already know the rules. What they lack is a calm, separate moment where someone else checks the work before the void window closes. A void must usually be done on the day the ticket is issued, within the time the airline sets.
 
 ## What a second-check desk actually does
 
@@ -75,7 +75,7 @@ The desk does not rebook or reprice. When it finds a problem, it flags the ticke
 
 The best second-check reviewers are not the fastest ticketing agents. They are the most patient ones. Look for people who enjoy reading a fare rule twice, who keep their own notes on airline quirks, and who are comfortable telling a senior colleague that a ticket is wrong.
 
-Two people are enough for most agencies issuing under 2,500 tickets a month. One reviews the morning batch and one the afternoon batch, and they cover for each other. Rotating a ticketing agent onto the desk for one week a quarter also helps: they come back to the counter with a sharper eye for the errors they used to make.
+Start with two people. One reviews the morning batch and one the afternoon batch, and they cover for each other. Rotating a ticketing agent onto the desk for one week a quarter also helps: they come back to the counter with a sharper eye for the errors they used to make.
 
 ## The numbers that matter
 
@@ -83,13 +83,13 @@ Illustrative example: an agency issuing 1,800 tickets a month with a 0.6% ADM ra
 
 The savings are not only financial. Every ADM dispute takes an agent away from selling, and every memo that reaches a corporate client's invoice costs trust that is slow to rebuild.
 
-There is also a compounding effect. Each memo the desk prevents is one fewer dispute to research, one fewer conversation with the airline's revenue accounting team, and one fewer adjustment to explain at month-end close. Agencies that track the hours spent on disputes are usually surprised by how much senior time the memos consume, often a full day a week across the finance and ticketing leads. The desk gives that time back to work that grows the business, such as corporate account reviews and supplier negotiations.
+There is also a compounding effect. Each memo the desk prevents is one fewer dispute to research, one fewer conversation with the airline's revenue accounting team, and one fewer adjustment to explain at month-end close. An agency can dispute an ADM within the period in the airline's policy, but every dispute takes time that could go to work that grows the business.
 
 ## How to start in two weeks
 
-1. Pull the last six months of ADMs and tag each one by cause. Most agencies find that five causes explain four memos out of five.
+1. Pull the last six months of ADMs and tag each one by cause, then look for the few causes that come up most.
 2. Write a one-page checklist for those top five causes only. Resist the urge to cover every rule on day one.
-3. Review every ticket issued after 4 pm first, because that is when most errors happen and when the void window is shortest.
+3. Review tickets issued late in the day first, while there is still time to void them.
 4. Agree a simple handover: the desk flags, the issuing agent fixes, the desk confirms the fix in the same thread.
 5. Share a weekly one-page report with the ticketing team that shows what was caught, not who made the error.
 
@@ -103,13 +103,15 @@ The third is letting the checklist grow without limit. Add a new check only when
 
 ## What to measure
 
-Track three numbers every week: ADM count, ADM value, and the time from issue to check. Anything checked within four hours can usually still be voided, so the share of tickets checked inside that window is the number that predicts next month's memos. Add a fourth, the number of flags per hundred tickets, to see whether training at the counter is working.
+Track three numbers every week: ADM count, ADM value, and the time from issue to check. A ticket checked on the day of issue can usually still be voided, so the share of tickets checked inside that window is the number to watch. Add a fourth, the number of flags per hundred tickets, to see whether training at the counter is working.
 
 Review the numbers with the ticketing team once a month, and close the loop on every pattern: if one airline's reissue rules keep causing flags, write a short guide for that airline and pin it where agents issue tickets.
 
 ## The short version
 
-A second-check desk is cheap, calm work. Done every day, inside the void window, with a short checklist and a blame-free report, it turns ADMs from a monthly surprise into a rare exception.`;
+A second-check desk is cheap, calm work. Done every day, inside the void window, with a short checklist and a blame-free report, it catches avoidable memos before they cost money.
+
+Dhiti supports travel agencies with ticketing, finance and reporting, with more than 200 trained specialists. If debit memos are quietly eating your margin, we would be glad to help you set up a second-check desk.`;
 
 const ROOMING_MD = `The group lands in Jaipur at 11 am. The hotel has 22 rooms blocked. The rooming list says 24. Two couples are standing in the lobby with their luggage, and somebody is going to spend the afternoon on the phone.
 
@@ -236,43 +238,44 @@ Good support is designed, not hired. Fix the process gaps that create repeat con
 
 
 /* ---------- fact lists (body.claims) for the sample blogs ---------- */
-const C = (id, claim_text, source_title, source_url, quote, extra = {}) => ({ id, claim_text, source_title, source_url, quote, kind: "fact", verified: true, fetched_at: "2026-11-23T09:12:00Z", ...extra });
+// Every claim_text is copied word for word from its blog, as the engine requires. The quotes are SAMPLE text written
+// for this demo (the source titles say "Sample:"), so a screenshot never puts made-up words in a real organisation's
+// mouth. Each quote says the same thing as its claim: that is the standard the owner checks.
+const C = (id, claim_text, source_title, source_url, quote, extra = {}) => ({ id, claim_text, source_title, source_url, quote, kind: "fact", verified: true, fetched_at: "2026-11-23T09:12:00Z", match: "exact", ...extra });
 const BSP = "https://www.iata.org/en/services/finance/bsp/";
+const ADMP = "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/";
 const ADM_CLAIMS = [
-  C("c1", "Every ticket an agency issues flows into one BSP settlement cycle.", "IATA: Billing and Settlement Plan", BSP, "BSP is a system designed to facilitate and simplify the selling, reporting and remitting procedures of IATA Accredited Passenger Sales Agents."),
-  C("c2", "Airlines audit the settlement cycle on their own schedule and raise memos afterwards.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Airlines may issue ADMs for transactions after they are reported in BSP, according to their own ADM policy."),
-  C("c3", "Wrong fare basis is a common reason for an agency debit memo.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Common reasons include incorrect fare calculation and the use of an incorrect fare basis."),
-  C("c4", "A reissue without the right penalty can lead to a memo.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Failure to collect applicable change penalties on reissued tickets may result in an ADM."),
-  C("c5", "Duplicate bookings left open past the ticketing deadline can be charged.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Duplicate or fictitious bookings may be subject to an ADM under the airline's policy."),
-  C("c6", "A ticket can usually be voided only within a short window after issue.", "IATA: BSP Manual for Agents", BSP, "A void must be processed within the period set by the airline, usually the same day of issue."),
-  C("c7", "Tour codes and endorsements must match the deal the airline filed.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Incorrect tour codes or endorsements against the agreed fare may be charged."),
-  C("c8", "Names must match the format the airline expects.", "IATA: Passenger name guidance", BSP, "The passenger name must be entered exactly as shown on the travel document."),
-  C("c9", "Agencies can dispute an ADM within the period set in the airline's policy.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "The agent may dispute the ADM within the dispute period stated in the airline's ADM policy."),
-  C("c10", "Each airline publishes its own ADM policy.", "IATA: ADM Policy guidance", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Each BSP airline must publish its ADM policy and make it available to agents."),
-  C("c11", "Memos are settled through the same BSP billing.", "IATA: Billing and Settlement Plan", BSP, "ADMs are processed through BSP and settled in the agent's billing."),
-  C("c12", "BSP runs in more than 170 countries and territories.", "IATA: Billing and Settlement Plan", BSP, "BSP operates in over 170 countries and territories."),
-  { id: "c13", kind: "dhiti", claim_text: "Dhiti has more than 200 trained specialists on its desks.", phrase: "more than 200 trained specialists", verified: true },
-  C("c14", "IATA publishes a resolution on how agency debit memos are raised.", "IATA: Resolution 850m, ADM rules (Jan 2026)", "https://www.iata.org/en/programs/settlement-systems/agency-programs/adm/", "Resolution 850m sets out the rules airlines follow when they raise agency debit memos."),
-  { id: "a1", kind: "advice", claim_text: "Review every ticket issued after 4 pm first.", note: "Our own process step, not a measured fact.", verified: true },
-  { id: "e1", claim_text: "An agency issuing 1,800 tickets a month with a 0.6% ADM rate loses about ₹1.03 lakh a month.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
+  { id: "e0", kind: "illustrative", verified: true, claim_text: "Illustrative example: it is 6:40 pm on a Friday, and an airline debit memo lands in the inbox of a mid-sized agency." },
+  C("c1", "IATA describes BSP as a system designed to simplify how accredited agents sell, report and remit ticket money.", "Sample: IATA, Billing and Settlement Plan", BSP, "BSP is a system designed to facilitate and simplify the selling, reporting and remitting procedures of IATA Accredited Passenger Sales Agents."),
+  C("c2", "Airlines may raise an ADM after a sale is reported in BSP, under their own ADM policy.", "Sample: IATA, ADM policy guidance", ADMP, "Airlines may issue ADMs for transactions after they are reported in BSP, according to their own ADM policy."),
+  C("c3", "Common reasons include the wrong fare basis and a reissue without the change penalty.", "Sample: IATA, ADM policy guidance", ADMP, "Common reasons include incorrect fare calculation and the use of an incorrect fare basis.", { extra_quotes: [{ source_title: "Sample: IATA, ADM policy guidance", source_url: ADMP, quote: "Failure to collect applicable change penalties on reissued tickets may result in an ADM." }] }),
+  C("c4", "Each BSP airline must publish its ADM policy.", "Sample: IATA, ADM policy guidance", ADMP, "Each BSP airline must publish its ADM policy and make it available to agents."),
+  C("c5", "BSP runs in more than 170 countries and territories, so these rules reach almost every agency that issues tickets.", "Sample: IATA, Billing and Settlement Plan", BSP, "BSP operates in over 170 countries and territories and covers the large majority of agency ticket sales."),
+  C("c6", "A void must usually be done on the day the ticket is issued, within the time the airline sets.", "Sample: IATA, BSP manual for agents", BSP, "A void must be processed within the period set by the airline, usually the same day of issue."),
+  C("c7", "An agency can dispute an ADM within the period in the airline's policy, but every dispute takes time that could go to work that grows the business.", "Sample: IATA, ADM policy guidance", ADMP, "The agent may dispute the ADM within the dispute period stated in the airline's ADM policy."),
+  { id: "d1", kind: "dhiti", claim_text: "Dhiti supports travel agencies with ticketing, finance and reporting, with more than 200 trained specialists.", phrase: "more than 200 trained specialists", verified: true },
+  { id: "a1", kind: "advice", claim_text: "Review tickets issued late in the day first, while there is still time to void them.", note: "Our own process step, not a measured fact.", verified: true },
+  { id: "e1", kind: "illustrative", verified: true, claim_text: "Illustrative example: an agency issuing 1,800 tickets a month with a 0.6% ADM rate and an average memo of ₹9,500 receives about 11 memos and loses roughly ₹1.03 lakh a month." },
 ];
 const ROOMING_CLAIMS = [
-  C("r1", "Hotel group desks usually want final names 48 to 72 hours before arrival.", "AHLA: Group booking guide", "https://www.ahla.com/", "Final rooming lists are typically due 48 to 72 hours before arrival."),
-  C("r2", "Group booking guidance asks for one owner and written confirmation of every change.", "AHLA: Group booking guide", "https://www.ahla.com/", "Designate one point of contact and confirm every change in writing."),
-  { id: "r3", claim_text: "A 40-room wedding group with six late changes and no change log can lose an hour at check-in.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
+  { id: "r0", kind: "illustrative", verified: true, claim_text: "The group lands in Jaipur at 11 am." },
+  C("r1", "Most hotel group desks want final names 48 to 72 hours before arrival.", "Sample: hotel group booking guide", "https://www.ahla.com/", "Final rooming lists are typically due 48 to 72 hours before arrival."),
+  C("r2", "Hotel associations such as the American Hotel and Lodging Association publish group booking guidance that says the same thing in different words: one source of truth, one owner, and written confirmation of every change.", "Sample: hotel group booking guide", "https://www.ahla.com/", "Keep one master list, designate one point of contact, and confirm every change in writing."),
+  { id: "r3", kind: "illustrative", verified: true, claim_text: "Illustrative example: a 40-room wedding group with six late changes and no change log can easily lose an hour at check-in." },
 ];
 const SUPPORT_CLAIMS = [
-  C("s1", "Customers value low effort more than delight.", "Gartner: Customer Service and Support", "https://www.gartner.com/en/customer-service-support", "Customer effort is a stronger driver of loyalty than delight."),
-  C("s2", "Each repeat contact costs about as much as the first one.", "Gartner: Customer Service and Support", "https://www.gartner.com/en/customer-service-support", "", { verified: false }),
-  C("s3", "Refund status is the top contact reason across OTAs.", "Travel trade forum thread", "https://example.com/forum/adm", "", { verified: false, fetched_at: null }),
-  { id: "s4", claim_text: "A team handling 6,000 contacts a month finds that 1,100 are repeats about refund status.", kind: "illustrative", verified: true, source_title: null, source_url: null, quote: "Labelled in the blog as \"Illustrative example\"." },
+  { id: "s0", kind: "illustrative", verified: true, claim_text: "A customer writes in at 9 pm asking why their refund has not arrived." },
+  C("s1", "Research from groups such as Gartner's customer service practice has shown for years that customers value low effort more than delight.", "Sample: customer service research summary", "https://www.gartner.com/en/customer-service-support", "Customer effort is a stronger driver of loyalty than delight."),
+  C("s2", "Each repeat contact costs roughly as much as the first one and earns nothing.", "Sample: customer service research summary", "https://www.gartner.com/en/customer-service-support", "", { verified: false, match: null }),
+  C("s3", "When these costs are added up, the true price of a weak support process is often twice the line in the budget.", "Travel trade forum thread", "https://example.com/forum/support", "", { verified: false, fetched_at: null, match: null }),
+  { id: "s4", kind: "illustrative", verified: true, claim_text: "Illustrative example: a travel support team handling 6,000 contacts a month finds that 1,100 are repeats about refund status." },
 ];
 
-const ADM_CAPTION = `An airline debit memo for ₹38,400 can land weeks after the ticket was issued, when it can no longer be voided.
+const ADM_CAPTION = `An airline debit memo can land long after the ticket was issued, when it can no longer be voided.
 
 Most ADMs are not caused by bad agents. They are caused by a missing second look.
 
-A small second-check desk reviews every ticket within four hours of issue, while it can still be voided or reissued for free. The checks are boring on purpose:
+A small second-check desk reviews every ticket on the day it is issued, while it can usually still be voided. The checks are boring on purpose:
 
 1. Fare basis and booking class match the filed fare
 2. Reissue penalties are applied correctly
@@ -282,7 +285,7 @@ A small second-check desk reviews every ticket within four hours of issue, while
 
 The desk flags, the issuing agent fixes, and the desk confirms the fix in the same thread. No blame, just a weekly note of what was caught.
 
-We wrote up how to set one up in two weeks, who should sit on the desk, and the three numbers to track.
+We wrote up how to set one up in two weeks, who should sit on the desk, and the numbers to track.
 
 Full guide in the first comment.
 

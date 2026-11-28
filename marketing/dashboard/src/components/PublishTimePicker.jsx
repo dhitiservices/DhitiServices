@@ -34,7 +34,10 @@ export function PublishTimePicker({ value, onChange, publishDays = [], plannedDa
       <div>
         <div id={`${idPrefix}-day-label`} className="mb-2 flex items-center justify-between text-callout font-semibold text-ink-soft">
           <span>Day</span>
-          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-mute"><span className="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden /> Go-live day</span>
+          <span className="flex items-center gap-3 text-[11.5px] font-medium text-ink-mute">
+            <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden /> Go-live day</span>
+            {plannedDay && <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden /> Planned</span>}
+          </span>
         </div>
         <div className="grid grid-cols-7 gap-1" role="group" aria-labelledby={`${idPrefix}-day-label`}>
           {days.map((d, i) => {
@@ -65,7 +68,7 @@ export function PublishTimePicker({ value, onChange, publishDays = [], plannedDa
                 <span className={cx("tnum font-bold leading-6", compact ? "text-[15px]" : "text-[17px]")}>{Number(d.slice(8))}</span>
                 <span className="flex h-3 items-center gap-0.5" aria-hidden>
                   {isPublish && <span className={cx("h-1.5 w-1.5 rounded-full", active ? "bg-canvas" : "bg-ok")} />}
-                  {isPlanned && <span className={cx("text-[8.5px] font-bold uppercase tracking-[0.04em]", active ? "text-canvas/80" : "text-brand-ink")}>Plan</span>}
+                  {isPlanned && <span className={cx("h-1.5 w-1.5 rounded-full", active ? "bg-canvas/80" : "bg-brand")} />}
                 </span>
               </button>
             );

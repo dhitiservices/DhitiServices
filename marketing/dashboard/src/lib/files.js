@@ -65,7 +65,7 @@ export async function checkFile(file, { only } = {}) {
   if (file.size > ACCEPT[group].max) return { ok: false, error: `Over ${ACCEPT[group].max / MB} MB. Export a smaller file and try again.` };
   const real = await sniff(file);
   if (real === "heic") return { ok: false, error: HEIC_MSG };
-  if (!real || !SNIFF_OK[ext].includes(real)) return { ok: false, error: `This doesn't look like a real .${ext} file. Re-export it and try again.` };
+  if (!real || !SNIFF_OK[ext].includes(real)) return { ok: false, error: `This doesn't look like a real .${ext} file. ${group === "photo" || group === "video" ? `Save it again as a .${ext} file` : "Save it again as MP3"} and try again.` };
   const kind = group === "photo" ? "photo" : group === "video" ? "video" : "voiceover";
   return { ok: true, group, kind, mime: MIME[ext] };
 }

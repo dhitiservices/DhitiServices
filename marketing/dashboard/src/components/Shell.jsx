@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutGrid, Inbox, CalendarDays, Telescope, Send, Globe2, FolderOpen, Settings2, Search, MoreHorizontal,
@@ -279,9 +279,19 @@ export function TabBar({ onSignOut, demo }) {
 
 /* ------------------------------------------------------------------ page header */
 export function PageHeader({ title, subtitle, eyebrow, actions, className }) {
+  // Phone: the large title fades out as it slides under the compact top bar (which then shows the title).
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !window.matchMedia?.("(max-width: 1023px)").matches) return undefined;
+    const on = () => { el.style.opacity = String(Math.max(0, 1 - window.scrollY / 56)); };
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
   return (
     <div className={cx("mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between", className)}>
-      <div className="min-w-0">
+      <div className="min-w-0" ref={ref}>
         {eyebrow && <div className="eyebrow mb-1.5">{eyebrow}</div>}
         <h1 className="text-title-1 font-bold text-ink sm:text-title-l">{title}</h1>
         {subtitle && <p className="mt-1.5 max-w-2xl text-body text-ink-mute">{subtitle}</p>}

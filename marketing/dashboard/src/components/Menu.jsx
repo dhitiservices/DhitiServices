@@ -68,7 +68,7 @@ export function Menu({ trigger, items, align = "right", side = "bottom", classNa
                 >
                   {it.icon && <it.icon className={cx("h-4 w-4", it.danger ? "" : "text-ink-mute")} strokeWidth={2} />}
                   <span className="flex-1">{it.label}</span>
-                  {it.kbd && <Kbd>{it.kbd}</Kbd>}
+                  {it.kbd && <span className="hidden [@media(hover:hover)_and_(pointer:fine)]:inline">{/* key hints only with a mouse */}<Kbd>{it.kbd}</Kbd></span>}
                 </button>
               ),
             )}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Globe2, ThumbsUp, MessageCircle, Repeat2, Send, ChevronLeft, ChevronRight, Check, X, AlertTriangle, ExternalLink,
@@ -10,6 +10,7 @@ import { safeHref } from "../../lib/safe.js";
 import { relative } from "../../lib/format.js";
 import {
   FORMAT_LABEL, FORMAT_HINT, captionChecks, commentChecks, blocking, seeMoreCut, commentLink, formatOptions, socialStatus, editable,
+  markPageSeen, unseenPages, onSeenChange, pagesWords,
 } from "../../lib/linkedin.js";
 import { SignedImage, SignedVideo } from "../Media.jsx";
 import { slidesOf } from "../viewers/CarouselViewer.jsx";
@@ -34,6 +35,22 @@ export function socialValues(post) {
 }
 
 /* ------------------------------------------------------------------ small pieces */
+/** Carousel pages of `item` the owner has not looked at yet in this tab (0-based), live. */
+export function useUnseenPages(item) {
+  const { assets } = useData();
+  const total = item && item.type === "carousel" ? slidesOf(assets, item).length : 0;
+  const key = useSyncExternalStore(onSeenChange, () => (item ? unseenPages(item.id, total).join(",") : ""));
+  return useMemo(() => (key ? key.split(",").map(Number) : []), [key]);
+}
+
+/** One line for an approval that also approves a carousel or graphic: what it approves, and what is not seen yet. */
+export function creativeLine(opt, unseen) {
+  if (!opt?.item || opt.item.status !== "pending_review") return null;
+  const what = FORMAT_LABEL[opt.format].toLowerCase();
+  if (unseen.length) return { ok: false, text: `Look at every page of the ${what} first. You have not looked at ${pagesWords(unseen)}.` };
+  return { ok: true, text: `This also approves the ${what}. We check facts in the blog only, so check that its numbers match the blog.` };
+}
+
 function AutoText({ value, onChange, className, ...rest }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -66,7 +83,7 @@ function Rich({ text }) {
 
 function PageLogo({ url, size = 48 }) {
   const [bad, setBad] = useState(false);
-  const ok = url && !bad && (url.startsWith("/") || /^https:\/\/media\.licdn\.com\//.test(url));
+  const ok = url && !bad && (/^\/(?!\/)/.test(url) || /^https:\/\/media\.licdn\.com\//.test(url));
   return (
     <span className="relative inline-flex shrink-0 overflow-hidden rounded-[6px] bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" style={{ width: size, height: size }}>
       <img src={ok ? url : "/brand/dhiti-mark.webp"} onError={() => setBad(true)} alt="" className="h-full w-full scale-[1.12] object-cover" draggable={false} referrerPolicy="no-referrer" />
@@ -75,13 +92,14 @@ function PageLogo({ url, size = 48 }) {
 }
 
 /* ------------------------------------------------------------------ the feed preview */
-function DocumentPages({ item, title }) {
+export function DocumentPages({ item, title }) {
   const { assets } = useData();
   const slides = slidesOf(assets, item);
   const [i, setI] = useState(0);
   useEffect(() => setI(0), [item.id]);
+  const n = Math.min(i, Math.max(0, slides.length - 1));
+  useEffect(() => { if (slides.length) markPageSeen(item.id, n); }, [item.id, n, slides.length]);
   if (!slides.length) return <div className="flex aspect-[4/5] items-center justify-center bg-ink/[0.04] text-callout text-ink-mute">No pages yet</div>;
-  const n = Math.min(i, slides.length - 1);
   return (
     <div className="relative bg-[#1d2226]">
       <div className="flex items-center gap-2 bg-black/80 px-3 py-2 text-[12px] font-semibold text-white">
@@ -204,7 +222,9 @@ function Card({ post, blog }) {
   const recommended = post.recommended_format;
   const cap = captionChecks(view.caption);
   const com = commentChecks(view.first_comment);
-  const bad = blocking(cap) || blocking(com) || !opt?.ok;
+  const unseen = useUnseenPages(canEdit && opt?.item?.status === "pending_review" ? opt.item : null);
+  const also = canEdit ? creativeLine(opt, unseen) : null;
+  const bad = blocking(cap) || blocking(com) || !opt?.ok || (also && !also.ok);
   const status = socialStatus(post, blog);
   const link = commentLink(blog);
   const orgName = conn?.org_name || "Dhiti Services";
@@ -225,7 +245,7 @@ function Card({ post, blog }) {
   const approve = async () => {
     setSaving(true);
     try {
-      await d.actions.approveSocial(post, draft);
+      await d.actions.approveSocial(post, { ...draft, creativeId: opt?.item?.id });
       writeSocialDraft(post, null);
     } catch { /* toast shown */ } finally { setSaving(false); }
   };
@@ -334,7 +354,7 @@ function Card({ post, blog }) {
             <p className="mt-2 text-[12.5px] text-ink-mute"><span className="font-semibold text-ink-soft">Why {FORMAT_LABEL[recommended].toLowerCase()} is best: </span>{post.recommendation_reason}</p>
           )}
           {opt && !opt.ok && <p className="mt-2 text-[12.5px] font-medium text-warn">{FORMAT_LABEL[opt.format]}: {opt.why}. Pick another, or wait.</p>}
-          {opt?.ok && opt.item.status === "pending_review" && canEdit && <p className="mt-2 text-[12.5px] text-ink-mute">Approving this post also approves the {FORMAT_LABEL[opt.format].toLowerCase()} shown above.</p>}
+          {opt?.ok && also && <p className={cx("mt-2 text-[12.5px]", also.ok ? "text-ink-mute" : "font-medium text-warn")} data-testid="li-also">{also.text}</p>}
         </div>
 
         {canEdit ? (
@@ -346,7 +366,8 @@ function Card({ post, blog }) {
             </label>
             <label className="block">
               <span className="mb-1.5 block text-callout font-semibold text-ink-soft">First comment</span>
-              <input className="input h-11 text-[14px]" value={draft.first_comment} maxLength={320} onChange={(e) => setDraft((x) => ({ ...x, first_comment: e.target.value.replace(/\n/g, " ") }))} aria-describedby={`li-com-checks-${post.id}`} />
+              {/* One line of text, but it wraps so the whole line can be read on a phone. Enter never adds a line. */}
+              <AutoText rows={1} className="input min-h-[44px] py-[11px] text-[14px] leading-[21px]" value={draft.first_comment} maxLength={320} onChange={(v) => setDraft((x) => ({ ...x, first_comment: v.replace(/\r?\n/g, " ") }))} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} aria-describedby={`li-com-checks-${post.id}`} data-testid="li-first-comment" />
               <span className="mt-2 flex items-center gap-1.5 text-[12px] text-ink-mute"><Link2 className="h-3.5 w-3.5 shrink-0" /> <span className="shrink-0 whitespace-nowrap">Then the blog link:</span> <span className="min-w-0 truncate font-medium text-info">{link ? link.replace(/^https:\/\//, "") : "added when it goes live"}</span></span>
               <Checks list={com} id={`li-com-checks-${post.id}`} />
             </label>

@@ -295,7 +295,7 @@ export function BlogMeta({ item, topic }) {
 
       {b.cover_stock?.title && (
         <MetaSection title="Cover photo">
-          <p className="text-[12.5px] text-ink-soft">Paid stock photo from Magnific, number {b.cover_stock.id}: {b.cover_stock.title}</p>
+          <p className="text-[12.5px] text-ink-soft">A stock photo we paid for on Magnific: “{b.cover_stock.title}”.</p>
         </MetaSection>
       )}
     </>

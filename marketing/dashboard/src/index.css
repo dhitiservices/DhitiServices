@@ -142,11 +142,12 @@
 
   .glass {
     background: rgb(var(--glass) / var(--glass-alpha));
-    -webkit-backdrop-filter: saturate(180%) blur(24px);
-    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(30px);
+    backdrop-filter: saturate(180%) blur(30px);
   }
 
-  .glass-strong { --glass-alpha: 0.86; }
+  /* Phone top bar and tab bar: close to opaque, so text under them is a soft blur, never readable. */
+  .glass-strong { --glass-alpha: 0.93; }
 
   .card {
     @apply rounded-2xl bg-surface;

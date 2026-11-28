@@ -220,7 +220,8 @@ export function LinkedInSettings() {
     }
   };
 
-  const warnings = (s?.warnings || []).map((w) => ({ ...w, ...warningText(w) }));
+  // The header already says the link ended (with its button): don't say it twice.
+  const warnings = (s?.warnings || []).filter((w) => !(needsReconnect && w.code === "RECONNECT_REQUIRED")).map((w) => ({ ...w, ...warningText(w) }));
   const expiry = connected ? expiryWords(s) : null;
   const failedPost = d.socialPosts.find((p) => p.status === "failed" || p.comment_status === "failed");
 
@@ -236,22 +237,26 @@ export function LinkedInSettings() {
             <div className="relative overflow-hidden px-5 py-5 sm:px-6">
               <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b to-transparent", connected ? "from-ok/[0.07]" : "from-info/[0.06]")} aria-hidden />
               {connected ? (
-                <div className="relative flex flex-wrap items-center gap-4">
+                <div className="relative flex flex-wrap items-center gap-x-4 gap-y-3">
                   <OrgLogo url={s?.org?.logo_url} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-headline font-semibold text-ink"><CheckCircle2 className="h-[18px] w-[18px] shrink-0 text-ok" /> <span className="truncate">Connected to {s?.org?.name || "your page"}</span></div>
+                  {/* The name wraps; on a phone, Disconnect drops to its own row so the name is never cut. */}
+                  <div className="min-w-[170px] flex-1">
+                    <div className="flex items-start gap-2 text-headline font-semibold text-ink" data-testid="li-connected-title"><CheckCircle2 className="mt-[3px] h-[18px] w-[18px] shrink-0 text-ok" /> <span className="min-w-0 break-words">Connected to {s?.org?.name || "your page"}</span></div>
                     <div className="mt-0.5 text-callout text-ink-mute" data-testid="li-expiry">{expiry || "Connected"}{s?.paused ? " · Posting is paused" : ""}</div>
                   </div>
-                  <Button variant="danger" icon={Unplug} onClick={() => { setForget(false); setConfirm(true); }}>Disconnect</Button>
+                  <Button variant="danger" icon={Unplug} className="w-full sm:w-auto" onClick={() => { setForget(false); setConfirm(true); }}>Disconnect</Button>
                 </div>
               ) : (
                 <div className="relative">
-                  <div className="text-headline font-semibold text-ink">{needsReconnect ? "LinkedIn needs you to connect again" : "Post every blog on the Dhiti Services page"}</div>
+                  <div className="text-headline font-semibold text-ink">{needsReconnect ? "The LinkedIn link has ended" : "Post every blog on the Dhiti Services page"}</div>
                   <p className="mt-1 max-w-[560px] text-callout text-ink-mute">
                     {needsReconnect
-                      ? "Approved posts wait safely until you connect again."
+                      ? "Approved posts wait safely. You tap the button, then Allow on LinkedIn."
                       : "After a blog goes live, its LinkedIn post goes out on the page, with the blog link in the first comment. Nothing posts without your Approve."}
                   </p>
+                  {needsReconnect && (
+                    <Button className="mt-3" variant="primary" icon={Link2} onClick={connect} loading={connecting} disabled={!keysSaved || unavailable || connecting} data-testid="li-connect">Connect again</Button>
+                  )}
                 </div>
               )}
             </div>
@@ -281,7 +286,7 @@ export function LinkedInSettings() {
               </div>
             )}
 
-            {/* the four steps; folded away once connected */}
+            {/* the five steps; folded away once connected */}
             {connected ? (
               <details className="group px-5 py-4 sm:px-6 [&_summary::-webkit-details-marker]:hidden">
                 <summary className="flex cursor-pointer list-none items-center justify-between text-callout font-semibold text-ink-soft hover:text-ink">
@@ -317,7 +322,7 @@ export function LinkedInSettings() {
 
 function OrgLogo({ url }) {
   const [bad, setBad] = useState(false);
-  const ok = url && !bad && (url.startsWith("/") || /^https:\/\/media\.licdn\.com\//.test(url));
+  const ok = url && !bad && (/^\/(?!\/)/.test(url) || /^https:\/\/media\.licdn\.com\//.test(url));
   return (
     <span className="relative inline-flex h-14 w-14 shrink-0 overflow-hidden rounded-[14px] bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.08),0_6px_18px_-8px_rgb(var(--shadow)/0.35)]">
       <img src={ok ? url : "/brand/dhiti-mark.webp"} onError={() => setBad(true)} alt="" className="h-full w-full scale-[1.12] object-cover" referrerPolicy="no-referrer" draggable={false} />
@@ -328,25 +333,29 @@ function OrgLogo({ url }) {
 function Steps({ s, st, keysSaved, unavailable, connecting, connect, selectOrg, picking, onSaved }) {
   const connected = st === "connected";
   const redirect = s?.redirect_uri || REDIRECT_URI;
-  const step = connected ? 5 : st === "choose_org" ? 4 : keysSaved ? 4 : 1;
+  const step = connected ? 6 : st === "choose_org" || keysSaved ? 5 : 1;
+  const b = (t) => <span className="font-semibold text-ink-soft">{t}</span>;
   return (
     <ol data-testid="li-steps">
       <Step n={1} done={keysSaved} active={step === 1} title="Create the app">
-        On LinkedIn Developers, create a new app for the <span className="font-semibold text-ink-soft">Dhiti Services</span> page. In its <span className="font-semibold text-ink-soft">Auth</span> tab, add this link under Redirect URLs:
+        On LinkedIn Developers, create a <b className="font-semibold text-ink-soft">new</b> app for the {b("Dhiti Services")} page. Don't add any other products to it first. For the privacy link, use {b("dhitiservices.com/privacy/")}. Then, in its {b("Auth")} tab, add this link under Redirect URLs:
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-ink/[0.04] p-2 pl-3">
           <code className="min-w-0 flex-1 break-all font-sans text-[12px] font-medium text-ink">{redirect}</code>
           <CopyButton text={redirect} label="Copy" />
         </div>
         <a href={DEV_PORTAL} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-callout font-semibold text-info hover:underline">Open LinkedIn Developers <ExternalLink className="h-3.5 w-3.5" /></a>
       </Step>
-      <Step n={2} done={keysSaved} active={step === 1} title="Ask LinkedIn for access">
-        In the app's <span className="font-semibold text-ink-soft">Products</span> tab, ask for the <span className="font-semibold text-ink-soft">Community Management API</span>. LinkedIn checks it. This can take a few days to a few weeks.
+      <Step n={2} done={keysSaved} active={step === 1} title="Verify the app with the Dhiti page">
+        In the app's {b("Settings")} tab, find {b("LinkedIn Page")} and tap {b("Verify")}. Open the link it gives you while signed in as a super admin of the Dhiti page, and approve it. The page then shows {b("Verified")}. LinkedIn checks this before it gives access.
       </Step>
-      <Step n={3} done={keysSaved} active={step === 1 || step === 3} title="Paste your keys">
+      <Step n={3} done={keysSaved} active={step === 1} title="Ask LinkedIn for access">
+        In the app's {b("Products")} tab, ask for the {b("Community Management API")}. Use your {b("@dhitiservices.com")} work email (LinkedIn checks it), the company's legal name and address, and the privacy link from step 1. LinkedIn checks it. This can take a few days to a few weeks. If LinkedIn says no, you need a new app, so check steps 1 and 2 first.
+      </Step>
+      <Step n={4} done={keysSaved} active={step === 1} title="Paste your keys">
         Copy the Client ID and Client Secret from the app's Auth tab.
         <KeysForm status={s} onSaved={onSaved} disabled={unavailable} />
       </Step>
-      <Step n={4} done={connected} active={step === 4} title="Connect the Dhiti page">
+      <Step n={5} done={connected} active={step === 5} title="Connect the Dhiti page">
         {st === "choose_org" ? (
           <>
             <span>Your account looks after more than one page. Pick Dhiti Services.</span>
@@ -361,12 +370,14 @@ function Steps({ s, st, keysSaved, unavailable, connecting, connect, selectOrg, 
           </>
         ) : connected ? (
           <span>Done. Connected {s?.connected_at ? formatDateTime(s.connected_at) : ""}.</span>
+        ) : ["expired", "revoked", "error"].includes(st) ? (
+          <span>Use the button at the top of this card. Then sign in as the page admin and tap Allow.</span>
         ) : (
           <>
             <span>You go to LinkedIn, sign in as the page admin and tap Allow. Then you come back here.</span>
             <div className="mt-3">
               <Button variant="primary" icon={Link2} onClick={connect} loading={connecting} disabled={!keysSaved || unavailable || connecting} data-testid="li-connect">
-                {["expired", "revoked", "error"].includes(st) ? "Connect again" : "Connect LinkedIn"}
+                Connect LinkedIn
               </Button>
               {!keysSaved && <span className="ml-3 text-[12px] text-ink-faint">Paste your keys first.</span>}
             </div>

@@ -5,7 +5,7 @@ import { useData } from "../lib/store.jsx";
 import { navigate } from "../lib/router.jsx";
 import { PageHeader } from "../components/Shell.jsx";
 import { Card, Chip, Skeleton, EmptyState, StatusChip, cx } from "../components/ui.jsx";
-import { TOPIC_STATUS } from "../lib/model.js";
+import { TOPIC_STATUS, ITEM_STATUS } from "../lib/model.js";
 import { formatDate, dateOnly, relative, hostOf, plural } from "../lib/format.js";
 import { list, listItem, spring } from "../lib/motion.js";
 import { safeHref } from "../lib/safe.js";
@@ -103,17 +103,21 @@ export default function Research({ id }) {
           {topics.length > 0 && (
             <Section icon={CalendarDays} title="Blogs planned from this research" count={topics.length} tone="brand">
               <div className="grid gap-3 md:grid-cols-3">
-                {topics.map((t) => (
-                  <button key={t.id} onClick={() => navigate("/calendar")} className="card flex flex-col p-5 text-left transition-shadow hover:card-lift">
+                {topics.map((t) => {
+                  // Same words as Calendar and Review: the blog's own status once there is a blog.
+                  const blog = d.items.find((i) => i.topic_id === t.id && i.type === "blog");
+                  return (
+                  <button key={t.id} onClick={() => navigate(blog ? `/review/${blog.id}?filter=all` : "/calendar")} className="card flex flex-col p-5 text-left transition-shadow hover:card-lift">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-brand-ink">{t.category}</span>
-                      <StatusChip map={TOPIC_STATUS} status={t.status} size="sm" />
+                      {blog ? <StatusChip map={ITEM_STATUS} status={blog.status} size="sm" /> : <StatusChip map={TOPIC_STATUS} status={t.status} size="sm" />}
                     </div>
                     <div className="mt-2 text-body font-semibold leading-5">{t.title}</div>
                     {t.rationale && <p className="mt-1.5 line-clamp-2 text-[12.5px] text-ink-mute">{t.rationale}</p>}
                     <div className="mt-auto pt-3 text-[12px] font-medium text-ink-mute">{t.planned_publish_date ? formatDate(dateOnly(t.planned_publish_date), { weekday: "short", day: "numeric", month: "short" }) : "No date yet"}</div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </Section>
           )}

@@ -1,4 +1,4 @@
-import { TYPE_META, ITEM_STATUS, thumbOf, byType } from "../lib/model.js";
+import { TYPE_META, ITEM_STATUS, thumbOf, byType, graphicKind } from "../lib/model.js";
 import { useData } from "../lib/store.jsx";
 import { SignedImage } from "./Media.jsx";
 import { cx } from "./ui.jsx";
@@ -38,12 +38,14 @@ export function ContentChips({ items, onOpen, size = "md", compact = false }) {
     <div className="flex flex-wrap gap-1.5">
       {sorted.map((i) => {
         const Icon = TYPE_META[i.type]?.icon;
+        // Two graphics side by side must be told apart: "Number graphic", "Tip graphic".
+        const label = i.type === "graphic" && i.body?.kind ? `${graphicKind(i.body.kind)} graphic` : TYPE_META[i.type]?.label;
         return (
           <button
             key={i.id}
             onClick={(e) => { e.stopPropagation(); onOpen?.(i); }}
-            title={`${TYPE_META[i.type]?.label}: ${ITEM_STATUS[i.status]?.label || i.status}`}
-            aria-label={`${TYPE_META[i.type]?.label}: ${ITEM_STATUS[i.status]?.label || i.status}`}
+            title={`${label}: ${ITEM_STATUS[i.status]?.label || i.status}`}
+            aria-label={`${label}: ${ITEM_STATUS[i.status]?.label || i.status}`}
             className={cx(
               "inline-flex items-center gap-1.5 rounded-full bg-surface font-medium text-ink-soft shadow-[0_0_0_1px_var(--hairline)] transition-colors hover:bg-surface-sunken",
               size === "sm" ? "h-6 px-2 text-[11.5px]" : "h-7 px-2.5 text-[12.5px]",
@@ -51,7 +53,7 @@ export function ContentChips({ items, onOpen, size = "md", compact = false }) {
           >
             <span className={cx("h-1.5 w-1.5 rounded-full", statusDot(i.status))} />
             {Icon && <Icon className="h-3 w-3 text-ink-mute" strokeWidth={2.2} />}
-            {!compact && TYPE_META[i.type]?.label}
+            {!compact && label}
           </button>
         );
       })}

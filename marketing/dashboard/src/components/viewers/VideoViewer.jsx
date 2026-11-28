@@ -10,7 +10,7 @@ import { WavePlayer } from "../Wave.jsx";
 import { Sheet } from "../Sheet.jsx";
 import { checkFile, mediaDuration, AUDIO_ACCEPT_ATTR } from "../../lib/files.js";
 import { Button, IconButton, CopyButton, EmptyState, Chip, cx } from "../ui.jsx";
-import { MetaSection, MetaRow, CaptionBox, Hashtags } from "./Meta.jsx";
+import { MetaSection, MetaRow, CaptionBox, Hashtags, useAutoPost, AutoPostNote } from "./Meta.jsx";
 
 export function videoAssets(assets, item) {
   const list = assetsFor(assets, item.id);
@@ -195,7 +195,7 @@ function VoiceoverStudio({ item, vo }) {
         <div className="relative flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="eyebrow !text-brand-ink">Your voice</div>
-            <h2 id="vo-title" className="mt-1 text-title-2 font-bold text-ink">Record this script</h2>
+            <h2 id="vo-title" className="mt-1 text-title-2 font-bold text-ink">Read this script aloud</h2>
           </div>
           <div className="flex items-center gap-2">
             <Chip tone="neutral" dot={false} size="md"><span className="tnum">{count} words</span></Chip>
@@ -330,6 +330,7 @@ function VoiceoverStudio({ item, vo }) {
 
 export function VideoMeta({ item, baseName }) {
   const { assets } = useData();
+  const auto = useAutoPost(item);
   const { video, poster } = videoAssets(assets, item);
   const b = item.body || {};
   const total = useMemo(() => (b.scenes || []).reduce((s, x) => s + (Number(x.duration) || 0), 0), [b.scenes]);
@@ -342,7 +343,8 @@ export function VideoMeta({ item, baseName }) {
           <Button size="sm" variant="ghost" icon={Download} disabled={!poster} onClick={() => downloadPath(poster.storage_path, downloadName(baseName, poster, "cover"))}>Cover</Button>
         </div>
       </MetaSection>
-      <MetaSection title="Caption">
+      {auto && <AutoPostNote item={item} post={auto} />}
+      <MetaSection title={auto ? "Caption for other sites" : "Caption"}>
         <CaptionBox text={b.caption} />
         <Hashtags tags={b.hashtags} />
         <CopyButton text={captionOf(item)} label="Copy caption" className="mt-3 w-full" />
@@ -365,8 +367,8 @@ export function VideoMeta({ item, baseName }) {
         </MetaSection>
       )}
       {video?.meta?.stock?.length > 0 && (
-        <MetaSection title="Video licence">
-          {video.meta.stock.map((s) => <MetaRow key={s.id} label={`#${s.id}`}>{s.title}</MetaRow>)}
+        <MetaSection title="Stock video">
+          {video.meta.stock.map((s) => <MetaRow key={s.id} label="Video">{s.title}</MetaRow>)}
         </MetaSection>
       )}
     </>

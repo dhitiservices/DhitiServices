@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Send } from "lucide-react";
 import { Sheet } from "./Sheet.jsx";
 import { Button, Kbd, Switch, cx } from "./ui.jsx";
-import { socialValues } from "./linkedin/PostCard.jsx";
+import { socialValues, DocumentPages, useUnseenPages, creativeLine } from "./linkedin/PostCard.jsx";
 import { formatOptions, captionChecks, commentChecks, blocking, FORMAT_LABEL } from "../lib/linkedin.js";
 import { claimSummary } from "../lib/claims.js";
 import { MOD } from "../lib/hotkeys.js";
@@ -42,13 +42,19 @@ export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
   const values = askLi ? socialValues(post) : null;
   const opt = askLi ? formatOptions(item, items).find((o) => o.format === values.format) : null;
   const liBlocked = askLi && (!opt?.ok || blocking(captionChecks(values.caption)) || blocking(commentChecks(values.first_comment)));
+  // A carousel that is approved together with the post: every page must have been looked at first.
+  const unseen = useUnseenPages(askLi && !liBlocked && opt?.item?.status === "pending_review" ? opt.item : null);
+  const also = askLi && !liBlocked ? creativeLine(opt, unseen) : null;
+  const liOn = askLi && postLi && !liBlocked && !(also && !also.ok);
   const facts = claimSummary(item?.body);
-  const factsBad = facts && !facts.allChecked;
+  // No fact list at all also needs the owner's own tick: nothing was checked for them.
+  const factsBad = !facts || !facts.allChecked;
   const canSubmit = !!iso && (!factsBad || factsOk);
+  const instead = item?.status === "changes_requested";
 
   const submit = () => {
     if (!canSubmit) return;
-    onApprove(iso, askLi && postLi && !liBlocked ? { post, ...values } : null);
+    onApprove(iso, liOn ? { post, ...values, creativeId: opt?.item?.id } : null);
     onClose();
   };
 
@@ -56,13 +62,13 @@ export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
     <Sheet
       open={open}
       onClose={onClose}
-      title="Approve this blog"
-      description="Pick when it goes live on dhitiservices.com."
+      title={instead ? "Approve this version instead?" : "Approve this blog"}
+      description={instead ? "You sent it back. This stops the fix we are making and uses this version as it is." : "Pick when it goes live on dhitiservices.com."}
       width={480}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" icon={Check} onClick={submit} disabled={!canSubmit} kbd="↵">{factsBad ? "Approve anyway" : "Approve"}</Button>
+          <Button variant="primary" icon={Check} onClick={submit} disabled={!canSubmit} kbd="↵">{instead ? "Approve this version" : factsBad ? "Approve anyway" : "Approve"}</Button>
         </>
       }
     >
@@ -80,7 +86,7 @@ export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
           autoFocus
         />
         <div className={cx("mt-4 rounded-xl px-3.5 py-3 text-callout", past ? "bg-warn/10 text-warn" : "bg-ink/[0.04] text-ink-soft")}>
-          {iso ? (past ? "That time has passed, so it goes live in about 30 minutes." : <>Goes live <span className="font-semibold text-ink">{formatDateTime(iso)} IST</span>.</>) : "Pick a day and time."}
+          {iso ? (past ? "That time has passed, so it goes live in about 30 minutes." : <>Goes live <span className="font-semibold text-ink">{formatDateTime(iso)}</span>.</>) : "Pick a day and time."}
         </div>
 
         {askLi && (
@@ -91,12 +97,22 @@ export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
                 <div className="mt-0.5 text-[12.5px] text-ink-mute">
                   {liBlocked
                     ? (opt && !opt.ok ? `The ${FORMAT_LABEL[values.format].toLowerCase()} can't be posted yet: ${opt.why.toLowerCase()}.` : "Fix the LinkedIn post text first (see the LinkedIn card).")
-                    : `As a ${FORMAT_LABEL[values.format].toLowerCase()}, with the blog link in the first comment.${opt?.item?.status === "pending_review" ? ` This also approves the ${FORMAT_LABEL[values.format].toLowerCase()}.` : ""}`}
+                    : `As a ${FORMAT_LABEL[values.format].toLowerCase()}, with the blog link in the first comment.`}
                 </div>
               </div>
-              <Switch checked={postLi && !liBlocked} onChange={(v) => !liBlocked && setPostLi(v)} label="Also post on LinkedIn after the blog is live" />
+              <Switch checked={liOn} onChange={(v) => !liBlocked && !(also && !also.ok) && setPostLi(v)} label="Also post on LinkedIn after the blog is live" />
             </div>
-            {postLi && !liBlocked && linkedin?.status !== "connected" && (
+            {also && (
+              <div className={cx("mt-3 rounded-xl px-3 py-2 text-[12.5px]", also.ok ? "bg-ink/[0.045] text-ink-soft" : "bg-warn/[0.1] font-medium text-warn")} data-testid="approve-pages">
+                {also.text}
+              </div>
+            )}
+            {also && !also.ok && (
+              <div className="mx-auto mt-3 w-full max-w-[240px] overflow-hidden rounded-[10px] shadow-[0_0_0_1px_var(--hairline-strong)]">
+                <DocumentPages item={opt.item} title={item?.body?.frontmatter?.title || item?.title || ""} />
+              </div>
+            )}
+            {liOn && linkedin?.status !== "connected" && (
               <div className="mt-3 rounded-xl bg-ink/[0.045] px-3 py-2 text-[12.5px] text-ink-soft">LinkedIn is not connected yet. The post waits until you connect it in Settings.</div>
             )}
           </div>
@@ -106,8 +122,8 @@ export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-brand/[0.07] p-4 shadow-[inset_0_0_0_1px_rgb(var(--brand)/0.2)]" data-testid="approve-facts">
             <input type="checkbox" checked={factsOk} onChange={(e) => setFactsOk(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#C20600]" />
             <span className="min-w-0 text-callout text-ink-soft">
-              <span className="block font-semibold text-brand-ink">{facts.unchecked.length === 1 ? "1 fact is not checked" : `${facts.unchecked.length} facts are not checked`}</span>
-              I checked {facts.unchecked.length === 1 ? "it" : "them"} myself and {facts.unchecked.length === 1 ? "it is" : "they are"} right.
+              <span className="block font-semibold text-brand-ink">{!facts ? "This blog has no fact list" : facts.unchecked.length === 1 ? "1 fact is not checked" : `${facts.unchecked.length} facts are not checked`}</span>
+              {!facts ? "I checked every fact and source myself and they are right." : `I checked ${facts.unchecked.length === 1 ? "it" : "them"} myself and ${facts.unchecked.length === 1 ? "it is" : "they are"} right.`}
             </span>
           </label>
         )}
@@ -121,7 +137,7 @@ const SUGGESTIONS = [
   "Make the opening more specific",
   "Make it shorter",
   "Use a different photo",
-  "Make the claims softer",
+  "Tone it down",
   "Add a real source",
   "Make the title more specific",
 ];

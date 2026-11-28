@@ -41,7 +41,7 @@ export const RUN_STATUS = {
   failed: { label: "Didn't work", tone: "danger" },
 };
 
-export const RUN_KIND = { weekly: "Making this week's blogs", jobs: "Daily fixes", publish: "Posting to the website", manual: "Extra work" };
+export const RUN_KIND = { weekly: "Making this week's blogs", jobs: "Fixing what you sent back", publish: "Posting to the website", manual: "Extra work" };
 export const JOB_KIND = { run_weekly: "Making this week's blogs", regenerate: "Fixing something you sent back", publish_now: "Putting a blog live now", render_video: "Adding your voice to a reel" };
 
 /** Graphic styles (body.kind) in plain words. */

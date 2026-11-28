@@ -38,14 +38,14 @@ export function captionChecks(caption) {
   const first = text.slice(0, 200);
   const hasHookEnd = /[.!?](\s|$)/.test(first) || first.includes("\n");
   const checks = [
-    { id: "length", ok: n >= 1 && n <= CAPTION_MAX, tone: "bad", text: n ? `${n.toLocaleString("en-IN")} of ${CAPTION_MAX.toLocaleString("en-IN")} letters` : "Write the post text" },
+    { id: "length", ok: n >= 1 && n <= CAPTION_MAX, tone: "bad", text: n ? `${n.toLocaleString("en-IN")} of ${CAPTION_MAX.toLocaleString("en-IN")} characters` : "Write the post text" },
     { id: "link", ok: !URLISH.test(text) && !DOMAIN.test(text), tone: "bad", text: URLISH.test(text) || DOMAIN.test(text) ? "Remove the link. The link goes in the first comment." : "No link in the post (the link goes in the comment)" },
     { id: "tags", ok: tags.count <= 3 && tags.elsewhere === 0, tone: "bad", text: tags.count > 3 ? `${tags.count} hashtags. Use 3 or fewer.` : tags.elsewhere ? "Put hashtags only on the last line" : `${tags.count} of 3 hashtags` },
     { id: "dash", ok: !/—/.test(text), tone: "bad", text: /—/.test(text) ? "Remove the long dash (—)" : "No long dashes" },
-    { id: "hook", ok: !n || hasHookEnd, tone: "bad", text: hasHookEnd || !n ? "First line is a full sentence" : "End the first sentence within the first 200 letters" },
+    { id: "hook", ok: !n || hasHookEnd, tone: "bad", text: hasHookEnd || !n ? "First line is a full sentence" : "End the first sentence within the first 200 characters" },
     { id: "control", ok: !CONTROL.test(text), tone: "bad", text: "No hidden characters" },
   ];
-  if (n >= 1 && (n < 700 || n > 1300)) checks.push({ id: "ideal", ok: false, tone: "warn", text: n < 700 ? "A bit short. 700 to 1,300 letters works best." : "A bit long. 700 to 1,300 letters works best." });
+  if (n >= 1 && (n < 700 || n > 1300)) checks.push({ id: "ideal", ok: false, tone: "warn", text: n < 700 ? "A bit short. 700 to 1,300 characters works best." : "A bit long. 700 to 1,300 characters works best." });
   return checks.filter((c) => c.id !== "control" || !c.ok);
 }
 
@@ -53,7 +53,7 @@ export function commentChecks(comment) {
   const t = norm(comment);
   const one = t.trim();
   return [
-    { id: "length", ok: one.length >= 1 && one.length <= COMMENT_MAX, tone: "bad", text: one.length ? `${one.length} of ${COMMENT_MAX} letters` : "Write a short line before the link" },
+    { id: "length", ok: one.length >= 1 && one.length <= COMMENT_MAX, tone: "bad", text: one.length ? `${one.length} of ${COMMENT_MAX} characters` : "Write a short line before the link" },
     { id: "line", ok: !t.trim().includes("\n"), tone: "bad", text: "One line only" },
     { id: "link", ok: !URLISH.test(one) && !DOMAIN.test(one), tone: "bad", text: URLISH.test(one) || DOMAIN.test(one) ? "Don't type a link. We add the blog link for you." : "We add the blog link for you" },
     { id: "tags", ok: !one.includes("#"), tone: "bad", text: "No hashtags in the comment" },
@@ -107,6 +107,8 @@ export function formatOptions(blog, items) {
     else if (item.status === "generating") why = "Still being made";
     else if (item.status === "awaiting_voiceover") why = "Needs your voice first";
     else if (item.status === "changes_requested") why = "Sent back for fixes";
+    // A reel is never approved from the LinkedIn card: the owner watches it and approves it in its own screen.
+    else if (f === "video" && item.status === "pending_review") why = "Watch and approve the reel first";
     return { format: f, item, ok: !!item && !why, why };
   }).filter((o) => o.item);
 }
@@ -154,7 +156,7 @@ export const RETURN_REASON = {
   state_invalid: "That connect link was too old or already used. Tap Connect LinkedIn again.",
   user_cancelled_login: "You cancelled on LinkedIn. Tap Connect LinkedIn when you're ready.",
   user_cancelled_authorize: "You cancelled on LinkedIn. Tap Connect LinkedIn when you're ready.",
-  missing_scope: "LinkedIn has not given your app page access yet. Check step 2, then connect again.",
+  missing_scope: "LinkedIn has not given your app page access yet. Check steps 2 and 3, then try again.",
   not_admin: "This LinkedIn account is not an admin of a company page. Sign in as the Dhiti Services page admin.",
 };
 
@@ -166,14 +168,14 @@ export function daysUntil(iso, now = Date.now()) {
   return Math.max(0, Math.floor((t - now) / 86400000));
 }
 
-/** "Reconnect needed in 52 days" from the status payload. */
+/** "The link works for 52 more days" from the status payload. */
 export function expiryWords(s) {
   if (!s) return null;
   const until = s.has_refresh_token ? s.refresh_token_expires_at : s.access_token_expires_at;
   const d = daysUntil(until);
   if (d == null) return null;
-  if (d === 0) return "Reconnect needed today";
-  return `Reconnect needed in ${d} ${d === 1 ? "day" : "days"}`;
+  if (d === 0) return "The link ends today";
+  return `The link works for ${d} more ${d === 1 ? "day" : "days"}`;
 }
 
 /** Warning codes (4.4) as friendly banners. action: "reconnect" | "open_failed" | null. */
@@ -181,14 +183,14 @@ export function warningText(w) {
   const d = w.days_left;
   const days = d != null ? `${d} ${d === 1 ? "day" : "days"}` : "a few days";
   switch (w.code) {
-    case "RECONNECT_REQUIRED": return { title: "Connect LinkedIn again", text: "LinkedIn ended the link to your page. Posts wait until you connect again.", action: "reconnect" };
-    case "ACCESS_TOKEN_EXPIRING": return { title: `Connect again within ${days}`, text: "LinkedIn's link ends soon. Connecting again takes one tap.", action: "reconnect" };
-    case "REFRESH_TOKEN_EXPIRING": return { title: `LinkedIn link ends in ${days}`, text: "Connect again any time to reset it for another year.", action: "reconnect" };
-    case "REFRESH_FAILING": return { title: "LinkedIn could not renew the link", text: "Connect again soon so posts keep going out.", action: "reconnect" };
+    case "RECONNECT_REQUIRED": return { title: "The LinkedIn link has ended", text: "Posts wait until you connect again.", action: "reconnect" };
+    case "ACCESS_TOKEN_EXPIRING": return { title: `The LinkedIn link ends in ${days}`, text: "Tap Connect again before then. It takes about a minute: you tap Allow on LinkedIn.", action: "reconnect" };
+    case "REFRESH_TOKEN_EXPIRING": return { title: `The LinkedIn link ends in ${days}`, text: "Tap Connect again any time. Then it works for another year.", action: "reconnect" };
+    case "REFRESH_FAILING": return { title: "LinkedIn could not renew the link", text: "Tap Connect again soon so posts keep going out.", action: "reconnect" };
     case "HEARTBEAT_STALE": return { title: "Not checked for 2 days", text: "We could not check the LinkedIn link lately. It checks again on its own.", action: null };
     case "API_VERSION_AGING": return { title: "LinkedIn update needed soon", text: "The LinkedIn version we use ends on 16 Nov 2027. Ask your developer to update it before then.", action: null };
     case "POST_FAILED": return { title: "A LinkedIn post did not go out", text: "Open the blog to check it and try again.", action: "open_failed" };
-    case "COMMENT_FAILED": return { title: "A link comment did not go out", text: "The post is live, but its first comment failed. Open the blog to try again.", action: "open_failed" };
+    case "COMMENT_FAILED": return { title: "The comment with the blog link did not go out", text: "The post is live, but the comment with the link failed. Open the blog to try again.", action: "open_failed" };
     case "DEV_TIER_DEADLINE": return { title: "LinkedIn test access ends soon", text: "Apply for full access in the LinkedIn developer portal so posting keeps working.", action: null };
     default: return { title: "Check LinkedIn", text: "Something needs a look.", action: null };
   }
@@ -197,3 +199,52 @@ export function warningText(w) {
 export const CLIENT_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 export const CLIENT_SECRET_RE = /^[\x21-\x7E]{8,256}$/;
 export const REDIRECT_URI = "https://yexxrcgxhwsopssfyylo.supabase.co/functions/v1/linkedin/oauth/callback";
+
+/**
+ * The LinkedIn post that will post this creative by itself, or null. A creative (carousel, graphic or reel) is posted
+ * by the linkedin function when its blog has a social_posts row that is not cancelled, in the same format, and the row
+ * uses this item (its source_item_id, or the item formatOptions would pick while the source is not set yet).
+ */
+export function autoPostOf(item, socialByBlog, items) {
+  if (!item || item.type === "blog" || !item.parent_id) return null;
+  const post = socialByBlog?.get(item.parent_id);
+  if (!post || post.status === "cancelled" || post.format !== item.type) return null;
+  if (post.source_item_id) return post.source_item_id === item.id ? post : null;
+  const blog = items.find((i) => i.id === item.parent_id);
+  const pick = blog ? formatOptions(blog, items).find((o) => o.format === item.type)?.item : null;
+  return pick?.id === item.id ? post : null;
+}
+
+/** The blog's LinkedIn post, when it posts some other creative (so this one would be a second, extra post). */
+export function otherPostOf(item, socialByBlog, items) {
+  if (!item || item.type === "blog" || !item.parent_id) return null;
+  const post = socialByBlog?.get(item.parent_id);
+  if (!post || post.status === "cancelled" || autoPostOf(item, socialByBlog, items)) return null;
+  return post;
+}
+
+/* ---- carousel pages the owner has looked at (this tab only), so approval can ask for the ones not seen ---- */
+const seen = new Map(); // item id -> Set of page indexes
+const seenSubs = new Set();
+export function markPageSeen(itemId, index) {
+  if (!itemId || index == null) return;
+  const set = seen.get(itemId) || new Set();
+  if (set.has(index)) return;
+  set.add(index);
+  seen.set(itemId, set);
+  for (const f of seenSubs) f();
+}
+export function unseenPages(itemId, total) {
+  const set = seen.get(itemId) || new Set();
+  return Array.from({ length: total }, (_, i) => i).filter((i) => !set.has(i));
+}
+export function onSeenChange(f) { seenSubs.add(f); return () => seenSubs.delete(f); }
+/** "pages 2 to 6", "pages 2, 4 and 6", "page 3" (1-based). */
+export function pagesWords(list) {
+  const p = list.map((i) => i + 1);
+  if (!p.length) return "";
+  if (p.length === 1) return `page ${p[0]}`;
+  const run = p.every((v, i) => i === 0 || v === p[i - 1] + 1);
+  if (run) return `pages ${p[0]} to ${p[p.length - 1]}`;
+  return `pages ${p.slice(0, -1).join(", ")} and ${p[p.length - 1]}`;
+}

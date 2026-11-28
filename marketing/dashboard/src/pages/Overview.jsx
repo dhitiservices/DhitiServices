@@ -12,9 +12,9 @@ import { greeting, formatLongDay, formatDate, formatTime, dateOnly, relative, ad
 import { list, listItem, spring } from "../lib/motion.js";
 
 const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
-const time24 = (d) => formatDate(d, { hour: "2-digit", minute: "2-digit", hour12: false });
+const time24 = (d) => formatTime(d); // one time format everywhere: "10:00 am"
 
-/** "Monday at 10:00", or "Monday 7 Dec at 10:00" when it is more than six days away. */
+/** "Monday at 10:00 am", or "Monday 7 Dec at 10:00 am" when it is more than six days away. */
 function whenWords(d) {
   const far = new Date(d).getTime() - Date.now() > 6 * 86400000;
   return `${formatDate(d, far ? { weekday: "long", day: "numeric", month: "short" } : { weekday: "long" })} at ${time24(d)}`;
@@ -33,9 +33,9 @@ function useNextSteps(d) {
     const liBad = d.socialPosts.filter((p) => p.status === "failed" || (p.status === "published" && p.comment_status === "failed"));
     const failed = d.items.filter((i) => i.status === "failed");
     const steps = [];
-    if (blogs.length) steps.push({ key: "blogs", icon: FileText, title: `${n(blogs.length, "blog is", "blogs are")} ready for you`, text: "Read it, check the facts, then approve. About five minutes each.", cta: "Review now", to: `/review/${blogs[0].id}`, items: blogs, short: n(blogs.length, "blog to review", "blogs to review") });
-    if (voice.length) steps.push({ key: "voice", icon: Mic, title: `${n(voice.length, "reel needs", "reels need")} your voice`, text: "Read the script out loud and upload the recording.", cta: "Record now", to: `/review/${voice[0].id}`, items: voice, short: n(voice.length, "reel needs your voice", "reels need your voice") });
-    if (posts.length) steps.push({ key: "posts", icon: Sparkles, title: `${n(posts.length, "post is", "posts are")} ready for you`, text: "Carousels, graphics and reels for social media.", cta: "Review now", to: `/review/${posts[0].id}`, items: posts, short: n(posts.length, "post to review", "posts to review") });
+    if (blogs.length) steps.push({ key: "blogs", icon: FileText, title: `${n(blogs.length, "blog is", "blogs are")} ready for you`, text: `Read it, check the facts, then approve. About five minutes${blogs.length === 1 ? "" : " each"}.`, cta: "Review now", to: `/review/${blogs[0].id}`, items: blogs, short: n(blogs.length, "blog to review", "blogs to review") });
+    if (voice.length) steps.push({ key: "voice", icon: Mic, title: `${n(voice.length, "reel needs", "reels need")} your voice`, text: "Read the script out loud and upload the recording.", cta: "Open the script", to: `/review/${voice[0].id}`, items: voice, short: n(voice.length, "reel needs your voice", "reels need your voice") });
+    if (posts.length) steps.push({ key: "posts", icon: Sparkles, title: `${n(posts.length, "picture or reel is", "pictures and reels are")} ready for you`, text: "Carousels, graphics and reels for social media.", cta: "Check them", to: `/review/${posts[0].id}`, items: posts, short: n(posts.length, "picture or reel to check", "pictures and reels to check") });
     if (liReady.length) steps.push({ key: "li", icon: Linkedin, title: `${n(liReady.length, "LinkedIn post is", "LinkedIn posts are")} ready for you`, text: "Check how it looks, then approve it.", cta: "Open it", to: `/review/${liReady[0].blog_item_id}`, items: [], short: n(liReady.length, "LinkedIn post to approve", "LinkedIn posts to approve") });
     if (liBad.length) steps.push({ key: "libad", icon: Linkedin, tone: "warn", title: liBad[0].status === "failed" ? "A LinkedIn post did not go out" : "A LinkedIn comment did not go out", text: "Open it and tap Try again.", cta: "Open it", to: `/review/${liBad[0].blog_item_id}`, items: [], short: "LinkedIn needs a look" });
     if (failed.length) steps.push({ key: "failed", icon: AlertCircle, tone: "warn", title: `Something went wrong with ${n(failed.length, "piece", "pieces")}`, text: "Open it and say what to change. We try again.", cta: "Open it", to: `/review/${failed[0].id}`, items: failed, short: n(failed.length, "thing went wrong", "things went wrong") });

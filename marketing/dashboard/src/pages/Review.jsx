@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Check, MessageSquareWarning, X, ChevronUp, ChevronDown, ChevronLeft, MoreHorizontal, Rocket, Pencil, Undo2, ExternalLink,
-  Inbox, Sparkles, AlertTriangle, Send, RotateCcw, PartyPopper, Mic,
+  Inbox, Sparkles, AlertTriangle, Send, RotateCcw, PartyPopper, Mic, Linkedin, FileText, Info,
 } from "lucide-react";
 import { useData } from "../lib/store.jsx";
 import { navigate, useLocation } from "../lib/router.jsx";
@@ -23,6 +23,8 @@ import { MetaSection } from "../components/viewers/Meta.jsx";
 import { openSafe } from "../lib/safe.js";
 import { useToast } from "../components/Toast.jsx";
 import { fromISTInput, addDays, todayIST } from "../lib/format.js";
+import { claimSummary, factsClear } from "../lib/claims.js";
+import { autoPostOf, socialStatus } from "../lib/linkedin.js";
 
 const FILTERS = {
   review: { label: "For you", test: (i) => i.status === "pending_review" || i.status === "awaiting_voiceover" },
@@ -87,9 +89,12 @@ export default function Review({ id }) {
     const next = flat[i === -1 ? 0 : Math.max(0, Math.min(flat.length - 1, i + dir))];
     if (next && next.id !== sel?.id) navigate(`/review/${next.id}${filter === "review" ? "" : `?filter=${filter}`}`, { replace: true });
   };
-  const nextAfter = (item) => {
+  /** The next thing that still needs the owner (skips the item itself and anything approved with it). */
+  const nextAfter = (item, skip = []) => {
     const i = flat.findIndex((x) => x.id === item.id);
-    return flat[i + 1] || flat[i - 1] || null;
+    const gone = new Set([item.id, ...skip]);
+    const ok = (x) => x && !gone.has(x.id) && FILTERS.review.test(x);
+    return flat.slice(i + 1).find(ok) || flat.slice(0, Math.max(0, i)).reverse().find(ok) || null;
   };
 
   // Sheets
@@ -102,9 +107,9 @@ export default function Review({ id }) {
   const sheetsOpen = approveOpen || changesOpen || postedOpen || publishOpen;
 
   const leaves = (item, nextStatus) => !FILTERS[filter].test({ ...item, status: nextStatus });
-  const advanceFrom = (item, nextStatus) => {
+  const advanceFrom = (item, nextStatus, skip = []) => {
     if (!leaves(item, nextStatus)) return;
-    const n = nextAfter(item);
+    const n = nextAfter(item, skip);
     navigate(n ? `/review/${n.id}${filter === "review" ? "" : `?filter=${filter}`}` : `/review${filter === "review" ? "" : `?filter=${filter}`}`, { replace: true });
   };
 
@@ -118,16 +123,23 @@ export default function Review({ id }) {
       advanceFrom(item, "approved");
       d.actions.approve(item);
     },
-    /** Shift+A: approve a blog at its default slot without opening the sheet. */
+    /** A sent-back item: use this version after all (the fix job then leaves it alone: it is approved). */
+    approveInstead: (item = sel) => {
+      if (!item || item.status !== "changes_requested") return;
+      if (item.type === "blog") return setApproveOpen(true);
+      advanceFrom(item, "approved");
+      d.actions.approve(item);
+    },
+    /** Shift+A: approve a blog at its default slot without opening the sheet, only when every fact is checked. */
     quickApprove: (item = sel) => {
       if (!item) return;
       if (!canApprove(item)) return why(item, "approve");
-      if (item.type !== "blog") return act.approve(item);
+      if (item.type !== "blog" || !factsClear(item.body)) return act.approve(item);
       const slot = defaultBlogSlot(item, d.topicById.get(item.topic_id));
       advanceFrom(item, "approved");
       d.actions.approve(item, { scheduledFor: slot });
     },
-    approveBlog: (iso, social) => { advanceFrom(sel, "approved"); d.actions.approve(sel, { scheduledFor: iso, social }); },
+    approveBlog: (iso, social) => { advanceFrom(sel, "approved", social?.creativeId ? [social.creativeId] : []); d.actions.approve(sel, { scheduledFor: iso, social }); },
     reject: (item = sel) => { if (!item) return; advanceFrom(item, "rejected"); d.actions.reject(item); },
     changes: () => { if (!sel) return; if (!canChange(sel)) return why(sel, "send back"); setChangesOpen(true); },
     // Close and move on at once; the write runs in the background (it toasts and reverts on failure).
@@ -159,6 +171,16 @@ export default function Review({ id }) {
 
   const loading = d.status === "loading";
   const index = flat.findIndex((x) => x.id === sel?.id);
+
+  // Phone: the viewer covers the screen, so the page behind it must not scroll (iOS scroll bleed).
+  const mobileOpen = !desktop && !!sel;
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+    const els = [document.documentElement, document.body];
+    const prev = els.map((e) => e.style.overflow);
+    els.forEach((e) => { e.style.overflow = "hidden"; });
+    return () => els.forEach((e, i) => { e.style.overflow = prev[i]; });
+  }, [mobileOpen]);
 
   const queue = (
     <div className="flex h-full flex-col">
@@ -269,10 +291,12 @@ export default function Review({ id }) {
           <ChangesSheet open={changesOpen} onClose={() => setChangesOpen(false)} item={sel} onSubmit={act.submitChanges} />
           <PostedSheet open={postedOpen} onClose={() => setPostedOpen(false)} item={sel} onSubmit={(url) => d.actions.markPosted(sel, url)} />
           <Confirm
-            open={publishOpen}
+            open={publishOpen && canPublishNow(sel)}
             onClose={() => setPublishOpen(false)}
             title="Put this blog live now?"
-            description="This puts it on dhitiservices.com within about 30 minutes. It is approved too, if it isn't yet."
+            description={sel.status === "approved"
+              ? "This puts it on dhitiservices.com within about 30 minutes."
+              : `This approves it and puts it on dhitiservices.com within about 30 minutes. ${claimSummary(sel.body)?.facts ? `All ${claimSummary(sel.body).facts} facts have a quote from the source.` : ""}`.trim()}
             confirmLabel="Put it live"
             onConfirm={() => d.actions.publishNow(sel)}
           />
@@ -282,7 +306,10 @@ export default function Review({ id }) {
   );
 }
 
-const canApprove = (i) => i.status === "pending_review" || i.status === "changes_requested";
+// A sent-back item is being fixed: it is approved only on purpose, from More ("Approve this version instead").
+const canApprove = (i) => i.status === "pending_review";
+/** Put live now: an approved blog, or a blog waiting for review whose facts all have a quote (never a sent-back one). */
+const canPublishNow = (i) => i?.type === "blog" && (i.status === "approved" || (i.status === "pending_review" && factsClear(i.body)));
 
 /** Same default as the approve sheet: a future scheduled_for, else the topic's planned date 10:00 IST, else tomorrow. */
 function defaultBlogSlot(item, topic) {
@@ -374,6 +401,10 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
     meta = <VideoMeta item={item} baseName={baseName} />;
   }
 
+  // Each new item opens at the top.
+  const scroller = useRef(null);
+  useLayoutEffect(() => { if (scroller.current) scroller.current.scrollTop = 0; }, [item.id]);
+
   const banner = item.status === "changes_requested" && item.feedback ? (
     <div className="mx-auto mb-6 flex max-w-[720px] gap-3 rounded-2xl bg-warn/[0.09] p-4 shadow-[inset_0_0_0_1px_rgb(var(--warn)/0.18)]">
       <MessageSquareWarning className="mt-0.5 h-5 w-5 shrink-0 text-warn" />
@@ -386,6 +417,14 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
     <div className="mx-auto mb-6 flex max-w-[720px] gap-3 rounded-2xl bg-brand/[0.07] p-4">
       <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-brand-ink" />
       <div className="text-callout text-ink-soft"><span className="font-semibold text-ink">Something went wrong. </span>{item.error} Tap Try again and say what to change.</div>
+    </div>
+  ) : null;
+
+  // Creatives have no fact list: say so, so a number on a slide is checked by eye against the blog.
+  const creativeNote = item.type !== "blog" && item.status !== "generating" ? (
+    <div className="mx-auto mb-5 flex max-w-[720px] items-start gap-2.5 rounded-xl bg-ink/[0.045] px-3.5 py-2.5 text-[12.5px] text-ink-soft" data-testid="creative-facts-note">
+      <Info className="mt-px h-4 w-4 shrink-0 text-ink-mute" />
+      <span>We check facts in the blog only. Check that every number here is the same as in the blog.</span>
     </div>
   ) : null;
 
@@ -425,7 +464,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
 
       {/* body */}
       <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-y-auto focus-visible:outline-offset-[-2px]" tabIndex={0} role="region" aria-label={`${T.label} preview`}>
+        <div ref={scroller} className="min-w-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-offset-[-2px]" tabIndex={0} role="region" aria-label={`${T.label} preview`}>
           <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 10 }}
@@ -434,6 +473,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
               className={cx("px-4 sm:px-8", desktop ? "py-8 xl:py-10" : "py-5 pb-36")}
             >
               {banner}
+              {creativeNote}
               {stage}
               {meta && !wide && (
                 <div className="card mx-auto mt-8 max-w-[720px] overflow-hidden">{meta}</div>
@@ -465,57 +505,81 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
 function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
   const d = useData();
   const s = item.status;
+  const size = compact ? "lg" : "md";
+  const grow = compact ? "flex-1" : "";
+  // A creative that LinkedIn posts by itself: no manual posting, so it can never go out twice.
+  const auto = autoPostOf(item, d.socialByBlog, d.items);
+  const autoLocked = auto && ["approved", "publishing", "published"].includes(auto.status);
+  const blog = item.parent_id ? d.itemById.get(item.parent_id) : null;
   const more = [
-    item.type === "blog" && !["published", "generating"].includes(s) && { label: "Edit blog", icon: Pencil, onClick: () => setEditing(true), kbd: "E" },
-    // Never offered while a fix is being made (generating) or there is nothing to look at.
-    item.type === "blog" && ["pending_review", "changes_requested", "approved"].includes(s) && { label: "Put live now", icon: Rocket, onClick: onPublish },
-    item.type !== "blog" && s === "approved" && { label: "I posted it", icon: Send, onClick: onPosted },
-    (s === "approved" || s === "rejected") && { label: s === "approved" ? "Undo approval" : "Bring it back", icon: RotateCcw, onClick: () => d.actions.unapprove(item) },
+    item.type === "blog" && !["published", "generating"].includes(s) && { label: "Edit blog", icon: Pencil, onClick: () => setEditing(true), kbd: compact ? undefined : "E" },
+    s === "changes_requested" && { label: "Approve this version instead", icon: Check, onClick: () => act.approveInstead(item) },
+    // Never while it is being fixed, and never past the facts check.
+    canPublishNow(item) && { label: "Put live now", icon: Rocket, onClick: onPublish },
+    item.type !== "blog" && s === "approved" && !auto && { label: "I posted it", icon: Send, onClick: onPosted },
+    auto && blog && { label: "Open the blog", icon: FileText, onClick: () => navigate(`/review/${blog.id}?filter=all`) },
+    ((s === "approved" && !autoLocked) || s === "rejected") && { label: s === "approved" ? "Undo approval" : "Bring it back", icon: RotateCcw, onClick: () => d.actions.unapprove(item) },
     item.published_url && { label: "See it live", icon: ExternalLink, onClick: () => openSafe(item.published_url || blogUrl(item)) },
     "divider",
-    s !== "rejected" && s !== "published" && { label: "Don't use this", icon: X, danger: true, onClick: () => act.reject(item) },
+    s !== "rejected" && s !== "published" && !autoLocked && { label: "Don't use this", icon: X, danger: true, onClick: () => act.reject(item) },
   ].filter(Boolean);
-  const cleanMore = more.filter((m, i, arr) => !(m === "divider" && (i === 0 || i === arr.length - 1)));
+  const cleanMore = more.filter((m, i, arr) => !(m === "divider" && (i === 0 || i === arr.length - 1 || arr[i - 1] === "divider")));
+
+  const note = (icon, text, testid) => {
+    const I = icon;
+    return (
+      <div className={cx("flex min-h-[44px] min-w-0 items-center gap-2 rounded-xl bg-ink/[0.045] px-3.5 py-2 text-callout font-medium text-ink-soft", grow)} data-testid={testid}>
+        <I className="h-4 w-4 shrink-0 text-ink-mute" />
+        <span className="min-w-0">{text}</span>
+      </div>
+    );
+  };
 
   const primary = (() => {
-    if (s === "pending_review" || s === "changes_requested") {
+    if (s === "pending_review") {
       return (
         <>
-          <Button size={compact ? "lg" : "md"} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={compact ? "flex-1" : ""}>
+          <Button size={size} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={grow}>
             Ask for changes
           </Button>
-          <Button size={compact ? "lg" : "md"} variant="primary" icon={Check} onClick={() => act.approve(item)} kbd={compact ? null : "A"} title={item.type === "blog" ? "A: pick the time · Shift+A: approve for the planned day" : "A"} className={compact ? "flex-1" : ""}>
-            {s === "changes_requested" ? "Approve anyway" : "Approve"}
+          <Button size={size} variant="primary" icon={Check} onClick={() => act.approve(item)} kbd={compact ? null : "A"} title={item.type === "blog" ? "A: pick the time · Shift+A: approve for the planned day" : "A"} className={grow}>
+            Approve
           </Button>
         </>
       );
     }
+    if (s === "changes_requested") return note(MessageSquareWarning, "Sent back. We're fixing it.", "sent-back-state");
     if (s === "awaiting_voiceover") {
       // The owner's job here is the recording: that is the primary action, in the same slot as Approve.
       const rendering = voiceoverState(item, d.jobs).state === "rendering";
       return (
         <>
-          <Button size={compact ? "lg" : "md"} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={compact ? "flex-1" : ""}>
+          <Button size={size} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={grow}>
             Ask for changes
           </Button>
           {!rendering && (
-            <Button size={compact ? "lg" : "md"} variant="primary" icon={Mic} onClick={() => requestVoiceoverUpload()} kbd={compact ? null : "U"} title="U: choose your recording" className={compact ? "flex-[1.4]" : ""} data-testid="vo-upload-action">
+            <Button size={size} variant="primary" icon={Mic} onClick={() => requestVoiceoverUpload()} kbd={compact ? null : "U"} title="U: choose your recording" className={compact ? "flex-[1.4]" : ""} data-testid="vo-upload-action">
               Upload your voice
             </Button>
           )}
         </>
       );
     }
-    if (s === "approved" && item.type === "blog") return <Button size={compact ? "lg" : "md"} variant="dark" icon={Rocket} onClick={onPublish} className={compact ? "flex-1" : ""}>Put live now</Button>;
-    if (s === "approved") return <Button size={compact ? "lg" : "md"} variant="primary" icon={Send} onClick={onPosted} className={compact ? "flex-1" : ""}>I posted it</Button>;
-    if (s === "rejected") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={Undo2} onClick={() => d.actions.unapprove(item)} className={compact ? "flex-1" : ""}>Bring it back</Button>;
-    if (s === "published" && (item.published_url || item.type === "blog")) return <Button size={compact ? "lg" : "md"} variant="secondary" icon={ExternalLink} onClick={() => openSafe(item.published_url || blogUrl(item))} className={compact ? "flex-1" : ""}>See it live</Button>;
-    if (s === "failed") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={RotateCcw} onClick={act.changes} className={compact ? "flex-1" : ""}>Try again</Button>;
+    if (s === "approved" && item.type === "blog") return <Button size={size} variant="dark" icon={Rocket} onClick={onPublish} className={grow}>Put live now</Button>;
+    if (s === "approved" && auto) {
+      const st = socialStatus(auto, blog);
+      const text = auto.status === "published" ? "Posted on LinkedIn by itself" : auto.status === "pending_review" || auto.status === "draft" ? "Posts on LinkedIn by itself once you approve the blog's LinkedIn post" : `Posts on LinkedIn by itself after the blog is live · ${st.label}`;
+      return note(Linkedin, text, "auto-post-state");
+    }
+    if (s === "approved") return <Button size={size} variant="primary" icon={Send} onClick={onPosted} className={grow}>I posted it</Button>;
+    if (s === "rejected") return <Button size={size} variant="secondary" icon={Undo2} onClick={() => d.actions.unapprove(item)} className={grow}>Bring it back</Button>;
+    if (s === "published" && (item.published_url || item.type === "blog")) return <Button size={size} variant="secondary" icon={ExternalLink} onClick={() => openSafe(item.published_url || blogUrl(item))} className={grow}>See it live</Button>;
+    if (s === "failed") return <Button size={size} variant="secondary" icon={RotateCcw} onClick={act.changes} className={grow}>Try again</Button>;
     return null;
   })();
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       {primary}
       {cleanMore.length > 0 && (
         <Menu

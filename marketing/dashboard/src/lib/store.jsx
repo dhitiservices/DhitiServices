@@ -4,7 +4,8 @@ import { useToast } from "../components/Toast.jsx";
 import { formatDateTime } from "./format.js";
 import { setDownloadErrorHandler } from "./media.js";
 import { TYPE_META, JOB_KIND } from "./model.js";
-import { friendlyError, FORMAT_LABEL } from "./linkedin.js";
+import { friendlyError, FORMAT_LABEL, formatOptions, autoPostOf } from "./linkedin.js";
+import { factsClear } from "./claims.js";
 
 const DataContext = createContext(null);
 export const useData = () => useContext(DataContext);
@@ -37,6 +38,7 @@ export function DataProvider({ backend, user, children }) {
   // successful load. The shell shows "Offline · last synced …" instead of the green Live dot while it is set.
   const [syncError, setSyncError] = useState(null);
   const pending = useRef(new Map()); // item id -> in-flight mutation count
+  const pendingSocial = useRef(new Map()); // social post id -> in-flight write count
   const assetTimers = useRef(new Map());
   const email = user?.email || "team";
 
@@ -109,6 +111,7 @@ export function DataProvider({ backend, user, children }) {
         if (eventType === "DELETE") return { ...d, [key]: d[key].filter((r) => r.id !== old?.id) };
         if (!row) return d;
         if (key === "items" && pending.current.get(row.id)) return d;
+        if (key === "socialPosts" && pendingSocial.current.get(row.id)) return d;
         return { ...d, [key]: upsert(d[key], row, key) };
       });
       if (table === "content_items" && row) refreshAssets(row.id);
@@ -161,6 +164,7 @@ export function DataProvider({ backend, user, children }) {
   const writeSocial = useCallback(async (post, patch, { errorTitle = "Couldn't save the LinkedIn post", quiet } = {}) => {
     const setLocal = (p) => setData((d) => ({ ...d, socialPosts: d.socialPosts.map((r) => (r.id === post.id ? { ...r, ...p } : r)) }));
     const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, post[k] ?? null]));
+    pendingSocial.current.set(post.id, (pendingSocial.current.get(post.id) || 0) + 1);
     setLocal(patch);
     try {
       const row = await backend.updateSocialPost(post.id, patch);
@@ -172,6 +176,9 @@ export function DataProvider({ backend, user, children }) {
       const first = m.match(/approve the (\w+) first/i);
       if (!quiet) toast({ tone: "danger", title: errorTitle, description: first ? `Approve the ${FORMAT_LABEL[first[1]]?.toLowerCase() || first[1]} first.` : m || "Try again." });
       throw e;
+    } finally {
+      const n = (pendingSocial.current.get(post.id) || 1) - 1;
+      n ? pendingSocial.current.set(post.id, n) : pendingSocial.current.delete(post.id);
     }
   }, [backend, toast]);
 
@@ -203,8 +210,9 @@ export function DataProvider({ backend, user, children }) {
     },
 
     /**
-     * Approve. For a blog: optional publish time, and `social` = {post, format, caption, first_comment} to also approve
-     * its LinkedIn post (the creative it posts is approved too, because the owner saw it in the post preview).
+     * Approve. For a blog: optional publish time, and `social` = {post, format, caption, first_comment, creativeId} to
+     * also approve its LinkedIn post (a carousel or graphic it posts is approved too: the owner looked at every page of
+     * it in the post preview). Undo puts back the blog, the LinkedIn post and that creative.
      */
     approve(item, { scheduledFor, social } = {}) {
       const patch = { status: "approved", approved_at: new Date().toISOString(), approved_by: email };
@@ -217,7 +225,11 @@ export function DataProvider({ backend, user, children }) {
           socialDone = await actions.approveSocial(social.post, social, { quiet: false });
         } catch { /* toast shown */ }
       } : undefined;
-      const onUndo = social?.post ? async () => { if (socialDone) await writeSocial(socialDone, { status: "pending_review" }, { quiet: true }); } : undefined;
+      const onUndo = social?.post ? async () => {
+        if (!socialDone) return;
+        await writeSocial(socialDone.row, { status: "pending_review" }, { quiet: true });
+        if (socialDone.creative) await mutateItem(socialDone.creative, { status: "pending_review", approved_at: null, approved_by: null }, { errorTitle: "Couldn't undo" });
+      } : undefined;
       return undoable(item, patch, {
         tone: "ok",
         title: `${label} approved`,
@@ -227,19 +239,30 @@ export function DataProvider({ backend, user, children }) {
       }, { after, onUndo });
     },
 
-    /** Approve the LinkedIn post of a blog, approving the creative it posts if it still waits for review. */
-    async approveSocial(post, { format, caption, first_comment } = {}, opts = {}) {
+    /**
+     * Approve the LinkedIn post of a blog. A carousel or graphic it posts that still waits for review is approved too
+     * (the same item the preview showed: `creativeId`, else the formatOptions pick). A reel is never approved here.
+     * The caption, first comment and format are always sent exactly as shown, so the database approves what the
+     * owner saw even if the row changed since the screen loaded. Returns { row, creative } (creative = the item this
+     * call approved, or null).
+     */
+    async approveSocial(post, { format, caption, first_comment, creativeId } = {}, opts = {}) {
       const fmt = format || post.format;
-      const kids = itemsRef.list.filter((i) => i.parent_id === post.blog_item_id && i.type === fmt);
-      const ready = kids.find((i) => ["approved", "published"].includes(i.status));
-      const waiting = !ready && kids.find((i) => i.status === "pending_review");
-      if (waiting) await mutateItem(waiting, { status: "approved", approved_at: new Date().toISOString(), approved_by: email });
-      const patch = { status: "approved" };
-      if (fmt !== post.format) patch.format = fmt;
-      if (caption != null && caption !== post.caption) patch.caption = caption;
-      if (first_comment != null && first_comment !== post.first_comment) patch.first_comment = first_comment;
-      const row = await writeSocial(post, patch, { errorTitle: "Couldn't approve the LinkedIn post", ...opts });
-      return row;
+      const blog = itemsRef.list.find((i) => i.id === post.blog_item_id);
+      const pick = creativeId ? itemsRef.list.find((i) => i.id === creativeId) : blog ? formatOptions(blog, itemsRef.list).find((o) => o.format === fmt)?.item : null;
+      let creative = null;
+      if (pick && pick.type === fmt && fmt !== "video" && pick.status === "pending_review") {
+        await mutateItem(pick, { status: "approved", approved_at: new Date().toISOString(), approved_by: email });
+        creative = { ...pick, status: "approved" };
+      }
+      const patch = { status: "approved", format: fmt, caption: caption ?? post.caption, first_comment: first_comment ?? post.first_comment };
+      try {
+        const row = await writeSocial(post, patch, { errorTitle: "Couldn't approve the LinkedIn post", ...opts });
+        return { row, creative };
+      } catch (e) {
+        if (creative) await mutateItem(creative, { status: "pending_review", approved_at: null, approved_by: null }).catch(() => {});
+        throw e;
+      }
     },
 
     async unapprove(item) {
@@ -263,6 +286,11 @@ export function DataProvider({ backend, user, children }) {
     },
 
     async publishNow(item) {
+      // Same gate as Approve: only a blog waiting for review with every fact checked can be approved this way.
+      if (item.status !== "approved" && item.status !== "published" && (item.status !== "pending_review" || !factsClear(item.body))) {
+        toast({ tone: "neutral", title: "Not yet", description: "Approve it first, so you can check the facts." });
+        return;
+      }
       if (item.status !== "approved" && item.status !== "published") {
         await mutateItem(item, { status: "approved", approved_at: new Date().toISOString(), approved_by: email, scheduled_for: new Date().toISOString() });
       }
@@ -488,11 +516,12 @@ export function DataProvider({ backend, user, children }) {
     const topicById = new Map(data.topics.map((t) => [t.id, t]));
     const itemById = new Map(data.items.map((i) => [i.id, i]));
     const reviewCount = data.items.filter((i) => i.status === "pending_review" || i.status === "awaiting_voiceover").length;
-    const readyCount = data.items.filter((i) => i.type !== "blog" && i.status === "approved").length;
     const activeJobs = data.jobs.filter((j) => j.status === "queued" || j.status === "running");
     // The LinkedIn post of each blog: the newest row that is not cancelled (one active row per blog).
     const socialByBlog = new Map();
     for (const p of data.socialPosts) if (p.status !== "cancelled" && !socialByBlog.has(p.blog_item_id)) socialByBlog.set(p.blog_item_id, p);
+    // Ready to post (by hand): approved creatives that LinkedIn does not post by itself.
+    const readyCount = data.items.filter((i) => i.type !== "blog" && i.status === "approved" && !autoPostOf(i, socialByBlog, data.items)).length;
     return { topicById, itemById, reviewCount, readyCount, activeJobs, socialByBlog, jobLabel: (k) => JOB_KIND[k] || k };
   }, [data]);
 

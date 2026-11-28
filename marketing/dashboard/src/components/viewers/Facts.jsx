@@ -39,7 +39,7 @@ export function FactsBanner({ body }) {
       <span className="min-w-0 flex-1">
         <span className={cx("block text-callout font-semibold", good ? "text-ok" : "text-brand-ink")}>{summaryLine(s)}</span>
         <span className="block text-[12.5px] text-ink-mute">
-          {good ? "Each one has the exact words from its source." : `${s.checked} of ${s.facts} checked.`}
+          {good ? "Read each quote: does it say the same thing?" : `${s.checked} of ${s.facts} have a quote from the source.`}
           {extrasLine(s) ? ` ${extrasLine(s)}` : ""}
         </span>
       </span>
@@ -76,7 +76,7 @@ function Claim({ c, i }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[15px] leading-[22px] text-ink">
-          <span className="sr-only">{example ? "Example. " : advice ? "Our advice. " : ok ? "Checked. " : "Not checked. "}</span>
+          <span className="sr-only">{example ? "Example. " : advice ? "Our advice. " : ok ? "Has a quote. " : c.changed ? "Changed after the check. " : "Not checked. "}</span>
           {c.claim_text || <span className="text-ink-faint">No sentence given</span>}
         </p>
         {example || advice ? (
@@ -86,19 +86,20 @@ function Claim({ c, i }) {
           </p>
         ) : dhiti ? (
           <p className="mt-1 text-[12.5px] text-ink-mute">
-            {!ok && <span className="mr-1.5 inline-flex rounded-md bg-brand/[0.1] px-1.5 py-0.5 text-[11px] font-semibold text-brand-ink">Not checked</span>}
+            {!ok && <span className="mr-1.5 inline-flex rounded-md bg-brand/[0.1] px-1.5 py-0.5 text-[11px] font-semibold text-brand-ink">{c.changed ? "Changed after the check" : "Not checked"}</span>}
             About Dhiti{c.phrase ? `: matches your approved fact “${c.phrase}”` : ""}
           </p>
         ) : (
           <>
             <p className="mt-1 text-[12.5px] text-ink-mute">
-              {!ok && <span className="mr-1.5 inline-flex rounded-md bg-brand/[0.1] px-1.5 py-0.5 text-[11px] font-semibold text-brand-ink">Not checked</span>}
-              {c.source_title || hostOf(c.source_url) || "No source"}{when ? ` · checked ${when}` : ""}
+              {c.changed && <span className="mr-1.5 inline-flex rounded-md bg-brand/[0.1] px-1.5 py-0.5 text-[11px] font-semibold text-brand-ink">Changed after the check</span>}
+              {!ok && !c.changed && <span className="mr-1.5 inline-flex rounded-md bg-brand/[0.1] px-1.5 py-0.5 text-[11px] font-semibold text-brand-ink">Not checked</span>}
+              {c.source_title || hostOf(c.source_url) || "No source"}{ok && when ? ` · source read ${when}` : ""}
             </p>
             {(c.quote || c.source_url || extra.length > 0) && (
               <details className="group mt-1.5 [&_summary::-webkit-details-marker]:hidden">
                 <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md text-[12.5px] font-semibold text-ink-soft hover:text-ink">
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /> {c.quote ? "Show the exact words" : "Show the source"}
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /> {c.quote ? "Show the source's words" : "Show the source"}
                 </summary>
                 <div className="mt-2 rounded-xl bg-ink/[0.035] p-3">
                   <Quote q={c} />
@@ -124,9 +125,9 @@ export function FactsPanel({ body }) {
   return (
     <section id="facts" className="card mt-12 scroll-mt-6 overflow-hidden" aria-labelledby="facts-title" data-testid="facts-panel">
       <div className="px-5 pt-5 sm:px-6">
-        <div className={cx("eyebrow", s.allChecked ? "!text-ok" : "!text-brand-ink")}>Facts checked</div>
-        <h2 id="facts-title" className="mt-1 text-title-2 font-bold text-ink">{s.allChecked ? `${s.facts} of ${s.facts} match the source` : `${s.checked} of ${s.facts} checked`}</h2>
-        <p className="mt-1 text-callout text-ink-mute">Each fact in the blog, where it came from, and the exact words in the source. {extrasLine(s)}</p>
+        <div className={cx("eyebrow", s.allChecked ? "!text-ok" : "!text-brand-ink")}>Facts</div>
+        <h2 id="facts-title" className="mt-1 text-title-2 font-bold text-ink">{`${s.checked} of ${s.facts} have a quote from the source`}</h2>
+        <p className="mt-1 text-callout text-ink-mute">Each fact in the blog, its source, and the words we found there. We checked that the words are in the source. Read each quote: does it say the same thing as the blog? {extrasLine(s)}</p>
       </div>
       <ol className="mt-2 divide-y divide-[color:var(--hairline)] px-5 sm:px-6">
         {order.map((c, i) => <Claim key={c.id || i} c={c} i={i} />)}

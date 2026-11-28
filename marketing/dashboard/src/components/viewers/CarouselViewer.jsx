@@ -8,7 +8,8 @@ import { useHotkeys } from "../../lib/hotkeys.js";
 import { spring } from "../../lib/motion.js";
 import { SignedImage } from "../Media.jsx";
 import { Button, CopyButton, Segmented, EmptyState, cx } from "../ui.jsx";
-import { MetaSection, CaptionBox, Hashtags } from "./Meta.jsx";
+import { MetaSection, CaptionBox, Hashtags, useAutoPost, AutoPostNote } from "./Meta.jsx";
+import { markPageSeen } from "../../lib/linkedin.js";
 
 export function slidesOf(assets, item) {
   return assetsFor(assets, item.id).filter((a) => a.kind === "carousel_slide");
@@ -23,6 +24,7 @@ export function CarouselStage({ item }) {
   const index = Math.max(0, Math.min(rawIndex, slides.length - 1));
   useEffect(() => { if (slides.length && rawIndex > slides.length - 1) setIndex([slides.length - 1, 0]); }, [slides.length, rawIndex]);
   const go = (n) => setIndex(([i]) => [Math.max(0, Math.min(slides.length - 1, i + n)), n]);
+  useEffect(() => { if (slides.length) markPageSeen(item.id, index); }, [item.id, index, slides.length]);
 
   useHotkeys({ arrowright: () => go(1), arrowleft: () => go(-1) });
 
@@ -83,7 +85,9 @@ export function CarouselStage({ item }) {
 export function CarouselMeta({ item, baseName }) {
   const { assets } = useData();
   const b = item.body || {};
-  const [tab, setTab] = useState("linkedin");
+  const auto = useAutoPost(item);
+  const [pick, setTab] = useState("linkedin");
+  const tab = auto ? "instagram" : pick;
   const pdf = assetsFor(assets, item.id).find((a) => a.kind === "carousel_pdf");
   const slides = slidesOf(assets, item);
   const caption = tab === "linkedin" ? b.caption_linkedin : b.caption_instagram;
@@ -99,8 +103,9 @@ export function CarouselMeta({ item, baseName }) {
           </Button>
         </div>
       </MetaSection>
-      <MetaSection title="Caption">
-        <Segmented size="sm" value={tab} onChange={setTab} className="mb-2.5 w-full [&>button]:flex-1 [&>button]:justify-center" label="Caption for" options={[{ value: "linkedin", label: "LinkedIn" }, { value: "instagram", label: "Instagram" }]} />
+      {auto && <AutoPostNote item={item} post={auto} />}
+      <MetaSection title={auto ? "Caption for Instagram" : "Caption"}>
+        {!auto && <Segmented size="sm" value={tab} onChange={setTab} className="mb-2.5 w-full [&>button]:flex-1 [&>button]:justify-center" label="Caption for" options={[{ value: "linkedin", label: "LinkedIn" }, { value: "instagram", label: "Instagram" }]} />}
         <CaptionBox text={caption} />
         <Hashtags tags={b.hashtags} />
         <CopyButton text={full} label="Copy caption" className="mt-3 w-full" />

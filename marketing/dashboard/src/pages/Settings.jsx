@@ -150,7 +150,7 @@ export default function Settings() {
                 })}
               </div>
               <p className={cx("mt-3 text-[12.5px]", daysMismatch ? "text-warn" : "text-ink-mute")}>
-                {daysMismatch ? `You picked ${form.publish_days.length} days for ${form.blogs_per_week} blogs. Extra blogs share a day; spare days stay empty.` : "Blogs go live at 10:00 IST on these days. You can pick another time for any blog when you approve it."}
+                {daysMismatch ? `You picked ${form.publish_days.length} days for ${form.blogs_per_week} blogs. Extra blogs share a day; spare days stay empty.` : "Blogs go live at 10:00 am (India time) on these days. You can pick another time for any blog when you approve it."}
               </p>
             </Card>
           </section>
@@ -252,7 +252,7 @@ function RunsLog() {
                 <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={spring}><ChevronRight className="h-4 w-4 text-ink-faint" /></motion.span>
                 <div className="min-w-0 flex-1">
                   <div className="text-callout font-semibold">{RUN_KIND[r.kind] || r.kind}</div>
-                  <div className="truncate text-[12px] text-ink-mute">{formatDateTime(r.started_at)} IST{r.finished_at ? ` · took ${duration(r.started_at, r.finished_at)}` : ` · started ${relative(r.started_at)}`}{usage ? ` · ${usage}` : ""}</div>
+                  <div className="truncate text-[12px] text-ink-mute">{formatDateTime(r.started_at)}{r.finished_at ? ` · took ${duration(r.started_at, r.finished_at)}` : ` · started ${relative(r.started_at)}`}{usage ? ` · ${usage}` : ""}</div>
                 </div>
                 <StatusChip map={RUN_STATUS} status={r.status} size="sm" />
               </button>

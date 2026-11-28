@@ -7,7 +7,7 @@ import { downloadPath, downloadName } from "../../lib/media.js";
 import { spring } from "../../lib/motion.js";
 import { SignedImage } from "../Media.jsx";
 import { Button, CopyButton, Segmented, EmptyState } from "../ui.jsx";
-import { MetaSection, MetaRow, CaptionBox, Hashtags } from "./Meta.jsx";
+import { MetaSection, MetaRow, CaptionBox, Hashtags, useAutoPost, AutoPostNote } from "./Meta.jsx";
 
 export function graphicVariants(assets, item) {
   const list = assetsFor(assets, item.id).filter((a) => a.kind === "graphic");
@@ -47,6 +47,7 @@ export function GraphicStage({ item, variant, setVariant }) {
 
 export function GraphicMeta({ item, variant, baseName }) {
   const { assets } = useData();
+  const auto = useAutoPost(item);
   const v = graphicVariants(assets, item);
   const b = item.body || {};
   const cap = captionOf(item);
@@ -58,7 +59,8 @@ export function GraphicMeta({ item, variant, baseName }) {
           <Button size="sm" variant={variant === "landscape" ? "secondary" : "ghost"} icon={Download} disabled={!v.landscape} onClick={() => downloadPath(v.landscape.storage_path, downloadName(baseName, v.landscape, "landscape"))}>Wide</Button>
         </div>
       </MetaSection>
-      <MetaSection title="Caption">
+      {auto && <AutoPostNote item={item} post={auto} />}
+      <MetaSection title={auto ? "Caption for other sites" : "Caption"}>
         <CaptionBox text={b.caption} />
         <Hashtags tags={b.hashtags} />
         <CopyButton text={cap} label="Copy caption" className="mt-3 w-full" />

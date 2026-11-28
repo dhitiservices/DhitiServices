@@ -659,13 +659,21 @@ media_ready ──(write stage=post_requested FIRST)──► POST /rest/posts
    network error / timeout / 5xx / 429 ─► stage stays post_requested ─► RECONCILE on the next run
 post_requested (no post_urn) ─► RECONCILE:
    GET /rest/posts?author=<enc org urn>&q=author&count=20&sortBy=CREATED&viewContext=AUTHOR
-   match element where content.media.id == media_urn (each attempt uploads its own media, so the URN is unique)
+   match element where content.media.id == media_urn (each attempt uploads its own media, so the URN is unique;
+   the author field is NOT compared: samples show both urn:li:organization:<id> and urn:li:company:<id>)
    found ─► adopt its id as post_urn (same as 201)      not found ─► re-POST, at most 3 times in total, then failed
+   finder 400/403/404 ─► status=failed "could not confirm the post …; check the company page" (never re-POSTed)
+   finder 5xx / network for 24 h (or more than 60 claimed runs) ─► the same failure, never re-POSTed
 comment_status pending ─► (write comment_status=requested FIRST) ─► POST comment
    201 ─► comment_id, comment_urn, comment_text_sent, comment_status=posted
    4xx ─► comment_status=failed, last_error      network/5xx/429 ─► stays requested ─► RECONCILE:
-   GET /rest/socialActions/<enc post urn>/comments ─► element with actor == org_urn and message.text containing the link
+   GET /rest/socialActions/<enc post urn>/comments ─► element with actor == org_urn (or urn:li:company:<id>) and
+   message.text containing the link
    found ─► adopt      not found ─► POST again (at most 5 comment_attempts, then failed; the owner can call retry_comment)
+   comments list 400/403/404 ─► comment_status=failed at once (404: "the post no longer exists on LinkedIn";
+   403: "LinkedIn denied access to the post …; reconnect")
+comment phase cap (pending or requested): 24 h after post_created (retry_comment restarts the clock) ─► comment failed.
+   After the first hour in a phase, retries of reads that fail without a definite answer wait 1 hour, not 2 minutes.
 ```
 
 - `post_urn` is unique and is never cleared. The trigger blocks any return to `approved` once it is set. Retrying a
@@ -726,6 +734,8 @@ Steps:
 2. **Parts:** for each instruction, in order, `PUT uploadUrl` with header `Content-Type: application/octet-stream`, the
    bytes `[firstByte, lastByte]` inclusive (`buf.slice(firstByte, lastByte + 1)`), and **no Authorization header**
    (VECTOR, VIDEOS sample). Collect each response's `ETag` header value in order. The sample answers 200.
+   **As built:** each ETag is normalized before it is stored (`W/` prefix and surrounding double quotes removed):
+   the VIDEOS schema says `ETag: "e43…"` corresponds to `uploadedPartIds: ["e43…"]`.
 3. **Thumbnail** (when requested): `PUT thumbnailUploadUrl` with headers `media-type-family: STILLIMAGE` and
    `Content-Type: application/octet-stream`, and the poster JPG/PNG. The sample answers 201. Then set
    `thumbnail_urn_uploaded = true`. The docs order is: initialize, upload the video, upload captions, upload the
@@ -739,6 +749,8 @@ Steps:
    ```
 
    The part order must match `uploadInstructions` (VIDEOS schema).
+   **As built:** a finalize answer of 400/403/404/422 (any 4xx except 401, 408, 409, 426, 429) is final: the row fails
+   at once instead of re-uploading the whole video on every run. 409, 429, 5xx and network errors stay retryable.
 5. Set `stage = media_processing`. Each run then polls `GET https://api.linkedin.com/rest/videos/<enc urn>`:
    - `AVAILABLE` → `media_ready`
    - `PROCESSING` or `WAITING_UPLOAD` → `next_attempt_at = now() + 2 min`
@@ -787,8 +799,11 @@ Right after `post_created`, in the same run, check the post: `GET https://api.li
 
 - `lifecycleState` is `PUBLISHED` → comment now.
 - `PUBLISH_REQUESTED` (content still processing, POST-SCHEMA) → leave `comment_status = 'pending'` and set
-  `next_attempt_at = now() + 2 min`.
+  `next_attempt_at = now() + 2 min` (1 hour after the first hour; comment failed after 24 hours).
 - `PUBLISH_FAILED` → `status = 'failed'` with `last_error`, and the owner is alerted.
+- **As built:** `DRAFT` → comment failed at once ("publish it there, then use Retry comment"): a draft never moves on by
+  itself. 404/410 → "the post no longer exists on LinkedIn", 403 → "permission lost; reconnect", 400 → the LinkedIn
+  error; all three fail the comment at once (POSTS error table: only 409/500/503 say "retry").
 
 The comment request:
 
@@ -893,12 +908,20 @@ records `has_refresh_token`:
   POST https://www.linkedin.com/oauth/v2/accessToken
   Content-Type: application/x-www-form-urlencoded
 
-  grant_type=refresh_token&refresh_token=<rt>&client_id=<id>&client_secret=<secret>
+  grant_type=refresh_token&refresh_token=<rt>&client_id=<id>&client_secret=<secret>&redirect_uri=<REDIRECT_URI>
   ```
 
   (REFRESH step 2). Store the new access token and refresh token, recompute both expiry times from the response, and set
   `last_refreshed_at`.
-  - `400 invalid_request "…invalid, expired or revoked"` → `status = 'expired'` (the owner must reconnect).
+  - `redirect_uri`: the REFRESH parameter table lists only four fields, but its error table says
+    `400 invalid_request "A required parameter "redirect_uri" is missing" … It is mandatory parameter`. **As built**, it
+    is sent (harmless if ignored).
+  - **As built (v1.1):** any `400` → the refresh token is treated as unusable: `has_refresh_token = false`,
+    `last_refresh_error` kept, and the stored refresh token is deleted only when `error_description` says "invalid,
+    expired or revoked". The status stays `connected`: the access token may still be valid for up to 7 days, so
+    publishing continues. `ACCESS_TOKEN_EXPIRING` (red at ≤ 3 days) tells the owner to reconnect, and `maintenance`
+    sets `status = 'expired'` once `access_token_expires_at` passes. (v1 set `expired` at once, which stopped publishing
+    while the token still worked.)
   - Network errors and 5xx → retry next run.
   - The Developer Portal **Analytics** tab shows a per-app daily quota for refresh-token use (PORTAL), so refresh at most
     once a day.
@@ -1127,7 +1150,8 @@ Acceptance tests:
 ## 10. As built (v1, 2026-11-28)
 
 **State:** applied and deployed, dormant. Migrations `linkedin_core` and `linkedin_cron` are on project
-`yexxrcgxhwsopssfyylo`. Edge Function `linkedin` v1 is deployed with `verify_jwt = false`. The cron job
+`yexxrcgxhwsopssfyylo`. Edge Function `linkedin` is deployed with `verify_jwt = false`: deployment version 2, code
+`VERSION = "1.1.0"` (review round 2, section 10.4); `/health` reports the code version. The cron job
 `linkedin-publish-due` is active. The connection is `not_configured`, and the only Vault secret is
 `linkedin_cron_secret`.
 
@@ -1136,6 +1160,7 @@ Acceptance tests:
 - `marketing/supabase/functions/linkedin/index.ts`: Supabase wiring (service-role client, `getUser` + `is_team` as the user, Vault RPCs).
 - `marketing/supabase/functions/linkedin/core.ts`: routes, LinkedIn client and state machine. It has no npm imports, so it can be tested with a fake database.
 - `marketing/supabase/functions/linkedin/validate.ts`: caption and comment rules, little-text escaping, and the UTM link builder.
+- `marketing/supabase/functions/linkedin/http.ts`: outbound fetch; POST/PUT go over a client without connection reuse (10.4 #1).
 - `marketing/supabase/functions/linkedin/migrations/*.sql`: copies of the applied migrations, for review. They are not deployed.
 
 ### 10.1 Differences from sections 2 to 8, and why
@@ -1158,9 +1183,14 @@ Acceptance tests:
 | 14 | `GET /health` | `GET .../linkedin` and `.../linkedin/health` answer `{service:"dhiti-linkedin", version, api_version}` | It is a public health check and returns no data. |
 | 15 | (none) | `social_posts` and `linkedin_connection` were added to the `supabase_realtime` publication | Live dashboard updates. Realtime applies RLS, and neither table holds secrets. |
 
-**Found in testing:** Deno's `fetch` silently re-sends a POST when a pooled keep-alive connection is closed before any
-response bytes arrive. So "no response" can still mean "created twice". This is why every create is reconciled by
-reading LinkedIn back before it is sent again, and why the reconcile grace period exists.
+**Found in testing (corrected in review round 2):** Deno's `fetch` silently re-sends a request when it went out on a
+pooled keep-alive connection that is closed before any response byte arrives. Reconcile does **not** cover this: the
+re-send happens inside `fetch`, the code only sees one clean 201 (with the second post's id), and the first post stays
+on LinkedIn as a duplicate. The mitigation is `http.ts`: every non-GET request (all LinkedIn creates, uploads and
+OAuth form posts) goes over `Deno.createHttpClient({ poolMaxIdlePerHost: 0, http1: true, http2: false })`, so it always
+uses a fresh connection and a lost connection surfaces as a network error, which reconcile then handles. The deployed
+runtime supports it (cold-start log line `{"fn":"linkedin","boot":true,"write_client":"no-reuse"}`; `"default"` would
+mean the runtime lacks `createHttpClient` and must be treated as a bug).
 
 ### 10.2 For the dashboard and engine workflow
 
@@ -1171,11 +1201,19 @@ reading LinkedIn back before it is sent again, and why the reconcile grace perio
 - Live caption checks: `rpc('linkedin_caption_error', {p})` and `rpc('linkedin_first_comment_error', {p})` (authenticated) return `null` or the message.
 - The engine inserts `social_posts` with the service role (status `draft`/`pending_review`), as in 2.5.
 - Set the function secret `DASHBOARD_ORIGIN` to the Netlify origin before connecting.
+- (Round 2) A failed first comment now explains itself in `last_error` ("the post no longer exists on LinkedIn",
+  "LinkedIn denied access to the post …; reconnect", "the post is a draft on LinkedIn …", "… within 24 hours …"). The
+  **Retry comment** button restarts the 24-hour comment clock. A post that could not be confirmed fails with "could not
+  confirm the post on LinkedIn (…); check the company page before approving again": the dashboard should show that text
+  next to the Approve button, because approving again uploads new media and posts again.
+- (Round 2, optional) To keep the OAuth `code` out of Supabase request logs (10.4 #2), the callback could move to a
+  dashboard page plus an owner-JWT route; that needs the dashboard and a new route, and is not built.
 
 ### 10.3 Tests (session scratchpad `linkedin/`)
 
-- **SQL** (`rls_test.sql`): 51 checks, one statement that always rolls back. They cover anon, a stranger JWT and the allowlisted owner JWT against RLS, column grants, the guard trigger transitions, claim and due, OAuth state single use, expiry and owner binding, and the Vault helpers. Result: 51/51.
-- **End to end** (`e2e.mjs` under Deno 2.9.6, Node mock `mock/server.mjs`, in-memory database mirror `memdb.mjs`): 83/83.
+- **SQL** (`rls_test.sql`): 54 checks, one statement that always rolls back. They cover anon, a stranger JWT and the allowlisted owner JWT against RLS, column grants, the guard trigger transitions, claim and due, OAuth state single use, expiry and owner binding, the Vault helpers, and (round 2) that no function in `public`/`graphql_public` proxies `net.*`/`cron.*`, that only the `linkedin_secret_*` helpers touch `vault.*`, and that anon/authenticated cannot execute them. Result: 54/54.
+- **End to end** (`e2e.mjs` under Deno 2.9.6, Node mock `mock/server.mjs`, in-memory database mirror `memdb.mjs`): 100/100. LinkedIn traffic goes through the function's own `http.ts`. With `PLAIN_FETCH=1` (bare `fetch`) the two zero-byte drop tests fail with 2 posts / 2 comments on LinkedIn, which shows they catch the silent re-send.
+- **Live smoke** (`smoke.sh`): 23/23, including `/rest/v1` with `Accept-Profile`/`Content-Profile` `net`, `cron`, `vault` and `extensions` answering `PGRST106`.
 - **Live smoke tests:**
   - health answers 200
   - every team route answers 401 without a valid session
@@ -1183,3 +1221,19 @@ reading LinkedIn back before it is sent again, and why the reconcile grace perio
   - the callback with a forged state answers `state_invalid`
   - PostgREST refuses anon access to all three tables and to the secret RPC
   - the `net` schema is not exposed.
+
+### 10.4 Review round 2 (2026-11-28): fixes and accepted exceptions
+
+| # | Finding | Result |
+|---|---|---|
+| 1 | Deno `fetch` silently re-sends a POST on a reused connection closed with zero response bytes (duplicate post or comment that reconcile never sees). Reproduced: one `fetch()` call, the server counted 2 creates, the client saw `201 urn:li:share:2`. | **Fixed** in `http.ts` (see "Found in testing" above). New mock fault `drop_silent` (processed, then the socket is destroyed with zero bytes on a reused keep-alive connection) for posts and comments; both tests assert exactly 1 post and 1 comment. |
+| 2 | The OAuth `code` and `state` appear in `function_edge_logs` (the platform logs the full request URL). Confirmed with `query_logs`. The callback is also not bound to the owner's browser session. | **Accepted platform-log exception**, documented here. The code is redeemed inside the same callback request, so the logged code is already spent; it is single-use, lives about 30 minutes, and is useless without the client secret (Vault only). The state is consumed at once and is single-use, 10-minute, owner-bound. The stronger option (redirect to a dashboard page that strips `code`/`state` with `history.replaceState` and POSTs them to an owner-JWT route that checks `user_id = state.user_id`) needs a dashboard change, which is outside this workflow's files; it is left for the dashboard workflow. |
+| 3 | `pg_net` grants `anon`/`authenticated` read on `net.http_request_queue` / `net._http_response` and execute on `net.http_*`. The queue row holds the `x-cron-secret` header while a cron call is in flight. | **Confirmed; mitigated by assertion.** `revoke … from anon, authenticated` as `postgres` is a silent no-op (the grants belong to `supabase_admin`). The API is not exposed: `smoke.sh` asserts `PGRST106` for `net`, `cron`, `vault`, `extensions`; `rls_test.sql` asserts no `public` function proxies `net.*`/`cron.*` or touches `vault.*` except the service-role-only `linkedin_secret_*` helpers. Rules: never add `net`, `cron`, `vault` or `extensions` to the exposed API schemas; never create a function in `public` that runs dynamic SQL or proxies `net.*`; rotate `linkedin_cron_secret` (`vault.update_secret`) if exposure ever changes. Optional: ask Supabase support to revoke the `pg_net` grants from anon/authenticated. |
+| 4 | Published rows and `post_requested` rows retried forever on 403/404/400 reads and non-final lifecycle states (about 144 calls a day per stuck row, above the Development-tier 100 per member per day). | **Fixed.** 400/403/404/410 on `GET /rest/posts/{urn}` and on the comments list fail the comment at once; `DRAFT` fails it at once; other non-PUBLISHED states and failed reads wait 2 min for the first hour, then 1 hour, and the comment fails after 24 h (`stage_changed_at`, restarted by `retry_comment`). `post_requested`: finder 400/403/404 fail at once, 5xx/network fail after 24 h, and the `MAX_CLAIMS` (60) guard now covers it; none of these re-POST. Measured in the mock over 26 simulated hours with a 10-minute cron: 29 calls for a stuck row (was about 156). |
+| 5 | Video part ETags were sent to finalize with their quotes; a finalize 4xx re-uploaded the whole video on every run. | **Fixed.** `etagToPartId()` strips `W/` and the quotes; finalize 4xx (except 401/408/409/426/429) fails at once. Mock options `quoted_etags` and a `POST /rest/videos?action=finalizeUpload` fault cover both (exactly 1 initialize, 1 finalize). |
+| 6 | Refresh omitted `redirect_uri` (the REFRESH error table calls it mandatory) and any refresh 400 set `expired` although the access token still had up to 7 days. | **Fixed** (section 4.2). The mock now refuses a refresh without `redirect_uri`. |
+| 7 | Post reconcile compared `el.author` with the organization URN; LinkedIn samples also return `urn:li:company:<id>`, and a miss would re-POST a duplicate. | **Fixed.** Match on `content.media.id` alone (the finder is already scoped to our author); the comment reconcile accepts both actor forms. Mock options `finder_author_company` and `comment_actor_company` cover both. |
+
+Not changed, on purpose: GET requests still use the shared connection pool (a silent GET re-send is harmless); upload
+PUT failures other than finalize stay retryable (an expired upload URL is fixed by a fresh initialize, and the
+`MAX_CLAIMS` guard bounds it).
