@@ -167,3 +167,31 @@ Every command prints a single JSON object to stdout (logs to stderr) and exits n
 - Deps installed: `@supabase/supabase-js`, `sharp`, `playwright` 1.56, `ffmpeg-static`, `gray-matter`
   (`@anthropic-ai/sdk` must be removed from package.json).
 - Sample stock files for tests: `/tmp/claude-0/-home-user/1ebfa328-06a3-5c75-bfad-24f0f6f77acf/scratchpad/stock/`.
+
+## v3 addendum (owner decisions, supersedes anything above that conflicts)
+
+1. **Absolutely no Magnific generation of any kind** — no images, video, voiceover/TTS, music or SFX generation.
+   Magnific is used ONLY for `stock_search` / `stock_get` / `stock_download` (photos + footage).
+2. **Owner-provided media.** The owner uploads their own photos and voiceovers (they make voiceovers themselves,
+   e.g. in ElevenLabs with the "Anika" voice). Table `library_assets(id, kind['photo'|'video'|'voiceover'|'music'|'logo'|'other'],
+   storage_path 'library/<uuid>/<file>', mime, title, notes, tags[], content_item_id, used_count, uploaded_by, created_at)`;
+   the dashboard uploads into bucket `marketing` under `library/` (RLS allows team insert/delete there).
+   The playbook should prefer relevant owner photos from the library over stock, and must record usage.
+3. **Reel flow with owner voiceover:**
+   - The session writes the reel spec INCLUDING `voiceover_script` (natural spoken English for Indian B2B travel audience,
+     ~2.3 words/sec, 22–35 s) and per-scene `vo_line`; downloads stock clips/photos and **uploads them to storage**
+     under `items/<id>/src/` (so the reel can be re-rendered later without re-downloading expiring URLs); renders a
+     silent captioned preview; sets the video item status **`awaiting_voiceover`**.
+   - Dashboard shows the script with a copy button and an upload control. On upload it creates a `library_assets`
+     row (kind voiceover, content_item_id = the video item) and inserts job **`render_video {content_item_id, library_asset_id}`**.
+   - The next revisions run (daily scheduled session) claims `render_video` jobs, downloads the voiceover + stored source
+     clips, re-times scenes to the voiceover length (proportional to each scene's `vo_line` word count), mixes the
+     audio (loudness-normalised, -14 LUFS, video audio muted), re-renders, and sets the item `pending_review`.
+   - `make-video` accepts `--voiceover <file>`; `render/video.js` accepts `body.voiceover_path` and aligns to it.
+   - Body adds: `"voiceover_script": "", "voiceover": {"library_asset_id", "duration"} | null`, scene `vo_line`.
+4. **Dashboard design bar:** Apple × Notion × Stripe — world-class, premium gradients (Dhiti red family on
+   ink/off-white, subtle mesh/aurora gradients, glass surfaces), SF Pro Display. If font files exist in
+   `marketing/dashboard/public/fonts/` (SF-Pro-Display-*.otf|woff2) load them via @font-face (owner supplies them);
+   otherwise the system SF stack. No other fonts.
+5. Cover images, carousel and graphic photos, and reel footage must be top-tier: authentic, high resolution,
+   editorial, on-topic; never cheesy, never AI-generated (`ai_generated: "excluded"`).
