@@ -51,8 +51,17 @@ Choose exactly `blogs_per_week` topics from the top scorers, with this mix (for 
 3. **Decision / ROI or operational how-to**: the reader is weighing whether and how to change who does the work (for
    example "what to test in an operations pilot", "cost of handling refunds in-house versus a trained team").
 
-Also balance the set: different buyer types (not all hotel, not all TMC), different service lines, at most two
-topics in the same category, and no two topics that would compete for the same keyword. If `blogs_per_week` is not
+Also balance the set (owner rule, hard requirement):
+- **Services:** the week's 3 topics map to 3 DIFFERENT services from the six in `quality-bar.md` (Back-office
+  operations, Accounts and finance support, Reporting and MIS, Customer and partner support, Sales and marketing
+  support, Quality and audit). Over any rolling 2 weeks (6 blogs), every one of the six services appears once.
+- **Audiences:** the week's 3 topics speak to at least 3 different audiences of the four (Corporate travel and TMCs,
+  Hotels and hospitality, OTAs and travel technology, DMCs, tour operators and agencies). Over any rolling 4 weeks,
+  each audience gets at least 2 blogs.
+- **No finance default:** at most 1 accounts/finance/tax topic per week, and never two weeks in a row as the lead topic.
+- Use `context.recent_topics` (service line + audience of past topics) to see what is due; pick the most overdue
+  service and audience first, then score. Record `service` and `audience` on every topic.
+- At most two topics in the same category, and no two topics that would compete for the same keyword. If `blogs_per_week` is not
 3, keep the same principles: at least one problem-aware and one decision-stage topic.
 
 ## 5. Publish dates and order

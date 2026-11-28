@@ -52,6 +52,12 @@ deploy from a machine that has them in `public/fonts/`: `npm run build && npx ne
 6. Optional: Supabase's built-in mailer sends only a few emails per hour. If codes stop arriving, add your own SMTP
    under **Authentication → Emails → SMTP Settings**.
 
+7. **Edge Functions → linkedin → Secrets**: add `DASHBOARD_ORIGIN` = the Netlify origin (for example
+   `https://<your-site>.netlify.app`, no trailing slash). It is not a secret. Until it is set, the `linkedin` function
+   sends no CORS headers (checked on 28 Nov 2026: the preflight answers 204 with no `access-control-allow-origin`), so
+   the browser blocks every call from the studio and Settings → LinkedIn shows "Couldn't check LinkedIn". The OAuth
+   callback also redirects there (LINKEDIN.md 1.6 and 10.2).
+
 To give someone access, add their email to `public.allowed_users` (SQL editor). To remove access, delete the row,
 then use **Settings → Sign out everywhere** if needed (that ends your own sessions; their next request already
 returns no data because every policy checks the allowlist).

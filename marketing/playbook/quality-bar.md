@@ -16,16 +16,23 @@ stated as fact.
   people; nobody has to relocate to a city.
 - **Who it serves.** The travel industry: travel agencies, travel management companies (TMCs) and other corporate travel
   businesses (companies that sell travel to corporates, not the corporates themselves), tour operators, OTAs and DMCs, travel-tech companies, hotels and hotel groups.
-- **Four service lines (names as on the site):**
-  1. **Data & Back Office Operations**: data entry, cataloguing, document processing and reconciliation, each with
-     a verification step built in. In travel this covers work such as rate and profile loading, refunds, ADM
-     checks, commission tracking, accounts and finance support, month-end support and reporting.
-  2. **Customer & Process Support**: phone and written support, query handling, follow-ups and sales support,
-     including group-booking coordination (rooming lists, name changes, deadlines) and review responses.
-  3. **Quality & Audit**: checking, verification and compliance passes on operational work, an independent second
-     pass on every output.
-  4. **Group & Internal Operations**: ongoing operational support run as a dedicated, embedded extension of the
-     client's team.
+- **Six services (names as on the new site, owner 2026-11-28; these replace the old four service lines):**
+  1. **Back-office operations**: the daily work that keeps bookings accurate and moving (booking data checks, rate
+     sheet and profile loading, supplier follow-ups, refunds, ADM checks, queue work).
+  2. **Accounts and finance support**: invoices, payments and reconciliations kept up to date (supplier statements,
+     commission tracking, GST and tax paperwork support, month-end support).
+  3. **Reporting and MIS**: the numbers clients and leadership ask for, ready on the agreed day (client reports,
+     MIS packs, dashboards data).
+  4. **Customer and partner support**: routine queries answered clearly from approved notes, everything else
+     escalated with context (traveller and partner queries, changes, group bookings and rooming lists, reviews).
+  5. **Sales and marketing support**: research and admin that give the sales team more time to sell (lead research,
+     CRM updates and clean-up, duplicate merging, proposal admin).
+  6. **Quality and audit**: a second check on work before it moves to the next stage (records verified against the
+     source, required fields complete, exceptions logged for the client's owner).
+- **Four audiences ("Who we work with" on the site):** Corporate travel and TMCs; Hotels and hospitality; OTAs and
+  travel technology; DMCs, tour operators and agencies.
+- **Topic balance (owner rule):** Dhiti is NOT a finance-only company. Content must cover all six services and all
+  four audiences over time. Finance/tax topics are one service out of six, never the default.
 - **How people are prepared:** Recruit, Train, Mentor, Deliver. Every hire is trained on the specific process and
   shadows experienced colleagues on practice work before touching a client process.
 - **How an engagement starts:** the client shares the process and volumes; Dhiti maps how it would run; a small

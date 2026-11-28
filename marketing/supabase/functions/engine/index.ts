@@ -24,10 +24,19 @@
 //     the publish fields (only the owner approves in the dashboard; the `linkedin` function publishes). The caption and
 //     first comment are checked with the shared validator of LINKEDIN.md 5.3. list_runs is a read-only run lookup
 //     the engine's generating clean-up uses so it never fails items that a live run is still making.
+//   - v2.6.0 (accuracy gate, ARCHITECTURE.md v4.1): the server fetches every cited source itself (fetch_source;
+//     bytes, sha256 and text under storage sources/<sha256>/, where no session can write) and re-runs the claims
+//     ledger (claims-core.js, the same file the engine CLI runs) on every session write that puts a blog in front of
+//     the owner; it stores its own verified flags and a stamp (body.claims_check.server) and refuses (400) on any
+//     failure. Creatives entering review and LinkedIn posts are checked against the blog's verified claims.
+//     update_item takes expect_status (conditional write for the engine's sweep).
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
+import { marked } from "npm:marked@15.0.12";
+import { getDocumentProxy } from "npm:unpdf@1.9.1";
+import * as core from "./claims-core.js";
 
-const VERSION = "2.5.0";
+const VERSION = "2.6.0";
 const BUCKET = "marketing";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -131,12 +140,15 @@ function nonEmpty(o: Obj, label: string): Obj {
   return o;
 }
 
+const SOURCE_FILE = /^sources\/[0-9a-f]{64}\/(meta\.txt|raw\.pdf|raw\.html|raw\.txt|text\.txt)$/;
 function storagePath(v: unknown, { library = false } = {}): string {
   if (typeof v !== "string") throw bad("path must be a string");
   const p = v.replace(/^\/+/, "");
   if (p.length > 512 || p.split("/").some((s) => s === "" || s === "." || s === "..")) throw bad(`invalid storage path "${v}"`);
   // Owner library media (read only): library/<uuid>/<file>, uploaded by the dashboard.
   if (library && /^library\/[0-9a-f-]{36}\/[^/]+$/i.test(p) && UUID.test(p.split("/")[1])) return p;
+  // Sources the server fetched (read only; only this function writes them): sources/<sha256>/<file>.
+  if (library && SOURCE_FILE.test(p)) return p;
   if (!/^items\/[0-9a-f-]{36}\/[\w.\-/]+$/i.test(p) || !UUID.test(p.split("/")[1])) {
     throw bad(`storage path must look like items/<content_item_id>/v<version>/<file> (got "${v}")`);
   }
@@ -228,6 +240,7 @@ function captionError(raw: unknown): string | null {
     if (!TAG_LINE.test(last)) return 'the last line must be 1 to 3 hashtags like "#TravelOperations #HotelOperations" (letters and digits, separated by single spaces)';
     if (body.includes("#")) return '"#" may appear only in the final hashtag line';
   } else if (t.includes("#")) return '"#" may appear only in a final line of at most 3 hashtags';
+  if (TAG_LINE.test(last) && !body.trim()) return "the caption needs text before the hashtags";
   const first200 = t.slice(0, 200);
   if (!(t.length <= 200 || first200.includes("\n") || /[.!?](\s|$)/.test(first200))) return "the first 200 characters must contain at least one full sentence or line";
   return null;
@@ -276,6 +289,131 @@ async function newestChild(blogId: string, type: string): Promise<string | null>
   const row = await run("social.source", db().from("content_items").select("id").eq("parent_id", blogId).eq("type", type)
     .order("created_at", { ascending: false }).limit(1).maybeSingle());
   return row?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The accuracy gate (claims-core.js is an exact copy of marketing/engine/src/claims-core.js)
+// ---------------------------------------------------------------------------------------------------------------
+
+async function shaBytes(b: Uint8Array): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", b);
+  return Array.from(new Uint8Array(buf), (x) => x.toString(16).padStart(2, "0")).join("");
+}
+async function readStorage(path: string): Promise<Uint8Array | null> {
+  const { data, error } = await db().storage.from(BUCKET).download(path);
+  if (error || !data) return null;
+  return new Uint8Array(await data.arrayBuffer());
+}
+async function writeStorage(path: string, bytes: Uint8Array, contentType: string) {
+  const { error } = await db().storage.from(BUCKET).upload(path, bytes, { contentType, upsert: true });
+  if (error) throw dbError(`store ${path}`, error as never);
+}
+async function pdfPages(bytes: Uint8Array, pages: number[]): Promise<string[]> {
+  const pdf = await getDocumentProxy(new Uint8Array(bytes));
+  const out: string[] = [];
+  for (const n of pages) {
+    if (!Number.isInteger(n) || n < 1 || n > pdf.numPages) continue;
+    const tc = await (await pdf.getPage(n)).getTextContent();
+    // deno-lint-ignore no-explicit-any
+    out[n - 1] = core.pdfPageText(tc.items as any);
+  }
+  return out;
+}
+const lexer = (src: string) => marked.lexer(src);
+const sourceLoader = () => core.storedSourceLoader({ read: readStorage, sha: shaBytes, pdfPages });
+const fail409 = (m: string) => new ApiError(409, m);
+const summarise = (label: string, msgs: string[]) => `${label} (${msgs.length} problem(s)): ${msgs.slice(0, 4).join(" | ")}${msgs.length > 4 ? " | ..." : ""}`;
+
+/** Re-verifies a blog body; returns the server-stamped body, or throws 400 (refuse) / returns a stripped body. */
+async function gateBlog(nextBody: unknown, patchBody: unknown, refuse: boolean): Promise<Obj | undefined> {
+  const body = core.withoutStamp(isObj(nextBody) ? nextBody : {}) as Obj;
+  if (!refuse && !(Array.isArray(body.claims) && body.claims.length)) return patchBody === undefined ? undefined : body;
+  const r = await core.serverVerifyBlog(body, { lexer, hash: sha256Hex, getSource: sourceLoader() });
+  if (r.passed) return r.body as Obj;
+  if (refuse) throw bad(summarise("claims check failed on the server", r.messages));
+  return patchBody === undefined ? body : body;
+}
+
+async function gateCreative(type: string, body: unknown, parentId: unknown) {
+  if (typeof parentId !== "string") throw bad("a creative needs its parent blog (parent_id)");
+  const parent = await run("gate.parent", db().from("content_items").select("id, type, body").eq("id", parentId).maybeSingle());
+  if (!parent || parent.type !== "blog") throw bad("a creative needs its parent blog (parent_id)");
+  if (!(await core.stampValid(parent.body, sha256Hex, { markdown: false }))) throw fail409(`the parent blog ${parent.id} has no fact list verified by the engine server; save the blog again with save-blog first`);
+  const errs = core.derivedTextErrors(core.creativeTextGroups(type, body), parent.body.claims, { what: type });
+  if (errs.length) throw bad(summarise("facts check failed on the server", errs));
+}
+
+/** Session writes to content_items (insert or patch, merged with the current row). Mutates patch.body. */
+async function gateItemWrite(cur: Obj | null, patch: Obj, insert: boolean) {
+  const next = { ...(cur || {}), ...patch } as Obj;
+  const touches = insert || patch.status !== undefined || patch.body !== undefined;
+  if (!touches) return;
+  if (next.type === "blog") {
+    if (next.status === "pending_review") patch.body = await gateBlog(next.body, patch.body, true);
+    else if (next.status === "changes_requested" && patch.body !== undefined) patch.body = await gateBlog(next.body, patch.body, false);
+    else if (patch.body !== undefined) patch.body = core.withoutStamp(patch.body);
+    if (patch.body === undefined) delete patch.body;
+  } else if ((core.REVIEW_STATUSES as readonly unknown[]).includes(next.status)) {
+    await gateCreative(String(next.type), next.body, next.parent_id);
+  }
+}
+
+async function gateSocial(row: Obj) {
+  const blog = await run("gate.blog", db().from("content_items").select("id, type, body").eq("id", row.blog_item_id as string).maybeSingle());
+  if (!blog || !(await core.stampValid(blog.body, sha256Hex, { markdown: false }))) throw fail409(`the blog ${row.blog_item_id} has no fact list verified by the engine server; save the blog again with save-blog first`);
+  const errs = core.derivedTextErrors(core.socialTextGroups({ caption: String(row.caption ?? ""), first_comment: String(row.first_comment ?? ""), recommendation_reason: String(row.recommendation_reason ?? "") }), blog.body.claims, { what: "LinkedIn post" });
+  if (errs.length) throw bad(summarise("facts check failed on the server", errs));
+}
+
+/** GET a public https URL, re-checking every redirect hop; at most SOURCE_MAX_BYTES. */
+async function fetchPublic(start: URL): Promise<{ bytes: Uint8Array; mime: string; finalUrl: string }> {
+  let cur = start;
+  for (let hop = 0; hop <= 8; hop++) {
+    let res: Response;
+    try {
+      res = await fetch(cur.href, {
+        redirect: "manual",
+        headers: { "user-agent": core.SOURCE_UA, accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8", "accept-language": "en-IN,en;q=0.9" },
+        signal: AbortSignal.timeout(90_000),
+      });
+    } catch (e) {
+      throw new ApiError(502, `fetch_source: ${cur.href} could not be reached (${e instanceof Error ? e.message : String(e)})`);
+    }
+    if ([301, 302, 303, 307, 308].includes(res.status)) {
+      const loc = res.headers.get("location");
+      await res.body?.cancel();
+      if (!loc) throw new ApiError(502, `fetch_source: redirect without a location from ${cur.href}`);
+      const next = core.checkSourceUrl(new URL(loc, cur).href);
+      if ("error" in next) throw bad(`fetch_source: redirect to a URL that cannot be fetched (${next.error})`);
+      cur = next as URL;
+      continue;
+    }
+    if (res.status !== 200) {
+      await res.body?.cancel();
+      throw new ApiError(502, `fetch_source: ${cur.href} answered HTTP ${res.status}`);
+    }
+    const reader = res.body!.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > core.SOURCE_MAX_BYTES) {
+        await reader.cancel();
+        throw new ApiError(413, "fetch_source: the source is larger than 30 MB");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) {
+      bytes.set(c, off);
+      off += c.length;
+    }
+    return { bytes, mime: (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase(), finalUrl: cur.href };
+  }
+  throw new ApiError(502, "fetch_source: too many redirects");
 }
 
 const PUBLISHER_ACTIONS = new Set([
@@ -489,13 +627,14 @@ const actions: Record<string, Handler> = {
   },
 
   // ---- content items ----
-  insert_item(p) {
+  async insert_item(p) {
     const row = pick(p, ITEM_INSERT_FIELDS, "insert_item");
     oneOf(row.type, ITEM_TYPES, "type");
     if (row.status !== undefined) oneOf(row.status, SESSION_ITEM_STATUSES, "status");
     if (row.body !== undefined && !isObj(row.body)) throw bad("insert_item: body must be an object");
     if (row.topic_id !== undefined) row.topic_id = optUuid(row.topic_id, "topic_id");
     if (row.parent_id !== undefined) row.parent_id = optUuid(row.parent_id, "parent_id");
+    await gateItemWrite({ status: "generating" }, row, true);
     return run("insert_item", db().from("content_items").insert(row).select().single());
   },
 
@@ -508,7 +647,20 @@ const actions: Record<string, Handler> = {
     }
     if (patch.body !== undefined && !isObj(patch.body)) throw bad("update_item: body must be an object");
     if (patch.version !== undefined && (!Number.isInteger(patch.version) || (patch.version as number) < 1)) throw bad("version must be a positive integer");
+    const expect = p.expect_status === undefined ? undefined : oneOf(p.expect_status, ITEM_STATUSES, "expect_status");
+    let curStatus: string | undefined;
+    if (caller.kind === "session") {
+      // The gate reads the current row, verifies, and the write is conditional on the status it read.
+      const cur = await run("update_item.cur", db().from("content_items").select("id, type, status, body, parent_id").eq("id", id).maybeSingle());
+      if (!cur) throw new ApiError(404, `item ${id} not found`);
+      if (LOCKED_FOR_SESSION.includes(cur.status)) throw new ApiError(409, `item ${id} is ${cur.status}; session tokens cannot modify approved or published items`);
+      if (expect && cur.status !== expect) throw new ApiError(409, `item ${id} is ${cur.status}, not ${expect}; it changed meanwhile`);
+      await gateItemWrite(cur, patch, false);
+      curStatus = cur.status;
+    }
     let q = db().from("content_items").update(patch).eq("id", id);
+    if (curStatus) q = q.eq("status", curStatus);
+    else if (expect) q = q.eq("status", expect);
     // Human approval is the gate: a session may not change an item once a person approved it (or it is live),
     // and the publisher may only touch items a person approved.
     if (caller.kind === "session") q = q.not("status", "in", `(${LOCKED_FOR_SESSION.join(",")})`);
@@ -518,8 +670,59 @@ const actions: Record<string, Handler> = {
     const exists = await run("update_item.check", db().from("content_items").select("id, status").eq("id", id).maybeSingle());
     if (!exists) throw new ApiError(404, `item ${id} not found`);
     throw new ApiError(409, caller.kind === "session"
-      ? `item ${id} is ${exists.status}; session tokens cannot modify approved or published items`
+      ? `item ${id} is ${exists.status}; it changed meanwhile, or session tokens cannot modify approved or published items`
       : `item ${id} is ${exists.status}; publisher tokens may only update approved or published items`);
+  },
+
+  /** The server fetches a cited source itself and keeps it (sessions only). */
+  async fetch_source(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call fetch_source");
+    const u = core.checkSourceUrl(p.url);
+    if ("error" in u) throw bad(`fetch_source: ${u.error}`);
+    const url = (u as URL).href;
+    const { bytes, mime, finalUrl } = await fetchPublic(u as URL);
+    if (!bytes.length) throw new ApiError(502, `fetch_source: ${url} sent an empty response`);
+    const head = new TextDecoder().decode(bytes.subarray(0, 512));
+    const isPdf = /pdf/.test(mime) || head.startsWith("%PDF-");
+    const isHtml = !isPdf && (/html|xml/.test(mime) || /^\s*(<!doctype html|<html|<\?xml|<head|<body)/i.test(head));
+    if (!isPdf && !isHtml && !/^text\//.test(mime)) throw new ApiError(415, `fetch_source: ${url} is ${mime || "an unknown type"}; cite an HTML page, a PDF or a text file`);
+    const kind = isPdf ? "pdf" : isHtml ? "html" : "text";
+    const sha = await shaBytes(bytes);
+    const paths = core.sourcePaths(sha, kind);
+    let pages: number | null = null;
+    let title = "";
+    let textSha: string | null = null;
+    if (kind === "pdf") {
+      try {
+        pages = (await getDocumentProxy(new Uint8Array(bytes))).numPages;
+      } catch {
+        throw new ApiError(415, `fetch_source: ${url} is not a readable PDF`);
+      }
+    } else {
+      const str = new TextDecoder().decode(bytes);
+      const text = core.sourceTextOf(str, kind);
+      title = kind === "html" ? core.htmlTitle(str) : "";
+      const tb = new TextEncoder().encode(text);
+      textSha = await shaBytes(tb);
+      await writeStorage(paths.text, tb, "text/plain");
+    }
+    await writeStorage(paths.raw, bytes, kind === "pdf" ? "application/pdf" : "text/plain");
+    let prev: Obj | null = null;
+    try {
+      const pb = await readStorage(paths.meta);
+      prev = pb ? JSON.parse(new TextDecoder().decode(pb)) : null;
+    } catch {
+      prev = null;
+    }
+    const now = new Date().toISOString();
+    const urls = [...new Set([...((prev?.urls as string[]) ?? []), url, finalUrl])];
+    const meta = {
+      sha256: sha, url: (prev?.url as string) ?? url, final_url: finalUrl !== url ? finalUrl : (prev?.final_url ?? null), urls,
+      mime: mime || (kind === "pdf" ? "application/pdf" : "text/html"), kind, bytes: bytes.length, pages, title, text_sha256: textSha,
+      fetched_at: now, first_fetched_at: (prev?.first_fetched_at as string) ?? now, origin: "server", core_version: core.CORE_VERSION,
+    };
+    await writeStorage(paths.meta, new TextEncoder().encode(JSON.stringify(meta)), "text/plain");
+    return { ...meta, raw_path: paths.raw, text_path: kind === "pdf" ? paths.raw : paths.text };
   },
 
   async get_item(p) {
@@ -717,6 +920,7 @@ const actions: Record<string, Handler> = {
       throw new ApiError(409, `source_item_id ${row.source_item_id} is not the newest ${row.format} of this blog (${derived ?? "none"})`);
     }
     row.source_item_id = derived;
+    await gateSocial(row);
     row.platform = "linkedin"; // created_by keeps its default 'engine'
     // One active row per blog: the partial unique index answers 23505 -> 409.
     return run("insert_social_post", db().from("social_posts").insert(row).select().single());
@@ -727,7 +931,7 @@ const actions: Record<string, Handler> = {
     const id = uuid(p.id);
     const patch = nonEmpty(pick(obj(p.patch, "patch"), SOCIAL_PATCH_FIELDS, "update_social_post"), "update_social_post");
     socialTextChecks(patch);
-    const cur = await single("update_social_post.get", db().from("social_posts").select("id, status, format, blog_item_id, post_urn").eq("id", id).maybeSingle(), `social post ${id} not found`);
+    const cur = await single("update_social_post.get", db().from("social_posts").select("id, status, format, blog_item_id, post_urn, caption, first_comment, recommendation_reason").eq("id", id).maybeSingle(), `social post ${id} not found`);
     if (SOCIAL_LOCKED.includes(cur.status)) throw new ApiError(409, `social post ${id} is ${cur.status}; a session can no longer change it`);
     if (cur.post_urn) throw new ApiError(409, `social post ${id} is already on LinkedIn; a session can no longer change it`);
     if (patch.status !== undefined) {
@@ -738,6 +942,9 @@ const actions: Record<string, Handler> = {
     }
     if (patch.format !== undefined && patch.format !== cur.format) {
       Object.assign(patch, { source_item_id: await newestChild(cur.blog_item_id, patch.format as string), media_urn: null, media_status: null });
+    }
+    if (patch.caption !== undefined || patch.first_comment !== undefined || patch.recommendation_reason !== undefined || patch.status !== undefined) {
+      await gateSocial({ ...cur, ...patch });
     }
     // Conditional on the status read above, so an approval that lands in between is never overwritten.
     const row = await run("update_social_post", db().from("social_posts").update(patch).eq("id", id).eq("status", cur.status).select().maybeSingle());

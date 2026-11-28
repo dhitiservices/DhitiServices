@@ -41,3 +41,11 @@ Style = premium SaaS product-launch motion, adapted to Dhiti's travel-operations
 - Backgrounds: off-white or deep warm black with a faint grid, soft red gradient orbs moving slowly.
 - Stock footage used sparingly as texture/b-roll inside masks or cards, not as the main visual.
 To match taste exactly, the owner will send screen recordings; extract frames with ffmpeg (1-2 fps + scene-change frames) and study timing, easing, type scale and transitions before building.
+
+## House visual language (owner screenshot of the new website service cards, 2026-11-28)
+The creatives must feel like the new website: abstracted UI cards on a soft Dhiti-red gradient with a faint dot grid.
+- White rounded cards (radius ~20px), soft red-tinted shadow, a small header ("Supplier statement", "Monthly client report", "Second check") with a grey "Example" pill.
+- Rows with status pills: green "Matched/Verified/Done", red "Flagged/Merged", amber dot for in-progress; red check-circle ticks for completed steps; stacked offset chips for checklists; chat bubbles for support; a red area-line chart for reporting.
+- Icon tile in a soft red rounded square, numbered "01..06" in light grey, bold tight headline, grey body, red text link with chevron.
+These card types become reusable components for carousel slides, graphics and reel scenes (animated in like a product demo).
+Each service has its own signature card: Back-office = checklist chips; Accounts = statement rows Matched/Flagged; Reporting = chart card; Customer support = chat bubbles; Sales = lead/CRM rows with avatars; Quality = "Second check" verification list.

@@ -528,7 +528,7 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
   const note = (icon, text, testid) => {
     const I = icon;
     return (
-      <div className={cx("flex min-h-[44px] min-w-0 items-center gap-2 rounded-xl bg-ink/[0.045] px-3.5 py-2 text-callout font-medium text-ink-soft", grow)} data-testid={testid}>
+      <div className={cx("flex min-h-[44px] min-w-0 items-center gap-2 rounded-xl bg-surface px-3.5 py-2 text-callout font-medium text-ink-soft shadow-[0_0_0_1px_var(--hairline)]", grow)} data-testid={testid}>
         <I className="h-4 w-4 shrink-0 text-ink-mute" />
         <span className="min-w-0">{text}</span>
       </div>
