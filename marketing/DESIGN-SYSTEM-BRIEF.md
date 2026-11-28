@@ -49,3 +49,11 @@ The creatives must feel like the new website: abstracted UI cards on a soft Dhit
 - Icon tile in a soft red rounded square, numbered "01..06" in light grey, bold tight headline, grey body, red text link with chevron.
 These card types become reusable components for carousel slides, graphics and reel scenes (animated in like a product demo).
 Each service has its own signature card: Back-office = checklist chips; Accounts = statement rows Matched/Flagged; Reporting = chart card; Customer support = chat bubbles; Sales = lead/CRM rows with avatars; Quality = "Second check" verification list.
+
+## Reel direction update (owner, 2026-11-28)
+Blog-promotion reels are FOOTAGE-LED: about 30 s (22-35 s), 1080x1920, 30 fps, built mainly from the best Magnific stock footage
+(authentic, cinematic, Indian/South Asian people where people appear, real offices/airports/hotels/desks, no AI-generated clips),
+4-6 shots that tell the blog's story (hook problem -> cause -> fix -> payoff -> CTA). Motion graphics (kinetic type, UI cards,
+counters, highlight sweeps, word-by-word captions) sit ON TOP of the footage and never hide it; one UI card moment max.
+The voiceover script is written for the owner to record (ElevenLabs voice "Anika" or own voice); later this step may be automated
+through the owner's own ElevenLabs account (never Magnific generation).
