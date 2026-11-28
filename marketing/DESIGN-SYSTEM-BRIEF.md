@@ -57,3 +57,19 @@ Blog-promotion reels are FOOTAGE-LED: about 30 s (22-35 s), 1080x1920, 30 fps, b
 counters, highlight sweeps, word-by-word captions) sit ON TOP of the footage and never hide it; one UI card moment max.
 The voiceover script is written for the owner to record (ElevenLabs voice "Anika" or own voice); later this step may be automated
 through the owner's own ElevenLabs account (never Magnific generation).
+
+## Video plan v2 (owner: video for EVERY blog, best possible) — to implement with the design system
+Every blog gets one hero reel (always), plus cut-downs from the same render. Video is the primary social asset.
+1. Story arc, about 30 s, cut every 2-4 s on the voice's beats:
+   0-2.5 s HOOK: a bold, specific line on striking footage ("11 flights. ₹0 tax credit."), text visible from frame 0, no logo.
+   2.5-8 s PROBLEM: the real moment (desk, inbox, airport counter) the reader recognises.
+   8-14 s WHY: the hidden cause, one UI card or counter animates in over footage.
+   14-24 s FIX: 3 fast steps, each a shot + one short line (numbered chips).
+   24-28 s PAYOFF: what changes (time saved, credit kept, fewer errors), stated only if sourced or clearly illustrative.
+   28-32 s CTA end card: Dhiti logo build, "Read the full guide" + blog URL, loops cleanly back to the hook.
+2. Footage quality bar: 4K/HD sources, no watermark, varied shot sizes (wide, medium, close-up of hands/documents/screens), consistent light and motion direction, Indian/South Asian people where people appear, never AI-generated. One consistent warm "Dhiti grade" LUT applied to every clip (ffmpeg) so all reels look like one brand.
+3. Captions: word-by-word burned-in captions synced to the owner's voiceover (forced alignment from the script + audio), key words in Dhiti red, inside platform safe zones; also export an .srt file for LinkedIn/YouTube.
+4. Sound: owner voiceover at -14 LUFS; optional licensed stock music bed ducked under the voice (owner to confirm music source; never generated); subtle stock UI clicks on card animations.
+5. Outputs per blog from one render: 9:16 1080x1920 (Reels, Shorts, LinkedIn), 4:5 1080x1350 and 1:1 1080x1080 smart crops for feeds, a 16:9 1920x1080 version for YouTube/blog embed, a cover frame (thumbnail) with the hook text, and the .srt.
+6. Blog embed: the 16:9 version is placed near the top of the blog post with VideoObject structured data (helps SEO and time on page) once hosting is decided (YouTube unlisted/public is the simplest).
+7. Quality gate before review: frame sheet + safe-zone sheet checked, no text overflow, every on-screen number covered by the claims ledger, hook readable in under 1.5 s.
