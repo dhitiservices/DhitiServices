@@ -62,8 +62,15 @@ files in `content/blog/`). Match their rhythm: short paragraphs, plain sentences
 
 ## 1b. The claims ledger (`claims.json`): no claim, no sentence
 
-`save-blog` refuses the post (there is no override) unless every factual sentence is in this file and verified.
-`check-blog --claims` runs the same checks; run it after every edit.
+`save-blog` refuses the post (there is no override) unless every factual sentence is in this file and verified, and
+the engine server then runs the same checks again with its own copies of the sources before the owner sees the post.
+`check-blog --claims` runs the checks locally; run it after every edit.
+
+**Sources.** `node src/cli.js fetch-source <url>` asks the engine server to download the page or PDF itself. It keeps
+the bytes, their sha256 and the text under `sources/<sha256>/` in storage, where no session can write, and the CLI
+copies them into `$WORK/sources/`. Only those sources count. If the server cannot fetch a page (403, JavaScript-only,
+timeout), that page backs nothing: find a static or PDF copy of the same document on a primary site, or drop the
+sentence.
 
 ```json
 [
@@ -72,13 +79,13 @@ files in `content/blog/`). Match their rhythm: short paragraphs, plain sentences
    "source_url": "https://cbic-gst.gov.in/pdf/circular-237-31-2024-GST.pdf",
    "source_title": "CBIC: Circular No. 237/31/2024-GST (Oct 2024)",
    "quote": "Sub-section (4), sub-section (5) and sub-section (6) of section 16 of the CGST Act are reproduced below for ready reference",
-   "extra_quotes": [{"source_url": "https://cbic-gst.gov.in/pdf/circular-237-31-2024-GST.pdf", "quote": "A registered person shall not be entitled to take input tax credit ... after the thirtieth day of November ..."}]},
+   "extra_quotes": [{"source_url": "https://cbic-gst.gov.in/pdf/circular-237-31-2024-GST.pdf", "quote": "(4)A registered person shall not be entitled to take input tax credit ... after the thirtieth day of November ..."}]},
   {"id": "cutoff-2526", "kind": "date",
    "claim_text": "For invoices of 2025-26, the cut-off is 30 November 2026: credit not taken in a return filed by then is lost.",
-   "source_url": "...", "source_title": "...", "quote": "...thirtieth day of November following the end of financial year...",
-   "derived": {"arithmetic": "FY 2025-26 ends on 31 March 2026; the thirtieth day of November following it is 30 November 2026"}},
+   "source_url": "...", "source_title": "...", "quote": "...after the thirtieth day of November following the end of financial year...",
+   "derived": {"steps": [{"op": "after_fy", "fy": "2025-26", "date": "30 November", "result": "30 November 2026"}]}},
   {"id": "intro", "kind": "illustrative", "claim_text": "Take an illustrative case. It is the 15th of the month, ..."},
-  {"id": "gst-fields", "kind": "advice", "claim_text": "Make the GST fields mandatory for corporate bookings, ...", "note": "Dhiti's recommended booking-tool setting, not a legal requirement"},
+  {"id": "gst-fields", "kind": "advice", "claim_text": "Set the GST fields so a corporate booking cannot be saved without them, ...", "note": "Dhiti's recommended booking-tool setting, not a legal requirement"},
   {"id": "cta", "kind": "dhiti", "claim_text": "Dhiti supports ..., with more than 200 trained specialists."}
 ]
 ```
@@ -86,29 +93,61 @@ files in `content/blog/`). Match their rhythm: short paragraphs, plain sentences
 (The `...` above are shortened for this page; real quotes are copied in full.)
 
 - `claim_text`: the exact sentence or span from the post, markdown removed (link text stays, `**` and the URL go).
-  Usually one whole sentence. A claim may cover two sentences of the same paragraph.
-- `kind`: `fact`, `law` (Act, rule, circular, notification: **primary source only**), `stat` (survey, market number),
-  `date` (deadlines, cut-offs, start dates), `quote` (words in "double quotes" that must be in the source quote),
-  `illustrative` (a made-up example: no source; its paragraph must start with "For example", "Take an illustrative
-  case" or contain "Illustrative"), `advice` (Dhiti's own recommendation or a step of the routine: no source, a
-  `note` saying why it is not a fact, and no %, money, year, section, document number or number above 100 in it),
-  `dhiti` (only the owner-approved proof points of `quality-bar.md` section 1, word for word).
-- `quote`: 8 to 60 words copied **verbatim** from the engine-fetched text of `source_url` (the engine ignores case,
-  spacing, smart quotes, hyphenation and HTML entities, nothing else). Use `extra_quotes` when a sentence combines
-  two passages or two sources.
-- Every number, date, financial year, section and document number in `claim_text` must also be in the quote(s).
-  If you computed it (a cut-off year, a sum, a count of conditions), add `derived.arithmetic` with the working,
-  written so that every computed token appears in it. Keep derivations simple and check them twice.
-- The engine also finds factual-looking sentences you forgot: anything with digits, %, ₹, a month name, Section,
-  Rule, Circular, Notification, GSTR, IMS, CBIC, RBI, DGCA, must, mandatory, deadline, Act, survey or a quotation.
-  Each needs a claim (sourced, illustrative or advice). Questions in the FAQ are exempt; their answers are not.
-- Numbers in the title, description, imageAlt and FAQ answers must appear in a sourced claim of the post.
+  Usually one whole sentence. A claim may also point at the title, description, image alt text or an FAQ answer.
+- `kind`: `fact`, `law`, `stat` (survey, market number), `date` (deadlines, cut-offs, start dates), `quote` (words
+  in "double quotes" that must be in the source quote), `illustrative`, `advice`, `dhiti` (only the owner-approved
+  proof points of `quality-bar.md` section 1, word for word). **Any claim that names a section, rule, Act,
+  circular, notification or document number must cite a primary (government) source first, whatever its kind.**
+- `quote`: 8 to 60 words copied **verbatim** from the server-fetched text (the engine ignores case, spacing, smart
+  quotes, hyphenation and HTML entities, nothing else; a number can never change, not even a decimal point). Quote
+  the passage that says the fact, in the same sense: if the source says "no credit shall be allowed unless ...",
+  the claim says "credit is allowed only if ..." or "no credit is allowed unless ...", never "credit is allowed".
+  Use `extra_quotes` when a sentence combines two passages or two sources. For PDFs the engine records the page.
+- **Numbers keep their type and unit.** 18% is backed only by a percentage 18 in the quote, "30 days" only by a
+  30-day period, ₹500 only by an amount of 500, "section 16(4)" only by a reference the engine reads as 16(4)
+  ("sub-section (4) of section 16" counts). Digits inside form names (GSTR-2B, GSTR-3B), labels and other numbers
+  never count. Number words count too ("three years", "half of", "one per cent", "₹50k", "2 crore").
+- **Context.** Each number and full date must sit in the quote near a word of the claim; a quote that uses the same
+  number for something else does not back it. If a claim names a sub-section (16(4)), the quote that gives its
+  dates or numbers must be that sub-section: start the quote at its label, for example `(4)A registered person ...`.
+- **Old values.** If the quote says "from 12% to 18%", 12% is the old rate: the claim must say it was replaced (or
+  use 18%). The engine also knows superseded provisions (the September-return text of section 16(4), the 12% rate
+  for air travel outside economy) and refuses claims that state them as current. A consolidated Act "as amended up
+  to" an old date gets a warning: the fact-checker must confirm no later Finance Act changed the words.
+- **Derived values** (a cut-off date, a sum, a count) use `derived.steps`, which the engine computes. Free text is
+  refused. Steps (inputs must come from the quotes, from a claim named in `derived.from`, or from an earlier step;
+  only a date or financial year of a worked example may come from the claim itself):
+  - `{"op": "after_fy", "fy": "2025-26", "date": "30 November", "result": "30 November 2026"}`
+  - `{"op": "fy_end", "fy": "2025-26", "result": "31 March 2026"}`
+  - `{"op": "month_shift", "from": "June 2026", "months": 1, "day": 14, "result": "14 July 2026"}` (day and months
+    over 1 must be in the quote: "the 14th day of the succeeding month")
+  - `{"op": "within", "date": "5 July", "from": "12 June", "to": "11 July"}` (an assertion)
+  - `{"op": "add_days", "from": "1 July 2026", "days": 30, "result": "31 July 2026"}`
+  - `{"op": "arith", "a": 25000, "operator": "-", "b": 10000, "result": "15000", "unit": "money"}`,
+    `{"op": "percent_of", "percent": 18, "of": 1000, "result": "180"}`
+  - `{"op": "count", "items": ["clause (a)", "clause (aa)"], "result": "Two"}`
+  The engine writes the human-readable working (`derived.arithmetic`) itself; the owner sees it.
+- `illustrative`: a made-up example. Its paragraph must **start** with "For example", "Take an illustrative case",
+  "Illustrative" or "Imagine" (later paragraphs of the same example follow it directly). It may not carry a
+  section, document number, financial year, percentage, money or a rule word (must, law, deadline). The owner sees
+  every example in the fact list.
+- `advice`: Dhiti's own recommendation or a step of the routine, with a `note` saying why it is not a fact. It may
+  name a day of the month ("by the 15th") and nothing else that could be a fact: no number, duration, date, money or
+  percentage, and no rule words (must, mandatory, required, deadline, law, section, penalty, fee, interest). Phrase it
+  as a recommendation ("Set the GST fields so a booking cannot be saved without them").
+- The engine finds factual-looking sentences you forgot: anything with a number (digits or words), %, ₹, a month
+  name, a section, rule, circular, notification, GSTR, IMS, CBIC, must, mandatory, required, have to, need to,
+  deadline, due date, cut-off, law, lapse, allowed, entitled, eligible, penalty, a survey or a quotation, in the
+  body, the title, the description, the image alt text and the FAQ answers. Each needs a claim (sourced,
+  illustrative or advice) that covers the whole sentence; a short uncovered tail is allowed only when it has no
+  negation, no "but", "only", "except" or "unless", and no rule word.
 - **No relative dates** anywhere ("recently", "this year", "last year", "currently", "nowadays", "the day this guide
   was published"): write the absolute date. When a fact can change, say "As of <date>". The post may go live later
   than planned, so nothing may depend on the publish day.
 
 After the post and `claims.json` pass `check-blog --claims`, the independent fact-check of `blog-editing.md` step 4
-runs before `save-blog`.
+runs and writes `factcheck.json`; `save-blog` needs it (`--factcheck`), and every claim must have the verdict
+"correct" for exactly its current text.
 
 ## 2. Structure: exactly 8 `##` sections
 

@@ -1437,12 +1437,23 @@ export function derivedTextErrors(groups, claims, { what = 'text' } = {}) {
   const S = sourced.map(prep);
   const I = illus.map(prep);
   const A = advice.map(prep);
+  let prevLabelled = false;
+  let prevName = '';
   for (const g of groups) {
     const groupText = g.fields.map((f) => f.text).join('. ');
     const groupStems = contentStems(groupText);
-    const labelled = g.fields.some((f) => EXAMPLE_LABEL.test(normText(stripInlineMarkdown(f.text)))) || EXAMPLE_ANY.test(g.fields.find((f) => /eyebrow/.test(f.field))?.text ?? '');
+    const eyebrow = g.fields.find((f) => /eyebrow/.test(f.field))?.text ?? '';
+    let labelled = g.fields.some((f) => EXAMPLE_LABEL.test(normText(stripInlineMarkdown(f.text)))) || EXAMPLE_ANY.test(eyebrow);
+    // the next slide or scene continues an example until a new section ("Step 1", "The fix") starts
+    const seq = (n) => n.replace(/\s*\d+$/, '');
+    if (!labelled && prevLabelled && seq(g.name) === seq(prevName) && /^(slide|scene)$/.test(seq(g.name)) && !/^\s*(step|tip|fix|the fix|the payoff|how)\b/i.test(eyebrow)) labelled = true;
+    prevLabelled = labelled;
+    prevName = g.name;
     for (const f of g.fields) {
-      const clean = normText(stripInlineMarkdown(f.text).replace(/^\s*\d{1,2}[.)]\s+/gm, ''));
+      // layout, not facts: list markers, "Step 2" labels, counts of the creative's own items ("Three things ...")
+      const clean = normText(stripInlineMarkdown(f.text).replace(/^\s*\d{1,2}[.)]\s+/gm, '')
+        .replace(/\b(step|part|slide|stage|phase|tip|scene)\s+\d{1,2}\b/gi, '$1 N')
+        .replace(new RegExp(`\\b(${NUM_SPELL}|\\d{1,2})(\\s+(?:simple |quick |key |common |main |big )?(?:things|causes|steps|checks|ways|reasons|questions|groups|columns|fields|tips|mistakes|places|habits|stages|parts|ideas|lessons|fixes|signs|traps|moves|rules of thumb))\\b`, 'gi'), 'some$2'));
       const fieldLabelled = labelled || EXAMPLE_ANY.test(clean);
       for (const s of splitSentences(clean)) {
         const reason = factualReason(s.text, { summary: true });
@@ -1461,7 +1472,9 @@ export function derivedTextErrors(groups, claims, { what = 'text' } = {}) {
         if (sm) errors.push(`${what} ${where}: "${excerpt(s.text, 100)}" uses a rule word in another sense than the blog's claims`);
         for (const t of toks) {
           const strict = t.type === 'law' || t.type === 'id' || t.type === 'fy' || (t.type === 'num' && ['%', 'money', 'pp'].includes(t.unit));
-          const pools = strict || !fieldLabelled ? [S] : [S, I];
+          // a day of the month ("by the 15th") may also come from the blog's advice (a step of the routine)
+          const dayOfMonth = t.type === 'num' && t.unit === 'ord' && Number(t.key) >= 1 && Number(t.key) <= 31;
+          const pools = strict || !fieldLabelled ? (dayOfMonth ? [S, A] : [S]) : dayOfMonth ? [S, I, A] : [S, I];
           const ok = pools.some((P) => P.some((x) => tokenCovered(t, x.ev) && [...groupStems].some((w) => x.stems.has(w))));
           if (!ok) errors.push(`${what} ${where}: ${tokenLabel(t)} is not backed by a verified claim of the blog in this context${!strict && !fieldLabelled ? ' (an example number needs an "Illustrative" / "For example" label and must match the blog\'s own example)' : ''}`);
         }
@@ -1521,6 +1534,8 @@ export const sourcePaths = (sha, kind = 'html') => ({
  */
 export function storedSourceLoader(io) {
   const metas = new Map();
+  const pdfCache = new Map(); // sha -> { bytes, pages: sparse array of extracted page texts }
+  const textCache = new Map(); // sha -> text
   const dec = new TextDecoder();
   return async (url, { sha, pages } = {}) => {
     if (!sha || !SHA_RE.test(String(sha))) return { error: 'the stored claim has no sha256 of a server-fetched source; fetch it with cli.js fetch-source and save again' };
@@ -1542,13 +1557,29 @@ export function storedSourceLoader(io) {
     const entry = { ...meta, raw_path: p.raw, text_path: meta.kind === 'pdf' ? p.raw : p.text };
     if (meta.kind === 'pdf') {
       if (!Array.isArray(pages) || !pages.length) return { error: 'a PDF quote needs the page number it is on (pages); save it again with the engine' };
-      const bytes = await io.read(p.raw);
-      if (!bytes || (await io.sha(bytes)) !== sha) return { error: `the stored PDF ${sha.slice(0, 12)}... is missing or changed` };
-      return { entry, kind: 'pdf', pages: await io.pdfPages(bytes, pages.map(Number)) };
+      // each PDF is downloaded, checked and opened once per verification; pages are extracted once each
+      if (!pdfCache.has(sha)) {
+        const bytes = await io.read(p.raw);
+        if (!bytes || (await io.sha(bytes)) !== sha) return { error: `the stored PDF ${sha.slice(0, 12)}... is missing or changed` };
+        pdfCache.set(sha, { bytes, pages: [] });
+      }
+      const c = pdfCache.get(sha);
+      const want = pages.map(Number);
+      const missing = want.filter((n) => typeof c.pages[n - 1] !== 'string');
+      if (missing.length) {
+        const got = await io.pdfPages(c.bytes, missing);
+        for (const n of missing) if (typeof got[n - 1] === 'string') c.pages[n - 1] = got[n - 1];
+      }
+      const out = [];
+      for (const n of want) if (typeof c.pages[n - 1] === 'string') out[n - 1] = c.pages[n - 1];
+      return { entry, kind: 'pdf', pages: out };
     }
-    const tb = await io.read(p.text);
-    if (!tb || (await io.sha(tb)) !== meta.text_sha256) return { error: `the stored text of ${sha.slice(0, 12)}... is missing or changed` };
-    return { entry, kind: meta.kind, text: dec.decode(tb) };
+    if (!textCache.has(sha)) {
+      const tb = await io.read(p.text);
+      if (!tb || (await io.sha(tb)) !== meta.text_sha256) return { error: `the stored text of ${sha.slice(0, 12)}... is missing or changed` };
+      textCache.set(sha, dec.decode(tb));
+    }
+    return { entry, kind: meta.kind, text: textCache.get(sha) };
   };
 }
 

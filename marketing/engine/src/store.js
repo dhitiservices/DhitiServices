@@ -255,6 +255,9 @@ function engineToken() {
   return t;
 }
 
+/** Actions that run the server's claims check (source downloads, PDF pages): allow them longer. */
+const SLOW_ACTIONS = new Set(['update_item', 'insert_item', 'verify_blog', 'fetch_source', 'insert_social_post', 'update_social_post']);
+
 async function remoteCall(action, payload) {
   const token = engineToken();
   const url = engineUrl();
@@ -265,7 +268,7 @@ async function remoteCall(action, payload) {
     try {
       res = await httpRequest(url, {
         method: 'POST',
-        timeoutMs: 90_000,
+        timeoutMs: SLOW_ACTIONS.has(action) ? 240_000 : 90_000, // the server re-checks facts on these
         body,
         headers: {
           'content-type': 'application/json',
@@ -902,6 +905,21 @@ const localActions = {
     return storeSource({ url: url.href, finalUrl: res.url, buffer: res.body, mime });
   },
 
+  /** Read-only: the server's claims check on a blog body, without saving. */
+  async verify_blog(p, k) {
+    if (k === 'publisher') fail(403, 'only session tokens may call verify_blog');
+    const body = obj(p.body, 'body');
+    const r = await core.serverVerifyBlog(core.withoutStamp(body), { lexer: await markedLexer(), hash: sha256Hex, getSource: localSourceLoader() });
+    if (!r.passed) return { passed: false, messages: r.messages, warnings: r.warnings ?? [] };
+    return { passed: true, messages: [], warnings: r.warnings ?? [], stats: r.body.claims_check.stats, server: r.body.claims_check.server };
+  },
+
+  /** The live function loads its pinned claims rules from storage; the DRY_RUN mirror imports them directly. */
+  async install_core(p) {
+    const sha = (await import('./claims.js')).sha256(String(p.content ?? ''));
+    return { installed: true, sha256: sha, core_version: core.CORE_VERSION, dry_run: true };
+  },
+
   // DRY_RUN only: put a local file in the server's source store as if the server had fetched it (tests).
   async seed_source(p) {
     const url = core.checkSourceUrl(p.url);
@@ -1248,6 +1266,8 @@ export const listRuns = ({ ids, status, kind, limit } = {}) => engineCall('list_
 
 /** The engine server fetches a source and keeps it (sources/<sha256>/); returns its meta and storage paths. */
 export const fetchSource = (url) => engineCall('fetch_source', { url });
+/** The server's claims check on a blog body, without saving (read only). */
+export const verifyBlog = (body) => engineCall('verify_blog', { body });
 /** DRY_RUN only: seed the server's source store with a local file (tests). */
 export const seedSource = (url, file, mime, finalUrl) => engineCall('seed_source', { url, file, mime, ...(finalUrl ? { final_url: finalUrl } : {}) });
 export const insertSocialPost = (row) => engineCall('insert_social_post', normalizeFks(row));

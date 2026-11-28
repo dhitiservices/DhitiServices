@@ -59,16 +59,21 @@ as failed with the error "item is <status>; not changed" and move on.
 2. Rebuild the claims ledger and its sources, then edit the markdown per the change list. Keep the slug, `image`,
    `order` and `date` unless the feedback asks.
    ```bash
-   source ~/dhiti-work/env.sh && cd "$ENGINE" && jq '[.body.claims[] | del(.verified, .sha256, .text_sha256, .source_text_path, .match, .fetched_at, .phrase) | if .extra_quotes then .extra_quotes |= map(del(.sha256, .text_sha256, .source_text_path, .match, .fetched_at)) else . end]' "$WORK/rev/<id>/item.json" > "$WORK/rev/<id>/claims.json" && node src/cli.js restore-sources --item "<id>"
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && jq '[.body.claims[] | del(.verified, .sha256, .text_sha256, .source_text_path, .match, .fetched_at, .phrase, .pages, .claim_hash, .factcheck) | if .derived then .derived |= {steps, from} else . end | if .extra_quotes then .extra_quotes |= map(del(.sha256, .text_sha256, .source_text_path, .match, .fetched_at, .pages)) else . end]' "$WORK/rev/<id>/item.json" > "$WORK/rev/<id>/claims.json" && node src/cli.js restore-sources --item "<id>"
    ```
-   `restore-sources` brings back the exact texts the claims were verified against (checked by sha256). For every
-   rule the post states, also fetch the source again (`fetch-source`) and search for newer circulars or advisories
-   (`blog-writing.md` section 1, point 6): a restored text proves what the page said then, not that it is still
-   current. New facts need new sources fetched with `fetch-source` and new claims. Edit `claim_text` whenever you
-   edit a factual sentence. A blog saved before the claims ledger has no `body.claims`: build `claims.json` from
-   scratch (`blog-writing.md` section 1b).
+   `restore-sources` brings back the exact server-fetched sources the claims were verified against (checked by
+   sha256). For every rule the post states, also fetch the source again (`fetch-source`) and search for newer
+   circulars or advisories (`blog-writing.md` section 1, point 6): a restored source proves what the page said
+   then, not that it is still current. New facts need new sources fetched with `fetch-source` and new claims. Edit
+   `claim_text` whenever you edit a factual sentence.
+   **Older blogs** (saved before the v4.1 gate: no `body.claims_check.server`, or `restore-sources` fails, or a claim
+   has a free-text `derived.arithmetic`): fetch every source again with `fetch-source`, rewrite each derived claim
+   with `derived.steps`, and build anything missing from scratch (`blog-writing.md` section 1b). The engine server
+   refuses creatives and LinkedIn posts for a blog without its stamp, so re-save such a blog (steps 3 to 5) before
+   you revise or re-render any of its creatives, even when only a creative was asked for.
 3. Run the full editing pass from `blog-editing.md` (lint, `check-blog --claims`, rubric, and the independent
-   fact-check of step 4 for every claim you added or changed).
+   fact-check of step 4, which writes `$WORK/rev/<id>/factcheck.json`; every claim needs a "correct" verdict for its
+   current text, so the checker re-checks every claim you added or changed).
 4. Cover: if the feedback asks for a different photo, choose one with `stock-selection.md` and write a new
    `stock.json`. Otherwise reuse the current cover: download the item's `blog_cover` asset
    (`assets[].storage_path` where `kind` is `blog_cover`) with `downloadFile` (see `stock-selection.md` section 1)
@@ -76,7 +81,7 @@ as failed with the error "item is <status>; not changed" and move on.
    `body.meta` (keywords, FAQ) and `body.sources` (titles in "Publisher: page title (Mon YYYY)" form).
 5. Save a new version:
    ```bash
-   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic_id>" --md "$WORK/rev/<id>/<slug>.md" --claims "$WORK/rev/<id>/claims.json" --cover "<cover file>" --stock "$WORK/rev/<id>/stock.json" --meta "$WORK/rev/<id>/meta.json" --item "<id>"
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic_id>" --md "$WORK/rev/<id>/<slug>.md" --claims "$WORK/rev/<id>/claims.json" --factcheck "$WORK/rev/<id>/factcheck.json" --cover "<cover file>" --stock "$WORK/rev/<id>/stock.json" --meta "$WORK/rev/<id>/meta.json" --item "<id>"
    ```
 6. Consistency: if the revision removed or changed a fact that a derived item (carousel, graphic, reel) of this
    blog still uses, and that derived item is `pending_review` or `awaiting_voiceover`, revise it too (same rules)
@@ -133,6 +138,10 @@ as failed with the error "item is <status>; not changed" and move on.
    ```bash
    source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js make-video --item "<id>" --voiceover "$WORK/rev/<id>/voiceover.<ext>" --voiceover-asset "<library_asset_id>"
    ```
+   If it refuses with `no fact list verified by the engine server`, the blog is an older one: re-save the blog first
+   (section 3, "Older blogs"), then run this step again. If it refuses with `not backed by the blog's verified
+   claims`, the reel's text states something the blog no longer says: fix the scene text (and `vo_line`) with a
+   full spec as below, and tell the owner in the run log that the script changed.
    If the owner's feedback also changes the scenes, write a full spec with local paths instead and add
    `--spec "$WORK/rev/<id>/video.json"` to the same command. The engine re-times scenes to the recording
    (proportional to each scene's `vo_line` words), mixes the audio at -14 LUFS with the footage muted, and sets the

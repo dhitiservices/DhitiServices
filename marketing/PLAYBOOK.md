@@ -25,12 +25,15 @@ Contract: `marketing/ARCHITECTURE.md` (v2 with the v3 addendum). Detailed rubric
    `ai_generated: "excluded"`) and `account_balance`. Never call any Magnific generation, editing, upscaling,
    TTS, music or SFX tool, and no other image or video generator. Owner library media is preferred when it fits.
 3. **Blogs must be 100% accurate. Never fabricate** facts, numbers, sources, quotes, clients or Dhiti results.
-   Every source is fetched by the engine (`node src/cli.js fetch-source <url>`), and every factual sentence of a
-   blog is in its claims ledger (`claims.json`, `playbook/blog-writing.md` section 1b) with a verbatim quote from
-   that fetched text. `save-blog` refuses any post whose ledger fails; there is no override. A source the engine
-   cannot fetch backs nothing: use another primary source or drop the sentence. A search-result snippet is never
-   verification. An independent sub-agent fact-checks every post before it is saved (`blog-editing.md` step 4).
-   Illustrative examples are labelled ("For example", "Take an illustrative case"). No relative dates.
+   Every source is fetched by the engine server (`node src/cli.js fetch-source <url>`), and every factual sentence
+   of a blog is in its claims ledger (`claims.json`, `playbook/blog-writing.md` section 1b) with a verbatim quote
+   from that fetched text, numbers matched by type and unit, in the same sense. `save-blog` refuses any post whose
+   ledger fails, and the engine server checks it again before the owner sees it; there is no override. A source the
+   server cannot fetch backs nothing: use another primary source or drop the sentence. A search-result snippet is
+   never verification. An independent sub-agent fact-checks every claim before the post is saved and records a
+   verdict per claim (`blog-editing.md` step 4, `factcheck.json`); without it the post cannot be saved. Creatives
+   and LinkedIn posts may only state what the blog's verified claims say. Illustrative examples are labelled at the
+   start of their paragraph ("For example", "Take an illustrative case"). No relative dates.
 4. **No em dashes (—)** anywhere. No banned phrases (`quality-bar.md` section 5).
 5. **Never commit, push or edit files in the repository.** All work files live in `~/dhiti-work/`. Publishing is
    done later by GitHub Actions after the owner approves.
@@ -246,10 +249,11 @@ of time, finished blogs are what the owner needs. For each topic:
 3. **Edit** (`blog-editing.md`): score the rubric, rewrite weak parts, run `lint.sh` and
    `node src/cli.js check-blog "$WORK/<slug>/<slug>.md" --claims "$WORK/<slug>/claims.json" --meta "$WORK/<slug>/meta.json"`
    until `passed` is true (site rules and claims) and every rubric score is 4+.
-3b. **Independent fact-check** (`blog-editing.md` step 4): a fresh sub-agent that did not write the post gets only
-   the post, `claims.json` and `$WORK/sources/`, and tries to refute every claim and find newer law. Fix or drop
-   every finding, re-run step 3. An unresolved finding means the blog is not saved (mark the topic failed with the
-   reason, section F).
+3b. **Independent fact-check** (`blog-editing.md` step 4): make the sheet with `factcheck-sheet`; a fresh sub-agent
+   that did not write the post gets only the post, the sheet and `$WORK/sources/`, tries to refute every claim and
+   find newer law, and writes `$WORK/<slug>/factcheck.json` (a verdict per claim). Fix or drop every finding, re-run
+   step 3 and the fact-check for the changed claims. A claim without a "correct" verdict means the blog is not saved
+   (mark the topic failed with the reason, section F).
 4. **Cover photo** (`stock-selection.md`): owner library first, else Magnific photos (landscape, people,
    `ai_generated: "excluded"`, Indian/South Asian professional context, authentic, no text/logos/watermarks).
    Inspect previews on a contact sheet before buying. `stock_download`, then **immediately**
@@ -257,12 +261,13 @@ of time, finished blogs are what the owner needs. For each topic:
    `$WORK/<slug>/stock.json`. Update `imageAlt` to describe the chosen photo, then re-run `check-blog`.
 5. **Save**:
    ```bash
-   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic id>" --md "$WORK/<slug>/<slug>.md" --claims "$WORK/<slug>/claims.json" --cover "$WORK/stock/<id>.jpg" --stock "$WORK/<slug>/stock.json" --meta "$WORK/<slug>/meta.json" | tee "$WORK/<slug>/blog.saved.json"
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic id>" --md "$WORK/<slug>/<slug>.md" --claims "$WORK/<slug>/claims.json" --factcheck "$WORK/<slug>/factcheck.json" --cover "$WORK/stock/<id>.jpg" --stock "$WORK/<slug>/stock.json" --meta "$WORK/<slug>/meta.json" | tee "$WORK/<slug>/blog.saved.json"
    ```
    Record the blog item id in `state.json`. The item is now `pending_review`, scheduled for the planned date 10:00 IST.
-   The engine stored every claim with `verified: true` and the exact source texts under
-   `items/<id>/v<n>/sources/`; the owner sees the fact list in the dashboard. If it refuses with
-   `claims check failed`, fix each listed sentence (or drop it) and run step 3 and 3b again.
+   The engine server re-checked every claim against its own copies of the sources (`sources/<sha256>/`) and stamped
+   the fact list (`body.claims_check.server`, printed as `server_check`); the owner sees it in the dashboard. If it
+   refuses with `claims check failed` (locally or `on the server`), fix each listed sentence (or drop it) and run
+   step 3 and 3b again.
 
 ## 5. Creatives (per blog, in priority order)
 
@@ -281,12 +286,17 @@ two creatives of the same blog (the engine refuses it). Each format gets its own
    on-screen text at most 9 words, `voiceover_script` + per-scene `vo_line`, mostly portrait stock footage (at most
    5 clips) plus stills. `preview video`, extract 3+ frames with ffmpeg and Read them, then
    `make-video --parent <blog item id> --spec ...`. The item waits in `awaiting_voiceover` for the owner's recording.
-4. Creative copy follows the claims rule too: a number, date or section on a slide, graphic or reel must be one the
-   blog's verified claims contain.
+4. Creative copy follows the claims rule too, and `make-*` (and the engine server) refuse anything else: every
+   number, date, section or rule on a slide, graphic, caption, on-screen line or voiceover line must be in a verified
+   claim of the blog, in the same context (a shared word), written the same way (18% for 18%, not "nearly a fifth").
+   Example numbers need an "Illustrative" / "For example" label on that slide or scene (or the one before it) and
+   must match the blog's own example. "Step 2" labels and counts of the creative's own items ("Three things ...")
+   are layout. A day of the month from the routine ("by the 15th") may come from the blog's advice.
 5. **LinkedIn post** (`linkedin.md`): recommend ONE format with a one-line reason the owner sees, write the caption
    and the first-comment line in Dhiti's voice, and save it with `node src/cli.js save-social --blog <blog item id>
    --format carousel|video|graphic --source-item <that creative's id> --caption <file> --first-comment <file>
-   --reason "<one line>"`. The owner approves it in the dashboard; never try to approve or publish it.
+   --reason "<one line>"`. The claims rule covers the caption, the first comment and the reason. The owner approves
+   it in the dashboard; never try to approve or publish it.
 6. `node src/cli.js topic --id <topic id> --status ready` once the blog is saved, its creatives and its LinkedIn post
    are done (or have failed and been logged; see section F).
 
@@ -385,11 +395,12 @@ node src/cli.js run start --kind weekly|jobs              -> {id}
 node src/cli.js save-brief brief.json                     -> {id}
 node src/cli.js save-topics topics.json                   -> [{id,title}]
 node src/cli.js topic --id ID --status producing|ready|failed
-node src/cli.js fetch-source URL [URL ...]                 -> sources saved in $WORK/sources (sha256 + text)
-node src/cli.js restore-sources --item BLOG_ID            -> the verified source texts of a saved blog (revisions)
+node src/cli.js fetch-source URL [URL ...]                 -> the server fetches it; copy in $WORK/sources (sha256 + text)
+node src/cli.js restore-sources --item BLOG_ID            -> the server-fetched sources of a saved blog (revisions)
 node src/cli.js check-blog draft.md --claims claims.json --meta meta.json -> {passed, messages, claims:{...}}
+node src/cli.js factcheck-sheet --claims claims.json --md draft.md --meta meta.json --out sheet.json  -> for the fact-checker
 node src/cli.js fetch URL --out FILE                      -> {path, bytes, mime} (stock media)
-node src/cli.js save-blog --topic ID --md F --claims claims.json --cover F --stock F --meta F [--item ID]
+node src/cli.js save-blog --topic ID --md F --claims claims.json --factcheck factcheck.json --cover F --stock F --meta F [--item ID]
 node src/cli.js save-social --blog ID --format carousel|video|graphic --source-item ID --caption F --first-comment F --reason "..." [--item POST_ID]
 node src/cli.js social list --blog ID                     -> the blog's LinkedIn post
 node src/cli.js sweep [--dry-list]                        -> stuck generating items cleaned up (never a live run's)
@@ -400,6 +411,6 @@ node src/cli.js run finish --id ID --status succeeded|failed --log run-log.md
 ```
 
 `$WORK` layout: `ctx.json`, `run.json`, `state.json`, `run-log.md`, `credits.jsonl`, `library.json`, `brief.json`,
-`topics.json`, `stock/<id>.<ext>`, `sources/` (engine-fetched sources: `manifest.json`, raw files, `<sha>.txt`),
-`prev/` (previews and contact sheets), `<slug>/` (draft, `claims.json`, `factcheck.md`, `meta.json`, stock.json,
+`topics.json`, `stock/<id>.<ext>`, `sources/` (local copies of the server-fetched sources: `manifest.json`, raw files, `<sha>.txt`),
+`prev/` (previews and contact sheets), `<slug>/` (draft, `claims.json`, `factcheck-sheet.json`, `factcheck.json`, `factcheck.md`, `meta.json`, stock.json,
 specs, previews, LinkedIn caption and comment), `rev/<item id>/` (revisions).

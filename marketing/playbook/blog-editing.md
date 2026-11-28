@@ -56,11 +56,22 @@ Claims messages and what to do:
 - `claim_text not found in the post`: copy the sentence again from the draft (markdown removed).
 - `quote is not in the fetched text`: the quote is not verbatim, or it is from another page. Open the `text_file`
   that `fetch-source` printed and copy the passage exactly. Never "fix" a quote to match your sentence.
-- `number "x" not in the quote`: quote the passage that states it, or mark the claim `derived` with the working,
-  or change the sentence to what the source says.
-- `sentence with ... has no claim`: add a claim (sourced, `illustrative` with its label, or `advice` with a note),
-  or cut the sentence.
-- `not fetched by the engine`: run `fetch-source` for it; if the engine cannot fetch it, find another source.
+- `number "x" (a percentage) not in the quote`: quote the passage that states it in the same form, add
+  `derived.steps` that compute it (`blog-writing.md` 1b), or change the sentence to what the source says.
+- `is in the quote, but in another context`: the quote uses that number for something else. Quote the passage that
+  says this about it.
+- `comes from a quote that does not name section ...`: start the quote at the sub-section's label ("(4)A registered
+  person ...") or cite the passage that names it.
+- `the claim says "..." where its quote says "..."`: the claim flips or drops a "not", "unless", "only if" or
+  "even when". Write it in the same sense as the source.
+- `superseded` / `is the OLD value`: the source still carries old law or an old rate. Cite the current rule.
+- `sentence with ... has no claim`: add a claim (sourced, `illustrative` with its label at the start of the
+  paragraph, or `advice` with a note), or cut the sentence. `(the part outside the claim changes its meaning)`:
+  the claim must cover the "but ..." or "unless ..." too.
+- `advice cannot state rules` / `advice cannot carry facts`: split the fact into a sourced claim, or rephrase it as a
+  recommendation without numbers.
+- `not fetched by the engine` / `not fetched by the engine server`: run `fetch-source` for it; if the server cannot
+  fetch it, find another primary source.
 
 The lint script is written during setup (PLAYBOOK.md section 1). Lint notes: "journey" and "navigate" are fine only in their literal travel sense ("the traveller's journey from
 Pune to Dubai" is acceptable; "the outsourcing journey" is not). Link URLs are ignored by the lint.
@@ -84,34 +95,48 @@ three rounds, read its messages carefully: they are the site's exact rules. Do n
 
 ## Step 4: independent fact-check (a fresh sub-agent that did not write the post)
 
-The writer cannot check their own facts. Spawn a **new** general-purpose sub-agent with the Agent (Task) tool. Give
-it only the post, `claims.json` and the fetched sources folder; not your notes, not the brief, not this
-conversation. Prompt (fill in the paths and the planned publish date):
+The writer cannot check their own facts. First make the sheet the checker fills in:
+
+```bash
+source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js factcheck-sheet --claims "$WORK/<slug>/claims.json" --md "$WORK/<slug>/<slug>.md" --meta "$WORK/<slug>/meta.json" --out "$WORK/<slug>/factcheck-sheet.json"
+```
+
+Each row has the claim, its quotes, the engine's worked dates (`derived_working`), any quote that matched only
+loosely (`look_closely`) and a `claim_hash` that binds the verdict to exactly this claim: change the claim and the
+verdict no longer counts.
+
+Spawn a **new** general-purpose sub-agent with the Agent (Task) tool. Give it only the post, the sheet and the
+fetched sources folder; not your notes, not the brief, not this conversation. Prompt (fill in the paths and the
+planned publish date):
 
 ```text
 You are a sceptical fact-checker for a B2B blog that finance and tax readers will scrutinise. You did not write it.
-Files: the post <WORK>/<slug>/<slug>.md, its claims ledger <WORK>/<slug>/claims.json, and the source texts the
-claims cite in <WORK>/sources/ (manifest.json maps each URL to its text_file). The post goes live on <date> and must
-stay true for 12 months.
-1. For EVERY claim, try to refute it: read the quote in its source text and its surrounding paragraph. Does the
+Files: the post <WORK>/<slug>/<slug>.md, the fact-check sheet <WORK>/<slug>/factcheck-sheet.json, and the source
+texts the claims cite in <WORK>/sources/ (manifest.json maps each URL to its text_file). The post goes live on <date>
+and must stay true for 12 months.
+1. For EVERY row, try to refute the claim: read the quote in its source text and its surrounding paragraph. Does the
    source really say what the sentence says, with the same number, unit, sample, date, condition and scope? Is a
-   recommendation or proposal written as if it were law? Is an exception or proviso missing? Is a derived date or
-   sum computed correctly?
+   recommendation or proposal written as if it were law? Is an exception or proviso missing? Is derived_working
+   right, and does the claim follow from it? Compare every look_closely quote with the source character by character.
 2. Check for missing or outdated law: for each rule, search the web for later circulars, notifications, GST Council
-   decisions, GSTN advisories, RBI or DGCA updates (search "<rule> circular <year>", the latest GST Council press
-   release and newsletter). Report anything that changes or adds to a rule, with its URL.
-3. Check the advice and illustrative claims: is any of them really a factual claim without a source? Is every
-   example labelled?
+   decisions, Finance Acts, GSTN advisories, RBI or DGCA updates (search "<rule> circular <year>", the latest GST
+   Council press release and newsletter). Report anything that changes or adds to a rule, with its URL.
+3. Check the advice and illustrative rows: is any of them really a factual claim without a source? Is every example
+   clearly an example?
 4. Check for relative dates and for anything that depends on the day the post goes live.
-Answer as a list: claim id, verdict (OK / WRONG / INCOMPLETE / OUTDATED / UNSOURCED), one-line reason, the URL of
-any newer source. Be strict: when in doubt, it is not OK.
+Write <WORK>/<slug>/factcheck.json: a JSON array with one object per row:
+  {"id": <row id>, "claim_hash": <row claim_hash, copied>, "verdict": "correct" | "wrong" | "unsure",
+   "note": "<what you checked, or what is wrong, with the URL of any newer source>",
+   "current": true   (only for law rows, and only after step 2 found nothing newer)}
+Be strict: when in doubt, the verdict is "unsure". Also write a short summary in <WORK>/<slug>/factcheck.md.
 ```
 
-Save its answer in `$WORK/<slug>/factcheck.md`. Then, for every verdict that is not OK: rewrite the sentence and its
-claim (fetch any newer source with `fetch-source`, and cite the newer primary document), or drop the sentence. Never
-argue a finding away. If you changed anything, run Step 3 again; if the change was more than wording, run the
-fact-check again on the changed claims. **Any unresolved finding means the post is not saved.** Record in the run
-log: claims count, findings, what changed.
+Then, for every verdict that is not "correct": rewrite the sentence and its claim (fetch any newer source with
+`fetch-source`, and cite the newer primary document), or drop the sentence. Never argue a finding away and never
+edit `factcheck.json` yourself: a changed claim gets a new `claim_hash`, so run the sheet and the fact-check again
+for the changed claims (the checker may keep its verdicts for unchanged rows). **Any claim without a "correct"
+verdict means the post is not saved** (`save-blog` refuses it). Record in the run log: claims count, findings, what
+changed.
 
-If the session has no Agent tool, do the same review yourself as a separate pass, reading only those three inputs,
-and say in the run log that the fact-check was not independent.
+If the session has no Agent tool, the post cannot be saved: mark the topic failed with the reason "no independent
+fact-check available" (PLAYBOOK.md section F).

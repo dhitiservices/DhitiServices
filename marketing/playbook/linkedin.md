@@ -29,9 +29,13 @@ The reason is one plain sentence in the owner's language, starting with the form
 - **At most 3 hashtags, all on the last line**, CamelCase letters and digits: `#TravelOperations #GST #CorporateTravel`.
   No `#` anywhere else.
 - No em dashes, no emojis, no @mentions, no exclamation marks, no banned phrases (`quality-bar.md`), no hype.
-- **The claims rule applies:** every number, date, section or document number in the caption must already be a
-  verified sourced claim of the blog (the engine checks against the blog's `body.claims`). An example number is
-  allowed only in a paragraph that starts "For example". Nothing that is not in the blog.
+- **The claims rule applies** to the caption, the first comment and the format reason (the CLI and the engine server
+  both check it): every number, date, section or rule must be in a verified claim of the blog, in the same form and
+  context (18% is backed by a claim with 18%, never by "the 14th" or by GSTR-2B), and a rule stated without numbers
+  ("you have to file before the due date") must use the blog's own wording. An example number is allowed only in a
+  paragraph labelled "For example" / "(An illustrative month.)" and must be the blog's own example; a percentage,
+  money, a section or a financial year is never an example. Nothing that is not in the blog. If the blog was saved
+  before the v4.1 gate, save the blog again first (`revisions.md` section 3, "Older blogs").
 - The carousel's `caption_linkedin` is a starting point: remove its URL and fit it to these rules.
 
 ## 3. First comment

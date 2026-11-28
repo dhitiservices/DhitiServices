@@ -29,14 +29,21 @@
 //     ledger (claims-core.js, the same file the engine CLI runs) on every session write that puts a blog in front of
 //     the owner; it stores its own verified flags and a stamp (body.claims_check.server) and refuses (400) on any
 //     failure. Creatives entering review and LinkedIn posts are checked against the blog's verified claims.
-//     update_item takes expect_status (conditional write for the engine's sweep).
+//     update_item takes expect_status (conditional write for the engine's sweep); verify_blog is a read-only dry run.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 import { marked } from "npm:marked@15.0.12";
 import { getDocumentProxy } from "npm:unpdf@1.9.1";
-import * as core from "./claims-core.js";
 
 const VERSION = "2.6.0";
+/**
+ * The claims rules (marketing/engine/src/claims-core.js; supabase/functions/engine/claims-core.js is the same file).
+ * The function runs exactly this version: it loads the module from storage (code/, which only this function
+ * writes) and refuses to run if its sha256 differs from the pin. Install it after a deploy with
+ * `node src/cli.js install-core` (action install_core, which accepts only content with this sha256).
+ */
+const CORE_SHA256 = "cbf07e137a69dd17102a412566b24d8efde092a43db60399adc56b06ac9133f7";
+const CORE_PATH = `code/claims-core-${CORE_SHA256}.js`;
 const BUCKET = "marketing";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -308,8 +315,14 @@ async function writeStorage(path: string, bytes: Uint8Array, contentType: string
   const { error } = await db().storage.from(BUCKET).upload(path, bytes, { contentType, upsert: true });
   if (error) throw dbError(`store ${path}`, error as never);
 }
+// deno-lint-ignore no-explicit-any
+const pdfDocs = new WeakMap<Uint8Array, any>(); // one parsed document per downloaded PDF
 async function pdfPages(bytes: Uint8Array, pages: number[]): Promise<string[]> {
-  const pdf = await getDocumentProxy(new Uint8Array(bytes));
+  let pdf = pdfDocs.get(bytes);
+  if (!pdf) {
+    pdf = await getDocumentProxy(new Uint8Array(bytes));
+    pdfDocs.set(bytes, pdf);
+  }
   const out: string[] = [];
   for (const n of pages) {
     if (!Number.isInteger(n) || n < 1 || n > pdf.numPages) continue;
@@ -318,6 +331,25 @@ async function pdfPages(bytes: Uint8Array, pages: number[]): Promise<string[]> {
     out[n - 1] = core.pdfPageText(tc.items as any);
   }
   return out;
+}
+// deno-lint-ignore no-explicit-any
+let core: any = null;
+/** Evaluates the pure ES module (no imports) and returns its exports. */
+function evalModule(src: string) {
+  const names: string[] = [];
+  const body = src.replace(/^export (async function|function|const|let|class) ([A-Za-z_$][\w$]*)/gm, (_m, kw, name) => {
+    names.push(name);
+    return `${kw} ${name}`;
+  });
+  return new Function(`"use strict";\n${body}\nreturn { ${names.join(", ")} };`)();
+}
+async function loadCore() {
+  if (core) return core;
+  const b = await readStorage(CORE_PATH);
+  if (!b) throw new ApiError(503, "the claims rules are not installed for this version yet (run: node src/cli.js install-core)");
+  if ((await shaBytes(b)) !== CORE_SHA256) throw new ApiError(503, "the installed claims rules do not match this version");
+  core = evalModule(new TextDecoder().decode(b));
+  return core;
 }
 const lexer = (src: string) => marked.lexer(src);
 const sourceLoader = () => core.storedSourceLoader({ read: readStorage, sha: shaBytes, pdfPages });
@@ -725,6 +757,30 @@ const actions: Record<string, Handler> = {
     return { ...meta, raw_path: paths.raw, text_path: kind === "pdf" ? paths.raw : paths.text };
   },
 
+  /** Installs the pinned claims rules (only content whose sha256 equals CORE_SHA256 is accepted). */
+  async install_core(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call install_core");
+    if (typeof p.content !== "string") throw bad("install_core: content must be the text of claims-core.js");
+    const bytes = new TextEncoder().encode(p.content);
+    const sha = await shaBytes(bytes);
+    if (sha !== CORE_SHA256) throw new ApiError(409, `install_core: this function runs claims-core.js ${CORE_SHA256.slice(0, 12)}..., not ${sha.slice(0, 12)}...; deploy the matching function first`);
+    await writeStorage(CORE_PATH, bytes, "text/plain");
+    core = null;
+    await loadCore();
+    return { installed: true, sha256: sha, core_version: core.CORE_VERSION };
+  },
+
+  /** Read-only: runs the server's claims check on a blog body (as a save would) and returns the verdict. */
+  async verify_blog(p, caller) {
+    if (caller.kind !== "session") throw new ApiError(403, "only session tokens may call verify_blog");
+    const body = obj(p.body, "body");
+    const r = await core.serverVerifyBlog(core.withoutStamp(body), { lexer, hash: sha256Hex, getSource: sourceLoader() });
+    if (!r.passed) return { passed: false, messages: r.messages, warnings: r.warnings ?? [] };
+    const b = r.body as Obj;
+    const cc = b.claims_check as Obj;
+    return { passed: true, messages: [], warnings: r.warnings ?? [], stats: cc.stats, server: cc.server };
+  },
+
   async get_item(p) {
     const id = uuid(p.id);
     const row = await single("get_item", db().from("content_items").select("*, assets(*)").eq("id", id).maybeSingle(), `item ${id} not found`);
@@ -998,7 +1054,7 @@ Deno.serve(async (req: Request) => {
   let status = 200;
   try {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-    if (req.method === "GET") return json(200, { ok: true, data: { service: "dhiti-engine", version: VERSION } });
+    if (req.method === "GET") return json(200, { ok: true, data: { service: "dhiti-engine", version: VERSION, core_sha256: CORE_SHA256 } });
     if (req.method !== "POST") throw new ApiError(405, "use POST { action, payload }");
 
     let body: unknown;
@@ -1015,6 +1071,7 @@ Deno.serve(async (req: Request) => {
     kind = caller.kind;
     if (!handler) throw bad(`unknown action "${action}"`);
     if (caller.kind === "publisher" && !PUBLISHER_ACTIONS.has(action)) throw new ApiError(403, `publisher tokens may not call ${action}`);
+    if (action !== "install_core") await loadCore(); // fail closed: no action runs without the pinned rules
 
     const data = await handler(obj(body.payload), caller);
     return json(200, { ok: true, data: data ?? null });

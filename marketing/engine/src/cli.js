@@ -34,7 +34,8 @@ const HELP = `Dhiti marketing engine
   fetch-source <url> [<url> ...] [--dir <sources dir>]   the engine SERVER fetches a source page/PDF (sha256 + text); copied locally
   restore-sources --item <blogId> [--dir <sources dir>]  bring back the server-fetched sources of a saved blog (revisions)
   check-blog <draft.md> [--slug <slug>] [--claims <claims.json> --meta <meta.json>] [--factcheck <factcheck.json>]
-  factcheck-sheet --claims <claims.json> --out <sheet.json>   the sheet the independent fact-checker fills in (claim hashes)
+  factcheck-sheet --claims <claims.json> --out <sheet.json> [--md <draft.md> --meta <meta.json>]   the sheet the independent fact-checker fills in
+  install-core                              after deploying the engine function: install the claims rules it is pinned to
   save-blog --topic <id> --md <draft.md> --claims <claims.json> --factcheck <factcheck.json> --cover <photo> --stock <stock.json> [--meta <meta.json>]
             [--item <id>] [--focus x,y] [--sources-dir <dir>] [--owner-note "<text shown to the owner above the post>"]
   save-social --blog <id> --format carousel|video|graphic --source-item <id> --caption <caption.txt>
@@ -556,12 +557,39 @@ async function checkLedger(claimsFile, { markdown, frontmatter, faq, sourcesDir,
   return ledger;
 }
 
+/** After a deploy of the engine function: installs the claims rules it is pinned to (this repo's claims-core.js). */
+async function cmdInstallCore() {
+  ensureAuth();
+  const file = fileURLToPath(new URL('./claims-core.js', import.meta.url));
+  const content = await fs.readFile(file, 'utf8');
+  const r = await store.engineCall('install_core', { content });
+  return { ...r, file };
+}
+
 /** The sheet for the independent fact-checker (playbook/blog-editing.md step 4). */
 async function cmdFactcheckSheet({ opts }) {
   let claims = await readJsonFile(need(opts, 'claims', 'claims.json'), 'claims');
   if (!Array.isArray(claims)) claims = claims?.claims;
   if (!Array.isArray(claims)) throw new UsageError('--claims must be a JSON array');
   const sheet = factcheckSheet(claims);
+  // With the draft, the sheet also shows what the engine found (loose matches, the worked dates, problems).
+  const mdFile = optStr(opts, 'md');
+  if (mdFile) {
+    const r = await checkBlogFile(path.resolve(mdFile), { slug: optStr(opts, 'slug') });
+    const meta = await readMeta(optStr(opts, 'meta'));
+    const ledger = await verifyClaims(claims, { markdown: r.markdown, frontmatter: r.frontmatter, faq: faqOf(meta, r.frontmatter), sourcesDir: path.resolve(optStr(opts, 'sources-dir') || defaultSourcesDir()) });
+    const byId = new Map(ledger.claims.map((c) => [c.id, c]));
+    for (const row of sheet) {
+      const v = byId.get(String(row.id));
+      if (!v) continue;
+      const loose = [v, ...(v.extra_quotes || [])].filter((q) => q.match === 'loose').map((q) => q.source_url);
+      if (loose.length) row.look_closely = `quote matched only after removing spacing and line breaks (${loose.join(', ')}): compare it with the source`;
+      if (v.derived?.arithmetic) row.derived_working = v.derived.arithmetic;
+      const probs = ledger.messages.filter((m) => m.startsWith(`claim ${JSON.stringify(String(row.id))}:`));
+      if (probs.length) row.engine_problems = probs;
+      if (v.kind === 'illustrative' || v.kind === 'advice') row.check = v.kind === 'advice' ? 'is this really advice (no hidden fact or rule)?' : 'is this clearly an example, and could a reader take it as a fact?';
+    }
+  }
   const out = optStr(opts, 'out');
   if (out) await fs.writeFile(path.resolve(out), JSON.stringify(sheet, null, 2));
   return { claims: sheet.length, out: out ? path.resolve(out) : null, sheet: out ? undefined : sheet, how: 'for each row set verdict ("correct" | "wrong" | "unsure"), a short note on what you checked, and current: true for law claims once you searched for newer rules; keep id and claim_hash' };
@@ -1561,6 +1589,7 @@ const COMMANDS = {
   'check-blog': cmdCheckBlog,
   'fetch-source': cmdFetchSource,
   'factcheck-sheet': cmdFactcheckSheet,
+  'install-core': cmdInstallCore,
   'restore-sources': cmdRestoreSources,
   'save-social': cmdSaveSocial,
   social: cmdSocial,

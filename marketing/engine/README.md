@@ -39,16 +39,18 @@ Every command prints **one JSON value on stdout** and writes logs to stderr. Exi
 | `run start --kind weekly` / `run finish --id X --status succeeded [--log file]` | run bookkeeping |
 | `save-brief brief.json [--run id]` | inserts the research brief and returns `{id}` |
 | `save-topics topics.json` | inserts the topics and returns `[{id,title,planned_publish_date}]` |
-| `fetch-source <url> [<url> ...] [--dir D]` | fetches a source page or PDF for the claims ledger into `$SOURCES_DIR` (default `$WORK/sources`): raw file named by its sha256, extracted text (`<sha>.txt`; PDFs via unpdf), `manifest.json` entry with `fetched_at` |
-| `restore-sources --item B [--dir D]` | for revisions: downloads the source texts a saved blog was verified against (checked by sha256) into the sources folder |
-| `check-blog draft.md [--claims claims.json --meta meta.json]` | the website's exact rules plus extra checks, and with `--claims` the full claims ledger, giving `{passed,messages,warnings,words,sections,claims}` |
-| `save-blog --topic T --md draft.md --claims claims.json --cover photo.jpg --stock stock.json [--meta meta.json] [--owner-note "..."] [--item I] [--focus x,y] [--sources-dir D]` | refuses (exit 1, nothing saved) unless the claims ledger passes; stores `body.claims` (each `verified: true`, with `source_text_path`) and uploads the source texts to `items/<id>/v<n>/sources/<sha>.txt`. It also checks the draft (including link safety: only https/mailto/#/relative links, no reference-style definitions), builds a 1600x900 WebP cover (q82, attention crop), uploads it and creates the blog item, or a new version of it, as `pending_review`. `scheduled_for` is the topic's planned date at 10:00 IST |
+| `fetch-source <url> [<url> ...] [--dir D]` | asks the engine SERVER to fetch a source page or PDF (`fetch_source`: bytes, sha256 and text under storage `sources/<sha256>/`, where no session can write), then downloads that exact copy into `$SOURCES_DIR` (default `$WORK/sources`): raw file named by its sha256, extracted text (`<sha>.txt`; PDFs via unpdf, page by page), `manifest.json` entry |
+| `restore-sources --item B [--dir D]` | for revisions: downloads the server-fetched sources a saved blog was verified against (checked by sha256) into `$SOURCES_DIR` |
+| `check-blog draft.md [--claims claims.json --meta meta.json] [--factcheck factcheck.json]` | the website's exact rules plus extra checks (no HTML comments, invisible characters or non-ASCII digits), and with `--claims` the full claims ledger (FAQ from meta.json, else the frontmatter, as in save-blog), giving `{passed,messages,warnings,words,sections,claims}` |
+| `install-core` | after deploying the engine function: installs the `claims-core.js` it is pinned to (`CORE_SHA256` in `index.ts`); until then every action answers 503 |
+| `factcheck-sheet --claims claims.json --out sheet.json [--md draft.md --meta meta.json]` | the sheet the independent fact-checker fills in: one row per claim with its `claim_hash` (the verdict counts only for exactly that claim), the engine's worked dates and any loosely matched quote |
+| `save-blog --topic T --md draft.md --claims claims.json --factcheck factcheck.json --cover photo.jpg --stock stock.json [--meta meta.json] [--owner-note "..."] [--item I] [--focus x,y] [--sources-dir D]` | refuses (exit 1, nothing saved) unless the claims ledger passes with a "correct" fact-check verdict for every claim and every source was fetched by the server; then the engine function re-runs the same checks (`claims-core.js`) with its own copies of the sources and stores its own `body.claims` and stamp (`claims_check.server`), or refuses with 400. It also checks the draft (including link safety: only https/mailto/#/relative links, no reference-style definitions), builds a 1600x900 WebP cover (q82, attention crop), uploads it and creates the blog item, or a new version of it, as `pending_review`. `scheduled_for` is the topic's planned date at 10:00 IST |
 | `make-carousel --parent B --spec carousel.json [--item I]` | 1080x1350 PNG slides and a PDF |
 | `make-graphic --parent B --spec graphic.json [--item I]` | 1080x1080 and 1200x627 PNGs |
 | `make-video --parent B --spec video.json [--item I] [--voiceover vo.mp3 --voiceover-asset id]` | 1080x1920 H.264 reel and a JPEG poster. With `voiceover_script` and no voiceover, the item waits in `awaiting_voiceover` |
 | `make-video --item I --voiceover vo.mp3 [--voiceover-asset id]` | re-renders from the stored sources (no spec and no re-download needed). Scenes are re-timed to the recording in proportion to each scene's `vo_line` word count (lead 0.25 s, tail 0.45 s, minimum 1.5 s per scene, up to 90 s); the voiceover is loudness-normalised to -14 LUFS (true peak -1.5 dB) and replaces the silent track; clip audio is always muted. The item returns to `pending_review` |
 | `preview carousel\|graphic\|video --spec f --out dir [--publish-date YYYY-MM-DD]` / `preview cover --cover photo --out dir [--md draft.md]` | renders locally without uploading, for self-review. Prints `warnings` (dates without a year, dates before the publish date); video previews also write `safe-zone-sheet.jpg` (one frame per scene with the platform UI zones shaded) |
-| `save-social --blog B --format carousel\|video\|graphic --source-item C --caption caption.txt --first-comment comment.txt --reason "..." [--item P] [--draft]` | the blog's LinkedIn post (`social_posts`, LINKEDIN.md 2.5/5): checks the caption (link, domain, em dash, hashtags on the last line, hook in the first 200 characters, emoji, @mentions, numbers backed by the blog's verified claims) and the first comment (one line, no link; the UTM link is shown in `first_comment_preview`), and that the source item is the blog's newest creative of that format. Saved as `pending_review`; only the owner approves |
+| `save-social --blog B --format carousel\|video\|graphic --source-item C --caption caption.txt --first-comment comment.txt --reason "..." [--item P] [--draft]` | the blog's LinkedIn post (`social_posts`, LINKEDIN.md 2.5/5): checks the caption (link, domain, em dash, hashtags on the last line, hook in the first 200 characters, emoji, @mentions, the claims rule) and the first comment (one line, no link, the claims rule; the UTM link is shown in `first_comment_preview`), and that the source item is the blog's newest creative of that format. The reason is checked by the claims rule too, and the engine server repeats the claims rule. Saved as `pending_review`; only the owner approves |
 | `social list [--blog B]` · `social get --id P` | read LinkedIn posts |
 | `sweep [--run R] [--hours 2] [--dry-list]` | marks stuck `generating` items failed (revisions go back to their previous status and content). Never touches an item whose run (`body.generating.run_id`, from `RUN_ID`) is still running |
 | `topic --id T --status ready` · `job claim [--kinds regenerate]` · `job finish --id J --status done` · `item --id I` | bookkeeping |
@@ -108,14 +110,23 @@ in its place, so the database never holds local paths.
 
 ### Claims ledger (`claims.json`)
 
-Shape and rules: `marketing/playbook/blog-writing.md` section 1b and `src/claims.js`. Each entry is
-`{id, kind, claim_text, source_url, source_title, quote, extra_quotes?, derived?, note?}` with `kind` one of
-`fact, law, stat, date, quote` (sourced), `dhiti` (owner-approved proof points), `illustrative` (labelled example),
-`advice` (recommendation, needs `note`). The engine checks: claim_text is in the post; the source is in the
-engine's own fetch manifest with matching sha256; the 8 to 60 word quote is in the fetched text (normalised);
-every number, date, financial year, section and document number of the claim is in the quote or in
-`derived.arithmetic`; law claims cite a government source; no factual-looking sentence is uncovered; no relative
-dates; numbers in title, description, imageAlt and FAQ are backed by sourced claims.
+Shape and rules: `marketing/playbook/blog-writing.md` section 1b and `src/claims-core.js` (pure rules, shared with
+the engine function, which runs an exact copy at `supabase/functions/engine/claims-core.js`; `src/claims.js` adds the
+local source cache and PDF extraction). Each entry is
+`{id, kind, claim_text, source_url, source_title, quote, extra_quotes?, derived?: {steps, from?}, note?, factcheck}`
+with `kind` one of `fact, law, stat, date, quote` (sourced), `dhiti` (owner-approved proof points), `illustrative`
+(labelled example), `advice` (recommendation, needs `note`). The engine checks: claim_text is in the post (or its
+title, description, image alt or FAQ); the source was fetched by the server (sha256-bound); the 8 to 60 word quote
+is in the fetched text (normalised; a loose match keeps digit separators, so a number can never change); every
+number, date, financial year, section and document number of the claim is matched by a token of the same type and
+unit in the quotes (no digits from form names or labels), in the same context, or produced by `derived.steps` (a
+machine-checked date / FY / sum / count derivation); rule words keep their sense (negation, conditions); superseded
+provisions and old values ("from X to Y") are refused as current; a claim naming a sub-section takes its numbers
+from that sub-section's text; anything about law cites a government source first; illustrative examples start their
+paragraph with a label and carry no law, %, money or FY; advice carries no facts or rule words; no factual-looking
+sentence (digits or number words, rule words, dates) is uncovered anywhere; no relative dates; every claim has the
+fact-checker's "correct" verdict bound to its `claim_hash`. Creatives (`make-*`) and LinkedIn posts (`save-social`)
+may only state facts the blog's verified claims state (`derivedTextErrors`), and the server checks that too.
 
 ## Publishing
 

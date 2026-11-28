@@ -306,3 +306,61 @@ through the engine's signed URLs).
 item in `generating` only if its run is this run, is no longer running, has run over 12 h, or (no run recorded) the
 item's `updated_at` is over 2 h old; a revision goes back to `prev_status` with its previous content. It never
 touches an item whose run is still running.
+
+## v4.1 Accuracy gate on the server (engine API v2.6.0; binding, supersedes v4 where they differ)
+
+The claims rules live in one pure module, `marketing/engine/src/claims-core.js`. The engine function runs an exact
+copy (`marketing/supabase/functions/engine/claims-core.js`; the engine tests fail if the two differ), so the CLI and
+the server give the same verdict. The CLI check is a convenience; **the server check is the gate.**
+
+**Sources are fetched by the server.** `fetch_source {url}` (session only): https on port 443, a public host name (no
+IP literals, no internal or Supabase hosts), every redirect re-checked, at most 30 MB, HTML / PDF / text only. The
+function stores `sources/<sha256>/raw.<pdf|html|txt>`, `text.txt` (HTML and text, extracted with the core's
+`htmlToText`) and `meta.txt` (JSON: `sha256, url, final_url, urls, mime, kind, bytes, pages, title, text_sha256,
+fetched_at, first_fetched_at, origin: "server"`), and returns the meta with `raw_path` / `text_path`. Sessions can read
+`sources/` through `sign_download`, never write it (`sign_upload` accepts only `items/`). PDF text is extracted page by
+page with unpdf, the same way on both sides; stored PDF claims record their `pages`.
+
+**Blog writes.** On every session write that leaves a blog in `pending_review` (insert or update, with or without a
+new body), the function re-runs the full ledger on the resulting body against its own stored sources, ignoring every
+`verified` flag the session sent, and answers 400 with the problems on failure. On success it writes its own
+`body.claims` and `body.claims_check = {passed, stats, warnings, checked_at, server: {passed, version, checked_at,
+markdown_sha256, claims_sha256}}`. A blog written to `changes_requested` with a body is re-verified and stamped when it
+passes; any other session write with a body has `claims_check.server` removed. **Only a body whose
+`claims_check.server.claims_sha256` matches its `claims` (and `markdown_sha256` its markdown) was checked by the
+server**; the dashboard must treat anything else, including a missing fact list, as unchecked ("No fact list. Don't
+approve").
+
+**Creatives and LinkedIn posts.** A session write that puts a carousel, graphic or video in `pending_review` or
+`awaiting_voiceover`, and every `insert_social_post` / `update_social_post` that touches caption, first comment,
+reason or status, needs a parent blog with a valid server stamp (else 409) and passes `derivedTextErrors` over every
+visible text field (slides, stats, captions, on-screen text, `vo_line`, `voiceover_script`; caption paragraphs, the
+first comment and the recommendation reason): every token matched by one verified claim of the blog in the same
+context, example numbers only in labelled groups and only from the blog's own example (400 otherwise). The caption
+validator also refuses a caption of hashtags only (LINKEDIN.md 10.1 #7).
+
+**Claim shape additions:** `claim_hash` (sha256 of `claimFingerprint`), `factcheck {verdict, note, current,
+checked_at, claim_hash}` (required for every claim; law claims need `current: true`), `pages` on PDF quotes,
+`derived {steps, from, arithmetic}` where `arithmetic` is written by the engine from the machine-checked `steps`
+(free-text derivations are refused). `source_text_path` points at the server copy (`sources/<sha>/text.txt` or
+`raw.pdf`); the v4 per-version copies under `items/<id>/v<n>/sources/` are no longer written.
+
+**Token rules:** numbers carry a unit (`%`, money, days, months, years, weeks, ordinal, times) and match only the
+same value and unit; law references are parsed to full keys (`sub-section (6) of section 16` = 16(6)); digits inside
+form names, ids and labels are never numbers; Unicode digits, HTML comments and format characters are normalised (and
+refused in posts by `blogcheck.js`); number words, Indian shorthand (₹50k, 2 cr, 1.5 lakh) and fractions are tokens.
+Loose quote matching keeps separators between digits. Sense (negation / condition / concession of rule words), context
+(a shared word near the number in the quote), old values (`from X to Y`), a superseded-provision table, sub-section
+binding and the primary-source rule for anything about law apply to every sourced claim.
+
+**Deploying the function:** it is pinned to one `claims-core.js` (`CORE_SHA256` in `index.ts`) and loads that exact
+file from storage (`code/claims-core-<sha256>.js`, written only by the function) at start; every action answers 503
+until it is installed. After `deploy` of `index.ts`, run `node src/cli.js install-core` once (action `install_core`,
+session token; it accepts only content whose sha256 equals the pin). The engine tests fail if the pin, the function's
+copy and `engine/src/claims-core.js` differ. `verify_blog {body}` (session, read only) returns the server's verdict
+on a blog body without saving it.
+**Other API changes:** `update_item` accepts `expect_status` (409 when the item is no longer in that status; the
+engine's `sweep` uses it), and session updates are conditional on the status the gate read.
+**Owner-facing consequence:** blogs saved before v4.1 (the airline GST sample, v5) have no server stamp. They stay
+visible, but the server refuses new creatives, re-rendered reels and LinkedIn post edits for them until a session
+re-saves the blog through the new pipeline (`playbook/revisions.md` section 3, "Older blogs").
