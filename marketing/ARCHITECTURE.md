@@ -201,21 +201,19 @@ Every command prints a single JSON object to stdout (logs to stderr) and exits n
 5. Cover images, carousel and graphic photos, and reel footage must be top-tier: authentic, high resolution,
    editorial, on-topic; never cheesy, never AI-generated (`ai_generated: "excluded"`).
 
-## v3.1 Security addendum (owner: "only I can access this portal") — binding
+## v3.1 Security addendum (owner: "only I can access this portal"; login = email code only, NO authenticator app) — binding
 
-Applied in migration `owner_only_security`:
-- `gate_signup` trigger on `auth.users`: any sign-up whose email is not in `allowed_users` is rejected inside the database. Email changes to a non-allowlisted address are rejected too (`gate_email_change`).
-- `is_team()` now requires ALL of: JWT `aal = 'aal2'` (two-factor session), `auth.uid()` row exists with `email_confirmed_at`, and the email is in `allowed_users`. Every RLS policy and storage policy uses `is_team()`, so a session without 2FA reads nothing.
-- `is_allowlisted()` (authenticated only) lets the dashboard show the 2FA step after the email-code step.
-- `is_team()` is not executable by `anon`.
+Applied in migrations `owner_only_security` + `email_code_only_login(_fix)`:
+- `gate_signup` trigger on `auth.users`: any sign-up whose email is not in `allowed_users` is rejected inside the database (tested: stranger insert blocked). Email changes to a non-allowlisted address are rejected too (`gate_email_change`).
+- `is_team()` requires: `auth.uid()` exists, `email_confirmed_at` set, not banned, and the JWT email is in `allowed_users`. Every RLS and storage policy uses it (tested: stranger JWT reads 0 rows). Not executable by `anon`.
+- `is_allowlisted()` (authenticated only) for the dashboard's post-login check.
+- No two-factor / TOTP anywhere. Do not build an authenticator screen.
 
 Dashboard login flow (must implement exactly):
-1. Email → `signInWithOtp({ email, options: { shouldCreateUser: true } })` (6-digit code; the trigger blocks strangers). Show the same neutral message for any email ("If this email has access, a code is on its way") — never reveal whether an email is allowed.
-2. `verifyOtp({ email, token, type: 'email' })`.
+1. Email → `signInWithOtp({ email, options: { shouldCreateUser: true } })` sending a 6-digit code. Show the same neutral message for any email ("If this email has access, a code is on its way") — never reveal whether an email is allowed. Resend button with a 60 s cooldown.
+2. 6-box code input (paste-aware, auto-submit) → `verifyOtp({ email, token, type: 'email' })`.
 3. `rpc('is_allowlisted')` false → sign out, neutral error.
-4. `mfa.listFactors()`: no verified TOTP factor → enrolment screen (QR + secret from `mfa.enroll({ factorType: 'totp', friendlyName: 'Dhiti Studio' })`, then `challengeAndVerify`). Verified factor → 6-digit authenticator challenge (`mfa.challenge` + `mfa.verify`).
-5. Only an `aal2` session (`mfa.getAuthenticatorAssuranceLevel().currentLevel === 'aal2'`) renders the app. On any `aal1` session, render the 2FA screen, never the app shell.
-6. Idle lock: after 30 min without input, sign out; on tab hidden > 12 h, sign out. "Sign out everywhere" in settings (`signOut({ scope: 'global' })`).
-7. Session stored by supabase-js in localStorage (default); no other secrets in the bundle (publishable key only).
+4. Idle lock: 30 min without input → sign out; tab hidden > 12 h → sign out. Settings has "Sign out everywhere" (`signOut({ scope: 'global' })`).
+5. Only the publishable key is in the bundle; no other secrets.
 Netlify: strict CSP pinned to the project host, HSTS, frame-ancestors none, noindex, no third-party scripts or fonts.
-Owner action after first login (one-time, optional extra layer): Supabase → Authentication → Sign-ups off.
+Optional owner step after the first login: Supabase → Authentication → turn off sign-ups (extra layer; the trigger already blocks strangers).
