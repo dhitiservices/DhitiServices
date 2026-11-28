@@ -13,11 +13,16 @@
 //   - human-only transitions: session tokens cannot approve/reject/publish content or edit approved/published items;
 //   - storage paths must live under items/<uuid>/ in bucket `marketing` (sign_download may also read the
 //     owner library, library/<uuid>/<file>, which the dashboard uploads to);
-//   - claim_jobs is race-safe (conditional UPDATE ... WHERE status = 'queued' RETURNING).
+//   - the approval gate also covers files: sign_upload / insert_asset / delete_assets refuse (409) for items that are
+//     approved or published, exactly like update_item and delete_files;
+//   - claim_jobs is race-safe (conditional UPDATE ... WHERE status = 'queued' RETURNING) and re-claims jobs whose
+//     worker died (status running longer than the kind's lease, JOB_LEASE_MIN);
+//   - jobs and runs belong to a token kind: the publisher owns publish_now jobs and 'publish' runs, sessions own
+//     the rest; finish_job / finish_run only finish rows that are still running.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 const BUCKET = "marketing";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -172,11 +177,19 @@ const ITEM_PATCH_SESSION = ["title", "status", "body", "feedback", "version", "s
 const ITEM_PATCH_PUBLISHER = ["status", "published_at", "published_url", "error"];
 const ASSET_FIELDS = ["content_item_id", "kind", "storage_path", "mime", "width", "height", "position", "meta"];
 
-/** Statuses an engine session may set. approved / rejected / changes_requested / published are human or publisher only. */
-const SESSION_ITEM_STATUSES = ["generating", "awaiting_voiceover", "pending_review", "failed"] as const;
+/**
+ * Statuses an engine session may set. approved / rejected / published are human or publisher only.
+ * changes_requested is allowed so a failed revision can put the item back where the human left it.
+ */
+const SESSION_ITEM_STATUSES = ["generating", "awaiting_voiceover", "pending_review", "changes_requested", "failed"] as const;
 const PUBLISHER_ITEM_STATUSES = ["published", "failed"] as const;
 /** Items a session may no longer touch, and the only items a publisher may touch. */
 const LOCKED_FOR_SESSION = ["approved", "published"];
+
+/** Minutes a claimed job may stay `running` before another worker may re-claim it (its worker is presumed dead). */
+const JOB_LEASE_MIN: Record<string, number> = { publish_now: 30, regenerate: 180, render_video: 180, run_weekly: 600 };
+const SESSION_JOB_KINDS = ["run_weekly", "regenerate", "render_video"] as const;
+const PUBLISHER_JOB_KINDS = ["publish_now"] as const;
 
 const PUBLISHER_ACTIONS = new Set([
   "get_settings", "list_items", "get_item", "list_assets", "sign_download", "update_item",
@@ -276,6 +289,16 @@ async function getSettings(): Promise<Obj> {
   return (row?.data as Obj) ?? {};
 }
 
+/**
+ * The approval gate for files: a session may only change the stored files / asset rows of an item that exists and
+ * is not approved or published (a human approved exactly what is stored).
+ */
+async function assertItemWritable(id: string, label: string): Promise<void> {
+  const item = await run(`${label}.item`, db().from("content_items").select("id, status").eq("id", id).maybeSingle());
+  if (!item) throw new ApiError(404, `${label}: item ${id} not found`);
+  if (LOCKED_FOR_SESSION.includes(item.status)) throw new ApiError(409, `${label}: item ${id} is ${item.status}; its files can no longer change`);
+}
+
 const actions: Record<string, Handler> = {
   get_settings: () => getSettings(),
 
@@ -295,19 +318,28 @@ const actions: Record<string, Handler> = {
   },
 
   // ---- runs ----
-  create_run(p) {
+  create_run(p, caller) {
     const kind = oneOf(p.kind, RUN_KINDS, "kind");
+    if (caller.kind === "publisher" && kind !== "publish") throw new ApiError(403, "publisher tokens may only create 'publish' runs");
     return run("create_run", db().from("runs").insert({ kind, status: "running" }).select().single());
   },
 
-  finish_run(p) {
+  async finish_run(p, caller) {
     const id = uuid(p.id);
     const status = oneOf(p.status ?? "succeeded", RUN_FINISH, "status");
     const patch: Obj = { status, finished_at: status === "running" ? null : new Date().toISOString() };
     if (p.error !== undefined) patch.error = p.error === null ? null : truncateTail(p.error, 8000);
     if (p.log !== undefined) patch.log = truncateTail(p.log, 1_000_000);
     if (p.usage !== undefined && p.usage !== null) patch.usage = isObj(p.usage) ? p.usage : { value: p.usage };
-    return single("finish_run", db().from("runs").update(patch).eq("id", id).select().maybeSingle(), `run ${id} not found`);
+    // Only a running run can be finished, and only by the token kind that owns it (publisher: 'publish' runs).
+    let q = db().from("runs").update(patch).eq("id", id).eq("status", "running");
+    q = caller.kind === "publisher" ? q.eq("kind", "publish") : q.neq("kind", "publish");
+    const row = await run("finish_run", q.select().maybeSingle());
+    if (row) return row;
+    const exists = await run("finish_run.check", db().from("runs").select("id, kind, status").eq("id", id).maybeSingle());
+    if (!exists) throw new ApiError(404, `run ${id} not found`);
+    if (exists.status !== "running") throw new ApiError(409, `run ${id} is already ${exists.status}`);
+    throw new ApiError(403, `${caller.kind} tokens may not finish ${exists.kind} runs`);
   },
 
   // ---- research ----
@@ -422,9 +454,10 @@ const actions: Record<string, Handler> = {
   },
 
   // ---- assets ----
-  insert_asset(p) {
+  async insert_asset(p) {
     const row = pick(p, ASSET_FIELDS, "insert_asset");
     row.content_item_id = uuid(row.content_item_id, "content_item_id");
+    await assertItemWritable(row.content_item_id as string, "insert_asset");
     const path = storagePath(row.storage_path);
     if (path.split("/")[1].toLowerCase() !== row.content_item_id) throw bad("insert_asset: storage_path must be under items/<content_item_id>/");
     row.storage_path = path;
@@ -439,15 +472,24 @@ const actions: Record<string, Handler> = {
       .order("position", { ascending: true }).order("created_at", { ascending: true }));
   },
 
+  /** Deletes an item's asset rows: all of them, or only `ids` (so a new version's rows can be inserted first). */
   async delete_assets(p) {
     const id = uuid(p.content_item_id, "content_item_id");
-    const rows = await run<Obj[]>("delete_assets", db().from("assets").delete().eq("content_item_id", id).select("id"));
+    await assertItemWritable(id, "delete_assets");
+    let q = db().from("assets").delete().eq("content_item_id", id);
+    if (p.ids !== undefined) {
+      if (!Array.isArray(p.ids) || p.ids.length > 500) throw bad("delete_assets: ids must be an array (max 500)");
+      if (!p.ids.length) return { deleted: 0 };
+      q = q.in("id", p.ids.map((x, i) => uuid(x, `ids[${i}]`)));
+    }
+    const rows = await run<Obj[]>("delete_assets", q.select("id"));
     return { deleted: rows?.length ?? 0 };
   },
 
   // ---- storage ----
   async sign_upload(p) {
     const path = storagePath(p.path);
+    await assertItemWritable(path.split("/")[1].toLowerCase(), "sign_upload");
     const { data, error } = await db().storage.from(BUCKET).createSignedUploadUrl(path, { upsert: true });
     if (error || !data) throw dbError("sign_upload", error as never);
     return { signedUrl: data.signedUrl, token: data.token, path: data.path ?? path };
@@ -504,18 +546,40 @@ const actions: Record<string, Handler> = {
   // ---- jobs ----
   async claim_jobs(p, caller) {
     const limit = int(p.limit, "limit", { min: 1, max: 50, dflt: 5 });
-    // Defaults keep each worker on its own queue: the publisher handles publish_now, sessions handle the rest.
-    const dflt = caller.kind === "publisher" ? ["publish_now"] : ["run_weekly", "regenerate", "render_video"];
-    const kinds = inList(p.kinds, JOB_KINDS, "kinds") ?? dflt;
-    if (caller.kind === "publisher" && kinds.some((k) => k !== "publish_now")) throw new ApiError(403, "publisher tokens may only claim publish_now jobs");
-    const candidates = await run<{ id: string }[]>("claim_jobs.select", db().from("jobs").select("id")
+    // Each worker owns its queue: the publisher handles publish_now, sessions handle the rest (a session that
+    // claimed a publish_now job could never mark the item published, so that "Publish now" would be lost).
+    const own: readonly string[] = caller.kind === "publisher" ? PUBLISHER_JOB_KINDS : SESSION_JOB_KINDS;
+    const kinds = inList(p.kinds, JOB_KINDS, "kinds") ?? [...own];
+    if (kinds.some((k) => !own.includes(k))) {
+      throw new ApiError(403, `${caller.kind} tokens may only claim ${own.join(", ")} jobs`);
+    }
+    const now = Date.now();
+    const startedAt = new Date(now).toISOString();
+    const claim = { status: "running", started_at: startedAt, finished_at: null, error: null };
+    const claimed: Obj[] = [];
+
+    // 1. Queued jobs, oldest first. Race-safe: only rows still 'queued' flip; concurrent claimers get disjoint sets.
+    const queued = await run<{ id: string }[]>("claim_jobs.select", db().from("jobs").select("id")
       .eq("status", "queued").in("kind", kinds).order("created_at", { ascending: true }).limit(limit));
-    if (!candidates?.length) return [];
-    // Race-safe: only rows that are still 'queued' flip to 'running'; concurrent claimers get disjoint sets.
-    const claimed = await run<Obj[]>("claim_jobs.update", db().from("jobs")
-      .update({ status: "running", started_at: new Date().toISOString(), finished_at: null, error: null })
-      .in("id", candidates.map((c) => c.id)).eq("status", "queued").select());
-    return (claimed ?? []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    if (queued?.length) {
+      claimed.push(...(await run<Obj[]>("claim_jobs.update", db().from("jobs").update(claim)
+        .in("id", queued.map((c) => c.id)).eq("status", "queued").select()) ?? []));
+    }
+
+    // 2. Jobs whose worker died (running past the kind's lease). The update re-checks started_at, so only one
+    //    claimer wins each stale row.
+    for (const kind of kinds) {
+      if (claimed.length >= limit) break;
+      const cutoff = new Date(now - (JOB_LEASE_MIN[kind] ?? 60) * 60_000).toISOString();
+      const stale = await run<{ id: string }[]>("claim_jobs.stale", db().from("jobs").select("id")
+        .eq("status", "running").eq("kind", kind).lt("started_at", cutoff).order("created_at", { ascending: true }).limit(limit - claimed.length));
+      if (!stale?.length) continue;
+      const rows = await run<Obj[]>("claim_jobs.reclaim", db().from("jobs")
+        .update({ ...claim, error: `re-claimed: the previous worker did not finish within ${JOB_LEASE_MIN[kind] ?? 60} min` })
+        .in("id", stale.map((c) => c.id)).eq("status", "running").lt("started_at", cutoff).select());
+      claimed.push(...(rows ?? []));
+    }
+    return claimed.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   },
 
   /** Read-only job listing (lets the publisher see queued publish_now jobs without claiming them). */
@@ -532,13 +596,22 @@ const actions: Record<string, Handler> = {
     return run("list_jobs", q.order("created_at", { ascending: true }).limit(limit));
   },
 
-  finish_job(p) {
+  async finish_job(p, caller) {
     const id = uuid(p.id);
     const status = oneOf(p.status ?? "done", JOB_FINISH, "status");
+    const error = p.error == null ? null : truncateTail(p.error, 8000);
     const patch: Obj = status === "queued"
-      ? { status, started_at: null, finished_at: null, error: p.error == null ? null : truncateTail(p.error, 8000) }
-      : { status, finished_at: new Date().toISOString(), error: p.error == null ? null : truncateTail(p.error, 8000) };
-    return single("finish_job", db().from("jobs").update(patch).eq("id", id).select().maybeSingle(), `job ${id} not found`);
+      ? { status, started_at: null, finished_at: null, error }
+      : { status, finished_at: new Date().toISOString(), error };
+    const own: readonly string[] = caller.kind === "publisher" ? PUBLISHER_JOB_KINDS : SESSION_JOB_KINDS;
+    // Only a claimed (running) job of the caller's own kinds can be finished or released.
+    const row = await run("finish_job", db().from("jobs").update(patch).eq("id", id).eq("status", "running")
+      .in("kind", [...own]).select().maybeSingle());
+    if (row) return row;
+    const exists = await run("finish_job.check", db().from("jobs").select("id, kind, status").eq("id", id).maybeSingle());
+    if (!exists) throw new ApiError(404, `job ${id} not found`);
+    if (!own.includes(exists.kind)) throw new ApiError(403, `${caller.kind} tokens may not finish ${exists.kind} jobs`);
+    throw new ApiError(409, `job ${id} is ${exists.status}, not running; claim it first`);
   },
 };
 

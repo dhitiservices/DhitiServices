@@ -53,6 +53,8 @@ const footer = ({ index, total, last }) => `
     ${last ? '' : `<span class="next">${ARROW}</span>`}
   </footer>`;
 
+/** An eyebrow that already numbers the slide ("Step 2"): the big numeral would clash with it, so it is dropped. */
+const STEP_LABEL = /^\s*(step|stage|part)\s*\d/i;
 const eyebrowHtml = (text, cls = '') => (text ? `<div class="eyebrow ${cls}">${escapeHtml(text)}</div>` : '');
 
 async function slideHtml(slide, ctx) {
@@ -151,7 +153,7 @@ async function slideHtml(slide, ctx) {
 <div class="frame slide slide--point bg-paper">
   ${header({ index, total, logo, tone: 'paper' })}
   <main class="content" data-fit-box="point" data-fit-min="0.5">
-    <div class="numeral">${num}</div>
+    ${STEP_LABEL.test(slide.eyebrow || '') ? '' : `<div class="numeral">${num}</div>`}
     <div class="stack text">
       ${eyebrowHtml(slide.eyebrow)}
       <h2 class="headline">${H}</h2>

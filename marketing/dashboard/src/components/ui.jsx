@@ -9,13 +9,13 @@ export const cx = (...a) => a.filter(Boolean).join(" ");
 /* ---------------------------------------------------------------- Button */
 const VARIANTS = {
   primary:
-    "text-white bg-gradient-to-b from-[#FF2A17] to-[#E30700] shadow-glow hover:from-[#FF3A28] hover:to-[#EE0800] active:from-[#E30700] active:to-[#C20600] disabled:opacity-50",
+    "text-white bg-gradient-to-b from-[#E30700] to-[#C20600] shadow-glow hover:from-[#EE0800] hover:to-[#CC0700] active:from-[#C20600] active:to-[#A80500] disabled:opacity-50",
   dark: "text-white bg-ink dark:text-[#15161A] hover:bg-ink/90 shadow-[0_1px_2px_rgb(0_0_0/0.2),0_4px_12px_-4px_rgb(0_0_0/0.3)] disabled:opacity-50",
   secondary:
     "text-ink bg-surface shadow-[0_0_0_1px_var(--hairline-strong),0_1px_2px_rgb(var(--shadow)/0.06)] hover:bg-surface-sunken disabled:opacity-50",
   ghost: "text-ink-soft hover:text-ink hover:bg-ink/[0.05] disabled:opacity-40",
-  tinted: "text-brand bg-brand/[0.09] hover:bg-brand/[0.14] disabled:opacity-50",
-  danger: "text-brand bg-surface shadow-[0_0_0_1px_var(--hairline-strong)] hover:bg-brand/[0.06] disabled:opacity-50",
+  tinted: "text-brand-ink bg-brand/[0.09] hover:bg-brand/[0.14] disabled:opacity-50",
+  danger: "text-brand-ink bg-surface shadow-[0_0_0_1px_var(--hairline-strong)] hover:bg-brand/[0.06] disabled:opacity-50",
 };
 const SIZES = {
   sm: "h-8 px-3 text-callout gap-1.5 rounded-[10px]",
@@ -91,7 +91,7 @@ export function Kbd({ children, className, inverted }) {
 
 /* ---------------------------------------------------------------- Status chip */
 const TONES = {
-  brand: "bg-brand/[0.09] text-brand dark:bg-brand/[0.16]",
+  brand: "bg-brand/[0.09] text-brand-ink dark:bg-brand/[0.16]",
   ok: "bg-ok/[0.1] text-ok dark:bg-ok/[0.16]",
   warn: "bg-warn/[0.12] text-warn dark:bg-warn/[0.16]",
   danger: "bg-brand/[0.1] text-brand-deep dark:text-brand-bright",
@@ -141,7 +141,7 @@ export function EmptyState({ icon: Icon, title, children, action, className, ton
       {Icon && (
         <div className={cx(
           "relative mb-5 flex h-14 w-14 items-center justify-center rounded-2xl",
-          tone === "brand" ? "bg-gradient-to-b from-brand/15 to-brand/5 text-brand" : "bg-gradient-to-b from-ink/[0.07] to-ink/[0.03] text-ink-soft",
+          tone === "brand" ? "bg-gradient-to-b from-brand/15 to-brand/5 text-brand-ink" : "bg-gradient-to-b from-ink/[0.07] to-ink/[0.03] text-ink-soft",
         )}>
           <Icon className="h-6 w-6" strokeWidth={1.8} />
           <div className="absolute inset-0 rounded-2xl shadow-[inset_0_0_0_1px_var(--hairline)]" />
@@ -155,17 +155,31 @@ export function EmptyState({ icon: Icon, title, children, action, className, ton
 }
 
 /* ---------------------------------------------------------------- Segmented control (shared layout pill) */
-export function Segmented({ value, onChange, options, className, size = "md", layoutId }) {
+export function Segmented({ value, onChange, options, className, size = "md", layoutId, label }) {
   const id = useId();
+  // A single-choice control: radiogroup semantics with roving focus (arrow keys move and select).
+  const onKeyDown = (e) => {
+    const i = options.findIndex((o) => o.value === value);
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = options[(i + step + options.length) % options.length];
+    onChange(next.value);
+    requestAnimationFrame(() => e.currentTarget?.querySelector('[aria-checked="true"]')?.focus());
+  };
   return (
-    <div className={cx("inline-flex rounded-[11px] bg-ink/[0.055] p-[3px]", className)} role="tablist">
+    <div className={cx("inline-flex rounded-[11px] bg-ink/[0.055] p-[3px]", className)} role="radiogroup" aria-label={label} onKeyDown={onKeyDown}>
       {options.map((o) => {
         const active = o.value === value;
         return (
           <button
             key={o.value}
-            role="tab"
-            aria-selected={active}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={o.label ? undefined : o.ariaLabel || o.title || String(o.value)}
+            title={o.label ? undefined : o.ariaLabel || o.title}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(o.value)}
             className={cx(
               "relative flex items-center gap-1.5 whitespace-nowrap rounded-[8px] font-semibold transition-colors",
@@ -207,16 +221,22 @@ export function SectionTitle({ children, action, className }) {
 }
 
 /* ---------------------------------------------------------------- Form */
-export function Field({ label, hint, counter, children, className }) {
+/**
+ * Labelled form row. Wraps a single control in <label> by default; pass as="div" for composite controls (token
+ * inputs, button groups), which would otherwise turn a click on the label into a click on their first button.
+ */
+export function Field({ label, hint, counter, children, className, as = "label" }) {
+  const id = useId();
+  const Tag = as === "div" ? "div" : "label";
   return (
-    <label className={cx("block", className)}>
+    <Tag className={cx("block", className)} {...(Tag === "div" ? { role: "group", "aria-labelledby": `${id}-l` } : {})}>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-callout font-semibold text-ink-soft">{label}</span>
+        <span id={`${id}-l`} className="text-callout font-semibold text-ink-soft">{label}</span>
         {counter}
       </div>
       {children}
       {hint && <div className="mt-1.5 text-[12.5px] leading-[17px] text-ink-mute">{hint}</div>}
-    </label>
+    </Tag>
   );
 }
 
@@ -225,7 +245,7 @@ export function Counter({ value, max }) {
   const over = n > max;
   const near = !over && n > max * 0.9;
   return (
-    <span className={cx("tnum text-[12px] font-semibold transition-colors", over ? "text-brand" : near ? "text-warn" : "text-ink-faint")}>
+    <span className={cx("tnum text-[12px] font-semibold transition-colors", over ? "text-brand-ink" : near ? "text-warn" : "text-ink-faint")}>
       {n}/{max}
     </span>
   );
@@ -249,12 +269,12 @@ export function Switch({ checked, onChange, label }) {
   );
 }
 
-export function Stepper({ value, onChange, min = 0, max = 10 }) {
+export function Stepper({ value, onChange, min = 0, max = 10, label = "" }) {
   return (
     <div className="inline-flex h-9 items-center rounded-xl bg-surface shadow-[0_0_0_1px_var(--hairline-strong)]">
-      <button className="h-full w-9 rounded-l-xl text-[18px] text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label="Decrease">−</button>
+      <button className="h-full w-9 rounded-l-xl text-[18px] text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Decrease ${label}`.trim()}>−</button>
       <motion.span key={value} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="tnum w-8 text-center text-body font-semibold">{value}</motion.span>
-      <button className="h-full w-9 rounded-r-xl text-[18px] text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label="Increase">+</button>
+      <button className="h-full w-9 rounded-r-xl text-[18px] text-ink-mute transition-colors hover:bg-ink/[0.04] hover:text-ink disabled:opacity-30" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} aria-label={`Increase ${label}`.trim()}>+</button>
     </div>
   );
 }

@@ -1,0 +1,141 @@
+# Publishes approved Dhiti blog posts to the website (marketing/ARCHITECTURE.md, "Publish workflow").
+#
+# Every 30 minutes a fast check asks the engine API whether an approved blog is due (scheduled_for <= now) or a
+# "Publish now" job is waiting. Only then are dependencies installed and `cli.js publish` run, which commits
+# content/blog/<slug>.md + src/assets/photos/<slug>.webp to main as "Dhiti Marketing Bot". Render deploys main.
+#
+# Required secret: DHITI_ENGINE_TOKEN (a long-lived `publisher` engine token; see marketing/engine/README.md).
+# Until it exists every run ends green with a warning (no failure e-mail every 30 minutes).
+name: Marketing publish
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run the publisher even if the quick check finds nothing due'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: marketing-publish
+  cancel-in-progress: false
+
+env:
+  ENGINE_URL: https://yexxrcgxhwsopssfyylo.supabase.co/functions/v1/engine
+  # Supabase publishable key: public by design (sent as apikey / Authorization for the API gateway).
+  ENGINE_PUBLISHABLE_KEY: sb_publishable_eggopcLFltAS1Q3nTmGecQ_dUMTCIhR
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check for due posts
+        id: check
+        env:
+          ENGINE_TOKEN: ${{ secrets.DHITI_ENGINE_TOKEN }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ENGINE_TOKEN:-}" ]; then
+            echo "::warning::Secret DHITI_ENGINE_TOKEN is not set, so nothing can be published yet (create a publisher token, see marketing/engine/README.md)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          call() {
+            curl -sS --max-time 30 --retry 3 --retry-all-errors --retry-delay 5 \
+              -X POST "$ENGINE_URL" \
+              -H 'content-type: application/json' \
+              -H "apikey: $ENGINE_PUBLISHABLE_KEY" \
+              -H "Authorization: Bearer $ENGINE_PUBLISHABLE_KEY" \
+              -H "x-engine-token: $ENGINE_TOKEN" \
+              -w '\n%{http_code}' \
+              -d "$1"
+          }
+          items=$(call '{"action":"list_items","payload":{"status":"approved","type":"blog","limit":200}}')
+          items_code=$(printf '%s' "$items" | tail -n1)
+          items_body=$(printf '%s' "$items" | sed '$d')
+          if [ "$items_code" != "200" ]; then
+            echo "::error::list_items failed (HTTP $items_code): $(printf '%s' "$items_body" | head -c 500)"
+            exit 1
+          fi
+          # Read-only peek at publish_now jobs (never claims): queued ones, plus running ones whose worker died
+          # (older than the 30 min lease; claim_jobs re-claims those). If the API has no such action, fall back to
+          # "any approved blog exists", because a Publish-now job can only act on an approved blog.
+          jobs=$(call '{"action":"list_jobs","payload":{"kind":"publish_now","status":["queued","running"],"limit":50}}' || true)
+          jobs_code=$(printf '%s' "$jobs" | tail -n1)
+          jobs_body=$(printf '%s' "$jobs" | sed '$d')
+          ITEMS="$items_body" JOBS_CODE="$jobs_code" JOBS="$jobs_body" node --input-type=module -e '
+            const now = Date.now();
+            const items = JSON.parse(process.env.ITEMS).data ?? [];
+            const due = items.filter((i) => !i.scheduled_for || Date.parse(i.scheduled_for) <= now);
+            let queued = null;
+            if (process.env.JOBS_CODE === "200") {
+              try {
+                const lease = 30 * 60_000;
+                queued = (JSON.parse(process.env.JOBS).data ?? []).filter((j) => (j.kind ?? "publish_now") === "publish_now"
+                  && (j.status !== "running" || (j.started_at && Date.parse(j.started_at) < now - lease))).length;
+              } catch { queued = null; }
+            }
+            const publishNow = queued === null ? items.length > 0 : queued > 0;
+            const run = due.length > 0 || publishNow || process.env.FORCE === "1";
+            console.log(`approved blogs: ${items.length}, due now: ${due.length}, publish_now jobs: ${queued ?? "unknown (no list_jobs action)"}`);
+            for (const i of due) console.log(`  due: ${i.title} (scheduled ${i.scheduled_for ?? "unscheduled"})`);
+            const fs = await import("node:fs");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `run=${run ? "true" : "false"}\n`);
+          '
+
+      - name: Check out main
+        if: steps.check.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        if: steps.check.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            marketing/engine/package-lock.json
+
+      - name: Install dependencies
+        if: steps.check.outputs.run == 'true'
+        # Install scripts are skipped: publishing needs only gray-matter, marked and sharp (prebuilt binaries),
+        # not the renderers' Chromium/ffmpeg downloads.
+        run: |
+          npm ci --no-audit --no-fund --ignore-scripts
+          npm ci --prefix marketing/engine --no-audit --no-fund --ignore-scripts
+
+      - name: Configure git identity
+        if: steps.check.outputs.run == 'true'
+        run: |
+          git config user.name "Dhiti Marketing Bot"
+          git config user.email "marketing-bot@dhitiservices.com"
+
+      - name: Publish approved blogs
+        if: steps.check.outputs.run == 'true'
+        env:
+          ENGINE_TOKEN: ${{ secrets.DHITI_ENGINE_TOKEN }}
+          REPO_ROOT: ${{ github.workspace }}
+          GIT_PUSH: '1'
+          GIT_BRANCH: main
+          # Stop starting new publishes after 12 min (job timeout is 20); unfinished items retry next run.
+          PUBLISH_BUDGET_MS: '720000'
+        run: |
+          set -o pipefail
+          node marketing/engine/src/cli.js publish | tee publish-result.json
+          {
+            echo '### Marketing publish'
+            echo '```json'
+            cat publish-result.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

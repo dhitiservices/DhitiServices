@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { POLL_MS, UNDO_MS } from "./config.js";
 import { useToast } from "../components/Toast.jsx";
 import { formatDateTime } from "./format.js";
+import { setDownloadErrorHandler } from "./media.js";
 import { TYPE_META, JOB_KIND } from "./model.js";
 
 const DataContext = createContext(null);
@@ -34,13 +35,16 @@ export function DataProvider({ backend, user, children }) {
   const assetTimers = useRef(new Map());
   const email = user?.email || "team";
 
+  const liveRef = useRef(false);
+  liveRef.current = live;
   const load = useCallback(async ({ silent } = {}) => {
     try {
-      const fresh = await backend.fetchAll();
+      // While realtime is connected it keeps asset rows fresh, so silent polls skip the (large) asset table.
+      const fresh = await backend.fetchAll({ withAssets: !(silent && liveRef.current) });
       setData((prev) => {
         // Keep optimistic local copies of rows that still have a mutation in flight.
         const items = fresh.items.map((r) => (pending.current.get(r.id) ? prev.items.find((p) => p.id === r.id) || r : r));
-        return { ...fresh, items };
+        return { ...fresh, assets: fresh.assets ?? prev.assets, items };
       });
       setStatus("ready");
       setError(null);
@@ -49,6 +53,12 @@ export function DataProvider({ backend, user, children }) {
       if (!silent) { setError(e); setStatus((s) => (s === "ready" ? s : "error")); }
     }
   }, [backend]);
+
+  // Every download button reports failures here instead of throwing into its click handler.
+  useEffect(() => {
+    setDownloadErrorHandler((e, name) => toast({ tone: "danger", title: "Couldn't download", description: `${name}: ${e?.message || "the file is unavailable"}` }));
+    return () => setDownloadErrorHandler(null);
+  }, [toast]);
 
   // Initial load, realtime, 30 s poll fallback, refresh on focus.
   useEffect(() => {
@@ -63,6 +73,14 @@ export function DataProvider({ backend, user, children }) {
       }, 400));
     };
     const unsub = backend.subscribe(({ table, eventType, row, old }) => {
+      if (table === "assets") {
+        // Asset rows change in sets (a new version swaps all of them): refetch that item's rows once, debounced.
+        const itemId = row?.content_item_id || old?.content_item_id;
+        if (itemId) refreshAssets(itemId);
+        else if (eventType === "DELETE" && old?.id) setData((d) => ({ ...d, assets: d.assets.filter((a) => a.id !== old.id) }));
+        setLastSync(new Date());
+        return;
+      }
       const key = TABLE_KEY[table];
       if (!key) return;
       setData((d) => {
@@ -184,7 +202,11 @@ export function DataProvider({ backend, user, children }) {
       const body = item.body || {};
       const patch = {
         title,
-        body: { ...body, markdown, word_count: wordCount, frontmatter: { ...(body.frontmatter || {}), title, description } },
+        // The engine's check result described the old text; mark it stale so the viewer re-checks the edit itself.
+        body: {
+          ...body, markdown, word_count: wordCount, frontmatter: { ...(body.frontmatter || {}), title, description },
+          checks: { ...(body.checks || {}), stale: true, edited_at: new Date().toISOString() },
+        },
       };
       await mutateItem(item, patch);
       toast({ tone: "ok", title: "Changes saved", duration: 2400 });
@@ -217,6 +239,19 @@ export function DataProvider({ backend, user, children }) {
       });
     },
 
+    async restoreTopic(topic, status = "planned") {
+      const prev = topic.status;
+      const apply = (s) => setData((d) => ({ ...d, topics: d.topics.map((t) => (t.id === topic.id ? { ...t, status: s } : t)) }));
+      apply(status);
+      try {
+        await backend.updateTopic(topic.id, { status });
+        toast({ tone: "ok", title: "Topic restored", description: topic.title, duration: 2600 });
+      } catch (e) {
+        apply(prev);
+        toast({ tone: "danger", title: "Couldn't restore topic", description: e.message });
+      }
+    },
+
     async runWeekly() {
       try {
         await insertJob("run_weekly", { source: "dashboard" });
@@ -245,10 +280,17 @@ export function DataProvider({ backend, user, children }) {
 
     async uploadLibrary(file, { kind, title, notes = "", tags = [], contentItemId = null } = {}) {
       const path = await backend.uploadLibraryFile(file);
-      const row = await backend.insertLibrary({
-        kind, storage_path: path, mime: file.type || null, title: title || file.name, notes, tags,
-        content_item_id: contentItemId, uploaded_by: email,
-      });
+      let row;
+      try {
+        row = await backend.insertLibrary({
+          kind, storage_path: path, mime: file.type || null, title: title || file.name, notes, tags,
+          content_item_id: contentItemId, uploaded_by: email,
+        });
+      } catch (e) {
+        // The file is stored but has no row: remove it so the bucket never collects orphans.
+        await backend.removeLibraryFile?.(path).catch(() => {});
+        throw e;
+      }
       setData((d) => ({ ...d, library: upsert(d.library, row, "library") }));
       return row;
     },

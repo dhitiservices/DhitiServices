@@ -6,12 +6,13 @@ import { spring } from "../lib/motion.js";
 const ToastContext = createContext(() => {});
 export const useToast = () => useContext(ToastContext);
 
+// Toasts are always dark, so their icons use fixed colours that keep 3:1+ contrast on #1d1e23 in both themes.
 const TONE = {
-  ok: { icon: CheckCircle2, cls: "text-ok" },
-  warn: { icon: AlertTriangle, cls: "text-warn" },
-  danger: { icon: XCircle, cls: "text-brand" },
-  info: { icon: Info, cls: "text-info" },
-  neutral: { icon: MinusCircle, cls: "text-ink-mute" },
+  ok: { icon: CheckCircle2, cls: "text-[#3DD68C]" },
+  warn: { icon: AlertTriangle, cls: "text-[#FFB340]" },
+  danger: { icon: XCircle, cls: "text-[#FF6A55]" },
+  info: { icon: Info, cls: "text-[#6AA8FF]" },
+  neutral: { icon: MinusCircle, cls: "text-white/60" },
 };
 
 export function ToastProvider({ children }) {
@@ -19,18 +20,33 @@ export function ToastProvider({ children }) {
   const timers = useRef(new Map());
 
   const dismiss = useCallback((id) => {
-    clearTimeout(timers.current.get(id));
+    clearTimeout(timers.current.get(id)?.handle);
     timers.current.delete(id);
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
+
+  const start = useCallback((id, ms) => {
+    timers.current.set(id, { handle: setTimeout(() => dismiss(id), ms), started: Date.now(), remaining: ms });
+  }, [dismiss]);
+  // WCAG 2.2.1: the timer (and the Undo it carries) pauses while the pointer or keyboard focus is on the toast.
+  const pause = useCallback((id) => {
+    const t = timers.current.get(id);
+    if (!t || t.paused) return;
+    clearTimeout(t.handle);
+    timers.current.set(id, { ...t, paused: true, remaining: Math.max(1200, t.remaining - (Date.now() - t.started)) });
+  }, []);
+  const resume = useCallback((id) => {
+    const t = timers.current.get(id);
+    if (t?.paused) start(id, t.remaining);
+  }, [start]);
 
   const toast = useCallback((opts) => {
     const id = Math.random().toString(36).slice(2);
     const t = { id, tone: "neutral", duration: 4200, ...opts };
     setToasts((list) => [...list.slice(-2), t]);
-    timers.current.set(id, setTimeout(() => dismiss(id), t.duration));
+    start(id, t.duration);
     return id;
-  }, [dismiss]);
+  }, [start]);
 
   const value = useMemo(() => toast, [toast]);
 
@@ -54,8 +70,12 @@ export function ToastProvider({ children }) {
                 transition={spring}
                 className="pointer-events-auto flex w-full max-w-[440px] items-start gap-3 rounded-2xl bg-[#1d1e23]/95 px-4 py-3 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_16px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl dark:bg-[#2a2b31]/95"
                 role="status"
+                onPointerEnter={() => pause(t.id)}
+                onPointerLeave={() => resume(t.id)}
+                onFocus={() => pause(t.id)}
+                onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) resume(t.id); }}
               >
-                <Icon className={`mt-px h-[18px] w-[18px] shrink-0 ${cls === "text-ink-mute" ? "text-white/60" : cls}`} strokeWidth={2.2} />
+                <Icon className={`mt-px h-[18px] w-[18px] shrink-0 ${cls}`} strokeWidth={2.2} />
                 <div className="min-w-0 flex-1">
                   <div className="text-callout font-semibold">{t.title}</div>
                   {t.description && <div className="mt-0.5 text-callout text-white/65 line-clamp-2">{t.description}</div>}

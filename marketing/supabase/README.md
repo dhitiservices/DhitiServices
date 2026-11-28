@@ -59,7 +59,7 @@ Issuing a new token also deletes tokens that expired more than 7 days ago.
 ## Actions
 
 The table below lists every action in the contract, plus three read helpers, `delete_files` and `list_jobs`. These
-extra actions are additive. All but `list_jobs` work with session tokens only. Version 2.3.0 (v3 addendum) also added
+extra actions are additive. All but `list_jobs` work with session tokens only. Version 2.4.0 hardened the approval gate and job ownership (see below). Version 2.3.0 (v3 addendum) added
 the `awaiting_voiceover` item status, the `render_video` job kind, `list_jobs`, and read access to the owner library
 (`library/<uuid>/<file>`) through `sign_download`.
 
@@ -81,7 +81,7 @@ the `awaiting_voiceover` item status, the `render_video` job kind, `list_jobs`, 
 | `list_items` | `{status?, type?, topic_id?, parent_id?, limit?}` (status/type may be arrays; `parent_id:null` means blogs only) | rows (created_at desc, max 500) | yes |
 | `insert_asset` | asset fields (`storage_path` must be under `items/<content_item_id>/`) | row | no |
 | `list_assets` | `{content_item_id}` | rows (position asc) | yes |
-| `delete_assets` | `{content_item_id}` | `{deleted}` (count of rows) | no |
+| `delete_assets` | `{content_item_id, ids?}` | `{deleted}` (count of rows; only `ids` when given) | no |
 | `sign_upload` | `{path}` | `{signedUrl, token, path}` (bucket `marketing`, upsert) | no |
 | `sign_download` | `{path, expiresIn?=600}` (10 s to 7 days); `path` may also be `library/<uuid>/<file>` | `{signedUrl, path, expiresIn}` | yes |
 | `delete_files` | `{content_item_id, paths?}` | `{deleted:[paths]}` | no |
@@ -106,10 +106,12 @@ A field that is not on the list is rejected with 400 rather than silently droppe
 Only a person in the dashboard approves content. The function enforces that:
 
 - **Session tokens:**
-  - They may set an item's status only to `generating`, `awaiting_voiceover`, `pending_review` or `failed`. They can never set
-    `approved`, `rejected`, `changes_requested`, `published`, `approved_*` or `published_*`.
+  - They may set an item's status only to `generating`, `awaiting_voiceover`, `pending_review`, `changes_requested`
+    (restoring a failed revision) or `failed`. They can never set `approved`, `rejected`, `published`, `approved_*`
+    or `published_*`.
   - They cannot update an item that is `approved` or `published` (409).
-  - They cannot run `delete_files` on such an item (409).
+  - They cannot change its files either (v2.4.0): `sign_upload`, `insert_asset`, `delete_assets` and `delete_files`
+    answer 409 for such an item (404 for an unknown one), so an approved blog always publishes the cover a person saw.
 - **Publisher tokens:**
   - They may update only items that are `approved` or `published` (409 otherwise).
   - They may set status only to `published` or `failed`.
@@ -120,10 +122,16 @@ Only a person in the dashboard approves content. The function enforces that:
 `update jobs set status='running', started_at=now() where id in (...) and status='queued' returning *`.
 Two workers that claim at the same moment therefore get disjoint sets of jobs.
 
+Leases (v2.4.0): a job left `running` longer than its lease (publish_now 30 min, regenerate and render_video 3 h,
+run_weekly 10 h) is presumed abandoned by a crashed worker and is claimed again; the update re-checks `started_at`,
+so only one claimer wins. `finish_job` only finishes a `running` job (409 otherwise) of the caller's own kinds (403);
+`finish_run` only a `running` run, and the publisher only `publish` runs (sessions the rest).
+
 If `kinds` is omitted, each worker gets its own queue:
 
 - A **session** claims `run_weekly`, `regenerate` and `render_video`.
-- A **publisher** claims `publish_now`. It is not allowed to claim any other kind.
+- A **publisher** claims `publish_now`. It is not allowed to claim any other kind, and a session may not claim
+  `publish_now` (it could never mark the blog published, so that "Publish now" would be lost).
 
 Jobs are created by the dashboard under RLS, which allows queued jobs only. There is no `insert_job` action.
 For tests, insert a job through the Supabase connector:

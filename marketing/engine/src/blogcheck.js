@@ -11,12 +11,16 @@
 // allowed set, image == "<slug>.webp", date quoted and a real calendar date, kebab-case slug not colliding with an
 // existing content/blog/*.md, exactly 8 "##" sections and no "#" H1 (scripts/verify-built-blog.mjs asserts both),
 // internal links (/blog/<slug>/, #anchors, site pages) resolve, no em dashes in frontmatter text either.
+// Link safety: every link token marked produces (inline, reference-style, autolinks, nested in lists/tables) must be
+// https:, http: (warning), mailto:, #anchor or relative; reference definitions are rejected outright, because the site
+// renders posts with marked and no sanitiser (a javascript: href would reach www.dhitiservices.com).
 //
 // API:
 //   checkBlogText(text, opts)  -> { passed, messages, warnings, words, sections, minutes, slug, frontmatter, toc, markdown }
 //   checkBlogFile(file, opts)  -> same (reads the file; slug defaults from frontmatter.slug / image / file name)
 //   listExistingPosts(opts)    -> [{ slug, title, description, category, date, order, image, words, file }] (tolerant)
 //   siteSlugify(text)          -> the website's slug rule (heading ids)
+//   hrefScheme(href)           -> lowercase scheme a browser sees ('' relative, '//' protocol-relative)
 //   renderFrontmatter(fm)      -> YAML frontmatter block in the house format (quoted strings, int order)
 // opts: { repoRoot, slug, allowExisting: bool | 'same-content', existingSlugs }
 import fs from 'node:fs';
@@ -149,13 +153,53 @@ function sitePages(repoRoot) {
 
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** Markdown links outside code spans/blocks: [{text, href}] */
-function markdownLinks(content) {
-  const noCode = content.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
-  const out = [];
-  for (const m of noCode.matchAll(/!?\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)) out.push({ text: m[1], href: m[2], image: m[0].startsWith('!') });
-  return out;
+/** Decodes the HTML character references a browser would decode inside an href attribute. */
+function decodeEntities(s) {
+  const named = { colon: ':', tab: '\t', newline: '\n', sol: '/', amp: '&', lpar: '(', rpar: ')', period: '.', quot: '"', apos: "'" };
+  return String(s)
+    .replace(/&#x([0-9a-f]+);?/gi, (_, h) => String.fromCodePoint(Number.parseInt(h, 16) || 0))
+    .replace(/&#(\d+);?/g, (_, d) => String.fromCodePoint(Number(d) || 0))
+    .replace(/&([a-z]+);/gi, (m, n) => named[n.toLowerCase()] ?? m);
 }
+
+/**
+ * Scheme of an href exactly as a browser would see it (entities decoded, whitespace/control chars removed), or ''
+ * for relative links. Protocol-relative "//host" links return '//'.
+ */
+export function hrefScheme(href) {
+  // eslint-disable-next-line no-control-regex
+  const clean = decodeEntities(href).replace(/[\u0000-\u0020\u007f-\u009f]+/g, '').replace(/\\/g, '/');
+  if (clean.startsWith('//')) return '//';
+  const m = /^([a-z][a-z0-9+.-]*):/i.exec(clean);
+  return m ? m[1].toLowerCase() : '';
+}
+
+/**
+ * Every link and image token marked produces (inline, reference-style, autolinks, GFM bare URLs, in lists, tables,
+ * blockquotes...), plus the reference definitions. Code is excluded because marked never makes links inside it.
+ * Returns { links: [{text, href, image, raw}], definitions: [{label, href}] }.
+ */
+function markdownLinks(content, marked) {
+  const tokens = marked.lexer(String(content ?? ''));
+  const links = [];
+  const seen = new Set();
+  const walk = (node) => {
+    if (!node || typeof node !== 'object' || seen.has(node)) return;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n);
+      return;
+    }
+    if (node.type === 'link' || node.type === 'image') links.push({ text: node.text ?? '', href: String(node.href ?? ''), image: node.type === 'image', raw: node.raw ?? '' });
+    for (const [k, v] of Object.entries(node)) if (k !== 'raw' && v && typeof v === 'object') walk(v);
+  };
+  walk(tokens);
+  const definitions = Object.entries(tokens.links || {}).map(([label, v]) => ({ label, href: String(v?.href ?? '') }));
+  return { links, definitions };
+}
+
+/** Link definition lines ("[label]: url") outside fenced code; the house style only uses inline links. */
+const REF_DEFINITION = /^ {0,3}\[[^\]]+\]:\s*\S+/m;
 
 function deriveSlug(data, file, repoRoot) {
   // A file already in content/blog is identified by its file name (that is its URL).
@@ -291,7 +335,32 @@ export async function checkBlogText(text, opts = {}) {
   const pages = sitePages(repoRoot);
   const blogDir = path.join(repoRoot, 'content', 'blog');
   let externalHttps = 0;
-  for (const { href, image } of markdownLinks(content)) {
+  let parsedLinks = { links: [], definitions: [] };
+  try {
+    parsedLinks = markdownLinks(content, marked);
+  } catch (err) {
+    errors.push(`links could not be parsed: ${err.message}`);
+  }
+  for (const d of parsedLinks.definitions) {
+    errors.push(`reference-style link definition "[${d.label}]: ${d.href.slice(0, 80)}" is not allowed; write the link inline as [text](https://...)`);
+  }
+  if (!parsedLinks.definitions.length && REF_DEFINITION.test(content.replace(/```[\s\S]*?```/g, '').replace(/~~~[\s\S]*?~~~/g, ''))) {
+    errors.push('reference-style link definitions ("[label]: url") are not allowed; write links inline as [text](https://...)');
+  }
+  for (const { href, image } of parsedLinks.links) {
+    const scheme = hrefScheme(href);
+    if (scheme === '//') {
+      errors.push(`protocol-relative link "${href.slice(0, 80)}" is not allowed; use https://`);
+      continue;
+    }
+    if (scheme && !['https', 'http', 'mailto'].includes(scheme)) {
+      errors.push(`link scheme "${scheme}:" is not allowed (${JSON.stringify(href.slice(0, 80))}); only https:, mailto:, #anchors and relative site links`);
+      continue;
+    }
+    if (scheme && decodeEntities(href) !== href) {
+      errors.push(`link "${href.slice(0, 80)}" contains HTML character references; write the URL plainly`);
+      continue;
+    }
     if (image) {
       errors.push(`inline images are not supported in posts (${href}); the cover comes from frontmatter image`);
       continue;

@@ -6,11 +6,15 @@
 //   4. commit "Blog: <title>" as Dhiti Marketing Bot, then `git pull --rebase` + `git push origin HEAD:main`
 //      with retries (GIT_PUSH=0 skips the pull/push; DRY_RUN pushes only with GIT_PUSH=1)
 //
-//   publishBlog({ item, cover, repoRoot?, push?, today? }) ->
+//   assertPublishBranch(repoRoot?) -> refuses unless HEAD is the publish branch (config.gitBranch, "main") or a
+//                                    detached HEAD at <remote>/<branch>: a push must never carry other commits
+//   publishBlog({ item, cover, repoRoot?, push?, today?, beforePush?, deadline? }) ->
 //     { slug, url, title, commit, pushed, files: [..], alreadyPublished, date, order }
 //
 // Errors carry `permanent: true` when a human must fix the content (validation, collision); otherwise the caller may
-// retry later (network, git push races).
+// retry later (network, git push races, a broken OTHER post on main, the item changing during the publish).
+// `beforePush()` runs after the local commit and before the push; throwing there undoes the commit.
+// `deadline` (epoch ms) bounds the pull/push retries so the GitHub job never hits its timeout mid-publish.
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -70,13 +74,19 @@ export async function ensureSiteDeps(repoRoot) {
   return true;
 }
 
-/** Runs the website's own blog check (all posts). Returns its stdout tail; throws with the error on failure. */
-export async function runSiteBlogCheck(repoRoot) {
+/**
+ * Runs the website's own blog check (all posts). Returns its stdout tail; throws with the error on failure.
+ * With `slug`, only a failure that names that post is permanent (the new post needs a human); a failure in another
+ * post already on main is transient, so one broken old post does not mark every due blog failed.
+ */
+export async function runSiteBlogCheck(repoRoot, { slug } = {}) {
   await ensureSiteDeps(repoRoot);
   const res = await run(process.execPath, ['scripts/check-blog.mjs'], { cwd: repoRoot, label: 'node scripts/check-blog.mjs', allowFail: true, timeoutMs: 120_000 });
   if (res.code !== 0) {
     const msg = (res.stderr || res.stdout).split('\n').find((l) => /Error:/.test(l)) || (res.stderr || res.stdout).trim().split('\n').slice(-3).join(' ');
-    throw permanent(`scripts/check-blog.mjs failed: ${msg.trim()}`);
+    const text = `scripts/check-blog.mjs failed: ${msg.trim()}`;
+    if (!slug || new RegExp(`(^|[^a-z0-9-])${slug}([^a-z0-9-]|$)`).test(msg)) throw permanent(text);
+    throw new Error(`${text} (another post on ${config.gitBranch} is broken; fix it, this post will retry)`);
   }
   return res.stdout.trim().split('\n').slice(-1)[0];
 }
@@ -108,27 +118,53 @@ async function revertFiles(repoRoot, rels) {
   }
 }
 
-async function pullRebase(repoRoot) {
-  const r = await git(repoRoot, ['pull', '--rebase', '--autostash', '--no-edit', config.gitRemote, config.gitBranch], { allowFail: true, timeoutMs: 180_000 });
+/** Refuses to publish from anything but the publish branch, so `git push HEAD:main` can never carry other commits. */
+export async function assertPublishBranch(repoRoot = config.repoRoot) {
+  const branch = (await git(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'], { allowFail: true })).stdout.trim();
+  if (branch === config.gitBranch) return branch;
+  if (branch === 'HEAD') {
+    const head = (await git(repoRoot, ['rev-parse', 'HEAD'], { allowFail: true })).stdout.trim();
+    const remote = (await git(repoRoot, ['rev-parse', `${config.gitRemote}/${config.gitBranch}`], { allowFail: true })).stdout.trim();
+    if (head && head === remote) return `detached at ${config.gitRemote}/${config.gitBranch}`;
+  }
+  throw new Error(
+    `publish must run on a checkout of ${config.gitBranch} (REPO_ROOT ${repoRoot} is on "${branch || 'unknown'}"); ` +
+      `use a separate worktree of ${config.gitBranch}, or set GIT_PUSH=0 to commit locally without pushing`,
+  );
+}
+
+const remaining = (deadline) => (deadline ? deadline - Date.now() : Infinity);
+const stepTimeout = (deadline, max = 120_000) => Math.max(15_000, Math.min(max, remaining(deadline)));
+
+async function pullRebase(repoRoot, deadline) {
+  const r = await git(repoRoot, ['pull', '--rebase', '--autostash', '--no-edit', config.gitRemote, config.gitBranch], { allowFail: true, timeoutMs: stepTimeout(deadline) });
   if (r.code !== 0) {
     await git(repoRoot, ['rebase', '--abort'], { allowFail: true });
     throw new Error(`git pull --rebase failed: ${(r.stderr || r.stdout).trim().split('\n').slice(-4).join(' ')}`);
   }
 }
 
-/** pull --rebase + push with retries (another commit may land on main between our pull and push). */
-async function pushWithRetries(repoRoot, { attempts = 5 } = {}) {
+/**
+ * pull --rebase + push with retries (another commit may land on main between our pull and push). Bounded by
+ * `deadline` (default: 6 minutes from now) so the caller always gets control back before the CI job timeout.
+ */
+async function pushWithRetries(repoRoot, { attempts = 5, deadline = Date.now() + 6 * 60_000 } = {}) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
+    if (remaining(deadline) < 20_000) {
+      lastErr = new Error(`git push gave up: time budget used (${lastErr ? lastErr.message : 'no attempt finished'})`);
+      break;
+    }
     try {
-      await pullRebase(repoRoot);
-      const r = await git(repoRoot, ['push', config.gitRemote, `HEAD:${config.gitBranch}`], { allowFail: true, timeoutMs: 180_000 });
+      await pullRebase(repoRoot, deadline);
+      const r = await git(repoRoot, ['push', config.gitRemote, `HEAD:${config.gitBranch}`], { allowFail: true, timeoutMs: stepTimeout(deadline) });
       if (r.code === 0) return true;
       lastErr = new Error(`git push failed: ${(r.stderr || r.stdout).trim().split('\n').slice(-4).join(' ')}`);
     } catch (err) {
       lastErr = err;
     }
-    const wait = Math.min(30_000, 2000 * 2 ** i) + Math.round(Math.random() * 1000);
+    if (i === attempts - 1) break;
+    const wait = Math.min(30_000, 2000 * 2 ** i, Math.max(0, remaining(deadline) - 20_000)) + Math.round(Math.random() * 1000);
     log.warn(`publish: ${lastErr.message} (attempt ${i + 1}/${attempts}); retrying in ${(wait / 1000).toFixed(1)}s`);
     await sleep(wait);
   }
@@ -145,7 +181,7 @@ export function buildMarkdown(body, { date, order }) {
 /**
  * Publishes one blog item. `cover` is the stored cover (Buffer, any image format; written as WebP).
  */
-export async function publishBlog({ item, cover, repoRoot = config.repoRoot, push = config.gitPush, today = todayIST() } = {}) {
+export async function publishBlog({ item, cover, repoRoot = config.repoRoot, push = config.gitPush, today = todayIST(), beforePush, deadline } = {}) {
   const body = item?.body || {};
   const slug = String(body.slug || '').trim();
   const title = String(body.frontmatter?.title || item?.title || '').trim();
@@ -160,8 +196,9 @@ export async function publishBlog({ item, cover, repoRoot = config.repoRoot, pus
   const mdFile = path.join(repoRoot, mdRel);
   const imgFile = path.join(repoRoot, imgRel);
 
+  if (push) await assertPublishBranch(repoRoot);
   // Start from the latest main so the order number and collision checks see every published post.
-  if (push) await pullRebase(repoRoot);
+  if (push) await pullRebase(repoRoot, deadline);
   const dirty = (await git(repoRoot, ['status', '--porcelain', '--', mdRel, imgRel])).stdout.trim();
   if (dirty) throw new Error(`REPO_ROOT has uncommitted changes to ${mdRel} / ${imgRel}; refusing to publish over them`);
 
@@ -177,12 +214,12 @@ export async function publishBlog({ item, cover, repoRoot = config.repoRoot, pus
     if (sameBody && sameTitle && existingImg) {
       log(`publish: ${mdRel} already contains this post; treating as published`);
       let pushed = false;
-      if (push) pushed = await pushWithRetries(repoRoot);
+      if (push) pushed = await pushWithRetries(repoRoot, { deadline });
       const commit = (await git(repoRoot, ['log', '-1', '--format=%H', '--', mdRel])).stdout.trim() || null;
       const date = /date:\s*"(\d{4}-\d{2}-\d{2})"/.exec(existingText)?.[1] || today;
       return { slug, title, url: `${config.siteUrl}/blog/${slug}/`, commit, pushed, files: [mdRel, imgRel], alreadyPublished: true, date };
     }
-    throw permanent(`${mdRel} already exists with different content; refusing to overwrite a published post (rename the slug)`);
+    throw permanent(`${mdRel} already exists with different content; refusing to overwrite a published post (if this item is already live, mark it published by hand; otherwise rename the slug)`);
   }
   if (existingImg) throw permanent(`${imgRel} already exists (another page uses it); refusing to overwrite it (rename the slug)`);
 
@@ -209,7 +246,7 @@ export async function publishBlog({ item, cover, repoRoot = config.repoRoot, pus
   const rels = [mdRel, imgRel];
   let committed = false;
   try {
-    const summary = await runSiteBlogCheck(repoRoot);
+    const summary = await runSiteBlogCheck(repoRoot, { slug });
     log(`publish: website check passed (${summary})`);
     await git(repoRoot, ['add', '--', ...rels]);
     await git(repoRoot, ['commit', '--no-verify', '--quiet', '-m', `Blog: ${title}`, '--', ...rels]);
@@ -225,7 +262,9 @@ export async function publishBlog({ item, cover, repoRoot = config.repoRoot, pus
   let pushed = false;
   if (push) {
     try {
-      pushed = await pushWithRetries(repoRoot);
+      // Last look before going live: the item must still be exactly what a person approved.
+      if (beforePush) await beforePush();
+      pushed = await pushWithRetries(repoRoot, { deadline });
     } catch (err) {
       // Undo the local commit so the next run starts clean and retries the whole publish.
       if (committed) {

@@ -74,8 +74,11 @@ Then `Read` `$WORK/prev/sheet-<slug>-cover.jpg`. Shortlist 1 to 2, Read their fu
 
 ```bash
 source ~/dhiti-work/env.sh && curl -sSL -o "$WORK/prev/v-<id>.mp4" "<videoPreviewUrl>"
-ffmpeg -v error -y -i "$WORK/prev/v-<id>.mp4" -vf "fps=1/2,scale=240:-2,tile=5x1" -frames:v 1 "$WORK/prev/v-<id>-strip.jpg"
+ffmpeg -v error -y -i "$WORK/prev/v-<id>.mp4" -vf "fps=1,scale=240:-2,tile=6x2" -frames:v 1 "$WORK/prev/v-<id>-strip.jpg"
 ```
+
+Reject before buying any clip whose title or strip shows aircraft, tails, tarmac, liveries or signage: a legible
+airline or airport name anywhere in the shot breaks the clean-frame rule and wastes 600 credits.
 
 The strip shows how the shot evolves (does the subject leave frame, does a logo appear, is there a usable 3 to 5
 second stretch). The Magnific watermark on previews is expected; it is not on the licensed file.
@@ -88,7 +91,8 @@ second stretch). The Magnific watermark on previews is expected; it is not on th
 - **Relevant.** The image tells the story of this specific post: the document, the call, the reconciliation, the
   front desk. A cover could not be swapped onto a different post.
 - **People.** Indian or South Asian professionals in smart-casual office clothes whenever people appear. Real
-  diversity of age and gender across the week. No children.
+  diversity of age and gender across the week. No children. Expression matches the post: concentrated, neutral
+  or mildly concerned for problem topics; no smiling at a lost-money story.
 - **Clean frame.** No readable text, numbers, logos, brand names, airline or hotel liveries, flags, famous
   landmarks, watermarks, uniforms of real companies, or on-screen UI with legible words.
 - **Never cheesy.** Reject: handshakes over desks, thumbs-up, pointing at blank screens, jumping or cheering
@@ -102,6 +106,8 @@ second stretch). The Magnific watermark on previews is expected; it is not on th
 - **Resolution.** Photos at least 2000 px on the long edge (covers ideally 3000+). Video at least 1080x1920.
 - **Variety.** Do not reuse the same model or set across the three posts in a week; vary settings (office,
   hotel, airport, phone desk).
+  Within one blog, the cover photo may appear in at most one derived creative (usually the carousel cover). Never
+  use one clip or photo twice in the same reel.
 
 Prefer a free (40-credit) photo when it is as good as a premium one. Pay for premium when it is clearly better.
 

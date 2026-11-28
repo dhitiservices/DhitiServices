@@ -8,7 +8,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: { DEFAULT: v("brand"), deep: v("brand-deep"), bright: v("brand-bright"), tint: v("brand-tint") },
+        brand: { DEFAULT: v("brand"), deep: v("brand-deep"), bright: v("brand-bright"), tint: v("brand-tint"), ink: v("brand-ink") },
         ink: { DEFAULT: v("ink"), soft: v("ink-soft"), mute: v("ink-mute"), faint: v("ink-faint") },
         canvas: v("canvas"),
         surface: { DEFAULT: v("surface"), raised: v("surface-raised"), sunken: v("surface-sunken") },
@@ -19,7 +19,9 @@ export default {
         violet: v("violet"),
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'system-ui', 'sans-serif'],
+        // SF Pro only, from the operating system: Apple devices render real SF Pro; no font files are shipped (Apple's
+        // licence does not allow web embedding), so other systems fall back to their own UI font.
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         // SF-style scale: [size, {lineHeight, letterSpacing}]

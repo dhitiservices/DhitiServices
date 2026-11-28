@@ -111,7 +111,7 @@ export function Login({ backend, onDemo }) {
                 <p className="mt-1.5 text-body text-ink-mute">
                   We sent a sign-in link to <span className="font-semibold text-ink">{email.trim()}</span>. It works once and expires in an hour.
                 </p>
-                <button className="mt-5 text-callout font-semibold text-brand hover:underline" onClick={() => setState({ busy: false, sent: false, error: null })}>
+                <button className="mt-5 text-callout font-semibold text-brand-ink hover:underline" onClick={() => setState({ busy: false, sent: false, error: null })}>
                   Use a different email
                 </button>
               </motion.div>
@@ -190,7 +190,7 @@ export function NotAuthorised({ email, onSignOut }) {
     <div className="aurora flex min-h-dvh items-center justify-center px-5">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }} className="card w-full max-w-[420px] p-8 text-center">
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-b from-brand/15 to-brand/5">
-          <Lock className="h-6 w-6 text-brand" strokeWidth={2} />
+          <Lock className="h-6 w-6 text-brand-ink" strokeWidth={2} />
         </div>
         <h1 className="text-title-2 font-bold">This account isn't on the team</h1>
         <p className="mt-2 text-body text-ink-mute">

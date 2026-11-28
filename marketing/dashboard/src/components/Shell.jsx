@@ -101,6 +101,7 @@ export function Sidebar({ onSearch, onSignOut, demo }) {
                 <Link
                   key={n.to}
                   to={n.to}
+                  aria-current={active ? "page" : undefined}
                   className={cx(
                     "group relative flex h-[34px] items-center gap-2.5 rounded-[10px] px-3 text-[14px] font-medium tracking-[-0.008em] transition-colors",
                     active ? "text-ink" : "text-ink-soft hover:text-ink",
@@ -114,7 +115,7 @@ export function Sidebar({ onSearch, onSignOut, demo }) {
                     />
                   )}
                   {!active && <span className="absolute inset-0 rounded-[10px] bg-ink/0 transition-colors group-hover:bg-ink/[0.04]" />}
-                  <n.icon className={cx("relative h-[17px] w-[17px] transition-colors", active ? "text-brand" : "text-ink-mute group-hover:text-ink-soft")} strokeWidth={2} />
+                  <n.icon className={cx("relative h-[17px] w-[17px] transition-colors", active ? "text-brand-ink" : "text-ink-mute group-hover:text-ink-soft")} strokeWidth={2} />
                   <span className="relative flex-1">{n.label}</span>
                   <AnimatePresence>
                     {count > 0 && (
@@ -125,7 +126,7 @@ export function Sidebar({ onSearch, onSignOut, demo }) {
                         transition={spring}
                         className={cx(
                           "tnum relative min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-bold leading-5",
-                          n.badge === "reviewCount" ? "bg-brand text-white" : "bg-ink/[0.07] text-ink-soft",
+                          n.badge === "reviewCount" ? "bg-brand-deep text-white" : "bg-ink/[0.07] text-ink-soft",
                         )}
                       >
                         {count}
@@ -142,7 +143,7 @@ export function Sidebar({ onSearch, onSignOut, demo }) {
       <div className="hairline-t space-y-3 px-4 py-4">
         <div className="flex items-center justify-between">
           <SyncBadge />
-          <Segmented size="sm" value={theme} onChange={setTheme} layoutId="theme-seg" options={THEME_OPTIONS.map((o) => ({ value: o.value, icon: o.icon, label: "" }))} />
+          <Segmented size="sm" value={theme} onChange={setTheme} layoutId="theme-seg" label="Theme" options={THEME_OPTIONS.map((o) => ({ value: o.value, icon: o.icon, label: "", ariaLabel: `${o.label} theme` }))} />
         </div>
         <div className="flex items-center gap-2.5">
           <Avatar email={data.user?.email} size={30} />
@@ -171,7 +172,7 @@ export function MobileHeader({ title, onSearch }) {
     return () => window.removeEventListener("scroll", on);
   }, []);
   return (
-    <header className={cx("glass glass-strong sticky top-0 z-30 flex h-[52px] items-center gap-3 px-4 pt-[env(safe-area-inset-top)] transition-[box-shadow] lg:hidden", scrolled && "shadow-[0_1px_0_var(--hairline)]")}>
+    <header className={cx("glass glass-strong sticky top-0 z-30 flex h-[calc(52px+env(safe-area-inset-top))] items-center gap-3 px-4 pt-[env(safe-area-inset-top)] transition-[box-shadow] lg:hidden", scrolled && "shadow-[0_1px_0_var(--hairline)]")}>
       <AppMark size={28} />
       <motion.span
         key={title}
@@ -195,14 +196,14 @@ function Item({ active, icon: Icon, label, count, onClick, to }) {
     <>
       <span className="relative">
         {active && <motion.span layoutId="tab-active" transition={spring} className="absolute -inset-x-3.5 -inset-y-1 rounded-full bg-brand/[0.1]" />}
-        <Icon className={cx("relative h-[22px] w-[22px] transition-colors", active ? "text-brand" : "text-ink-mute")} strokeWidth={active ? 2.3 : 2} />
-        {count > 0 && <span className="tnum absolute -right-2.5 -top-1.5 min-w-[17px] rounded-full bg-brand px-1 text-center text-[10px] font-bold leading-[17px] text-white ring-2 ring-canvas">{count}</span>}
+        <Icon className={cx("relative h-[22px] w-[22px] transition-colors", active ? "text-brand-ink" : "text-ink-mute")} strokeWidth={active ? 2.3 : 2} />
+        {count > 0 && <span className="tnum absolute -right-2.5 -top-1.5 min-w-[17px] rounded-full bg-brand-deep px-1 text-center text-[10px] font-bold leading-[17px] text-white ring-2 ring-canvas">{count}</span>}
       </span>
-      <span className={cx("mt-1 text-[10.5px] font-semibold tracking-[-0.005em]", active ? "text-brand" : "text-ink-mute")}>{label}</span>
+      <span className={cx("mt-1 text-[10.5px] font-semibold tracking-[-0.005em]", active ? "text-brand-ink" : "text-ink-mute")}>{label}</span>
     </>
   );
   const cls = "flex flex-1 flex-col items-center justify-center pt-2 pb-1 active:opacity-70";
-  return to ? <Link to={to} className={cls}>{inner}</Link> : <button onClick={onClick} className={cls}>{inner}</button>;
+  return to ? <Link to={to} className={cls} aria-current={active ? "page" : undefined}>{inner}</Link> : <button onClick={onClick} className={cls} aria-expanded={active || undefined}>{inner}</button>;
 }
 
 
@@ -238,7 +239,7 @@ export function TabBar({ onSignOut, demo }) {
         </div>
         <div className="mt-4 flex items-center justify-between">
           <span className="text-callout font-semibold text-ink-soft">Appearance</span>
-          <Segmented size="sm" value={theme} onChange={setTheme} layoutId="theme-seg-m" options={THEME_OPTIONS} />
+          <Segmented size="sm" value={theme} onChange={setTheme} layoutId="theme-seg-m" label="Theme" options={THEME_OPTIONS} />
         </div>
         <div className="mt-4 flex items-center gap-3 rounded-2xl bg-surface p-3 shadow-[0_0_0_1px_var(--hairline)]">
           <Avatar email={data.user?.email} size={34} />

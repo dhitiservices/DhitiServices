@@ -35,7 +35,7 @@ img { display: block; }
   position: absolute; inset: 0; z-index: -1;
   background:
     radial-gradient(1200px 700px at 100% 0%, rgba(238, 8, 0, 0.045), transparent 60%),
-    radial-gradient(900px 900px at 0% 100%, rgba(21, 22, 26, 0.035), transparent 60%);
+    radial-gradient(900px 900px at 0% 100%, rgba(22, 17, 16, 0.035), transparent 60%);
 }
 
 .bg-ink::before {
@@ -44,7 +44,7 @@ img { display: block; }
   background:
     radial-gradient(900px 760px at 105% -5%, rgba(238, 8, 0, 0.34), transparent 62%),
     radial-gradient(700px 600px at -10% 110%, rgba(255, 51, 34, 0.10), transparent 60%),
-    linear-gradient(180deg, #1b1c21 0%, var(--ink) 100%);
+    linear-gradient(160deg, #251c1b 0%, #181315 100%); /* the site's warm charcoal band */
 }
 
 .bg-red::before {
@@ -66,19 +66,19 @@ img { display: block; }
 .scrim-bottom {
   position: absolute; inset: 0; z-index: -1;
   background:
-    linear-gradient(180deg, rgba(10, 11, 14, 0.55) 0%, rgba(10, 11, 14, 0.05) 24%, rgba(10, 11, 14, 0.10) 42%, rgba(10, 11, 14, 0.78) 68%, rgba(10, 11, 14, 0.94) 100%);
+    linear-gradient(180deg, rgba(22, 17, 16, 0.55) 0%, rgba(22, 17, 16, 0.05) 24%, rgba(22, 17, 16, 0.10) 42%, rgba(22, 17, 16, 0.78) 68%, rgba(22, 17, 16, 0.94) 100%);
 }
 .scrim-full {
   position: absolute; inset: 0; z-index: -1;
-  background: linear-gradient(180deg, rgba(10, 11, 14, 0.50) 0%, rgba(10, 11, 14, 0.62) 50%, rgba(10, 11, 14, 0.90) 100%);
+  background: linear-gradient(180deg, rgba(22, 17, 16, 0.50) 0%, rgba(22, 17, 16, 0.62) 50%, rgba(22, 17, 16, 0.90) 100%);
 }
 
 /* ---------- Type ---------- */
 .eyebrow {
   display: inline-flex; align-items: center; gap: calc(14px * var(--fit, 1));
-  font-size: calc(24px * var(--fit, 1));
+  font-size: calc(28px * var(--fit, 1));
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   line-height: 1;
   color: var(--red);
@@ -104,6 +104,7 @@ img { display: block; }
   margin: 0;
   font-weight: 800;
   letter-spacing: -0.022em;
+  word-spacing: 0.03em;
   line-height: 1.04;
   text-wrap: balance;
   overflow-wrap: normal;
@@ -142,7 +143,7 @@ img { display: block; }
 .wordmark { display: block; height: 44px; width: auto; }
 .mark { display: block; width: 56px; height: 56px; }
 .url {
-  font-size: 22px; font-weight: 600; letter-spacing: 0.01em;
+  font-size: 26px; font-weight: 600; letter-spacing: 0.01em;
   color: var(--ink-mute);
 }
 .on-dark .url { color: rgba(255, 255, 255, 0.72); }

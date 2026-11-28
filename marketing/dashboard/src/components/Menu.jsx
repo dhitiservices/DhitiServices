@@ -7,18 +7,38 @@ import { cx, Kbd } from "./ui.jsx";
 export function Menu({ trigger, items, align = "right", side = "bottom", className }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const menuRef = useRef(null);
   useEffect(() => {
     if (!open) return;
+    const items = () => [...(menuRef.current?.querySelectorAll('[role="menuitem"]:not([disabled])') || [])];
     const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const key = (e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
+    const key = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        ref.current?.querySelector("[aria-haspopup]")?.focus();
+        return;
+      }
+      // Arrow keys / Home / End move between items (WAI-ARIA menu pattern); Tab closes.
+      const list = items();
+      const i = list.indexOf(document.activeElement);
+      const go = (n) => { e.preventDefault(); e.stopPropagation(); list[(n + list.length) % list.length]?.focus(); };
+      if (e.key === "ArrowDown") go(i + 1);
+      else if (e.key === "ArrowUp") go(i - 1);
+      else if (e.key === "Home") go(0);
+      else if (e.key === "End") go(list.length - 1);
+      else if (e.key === "Tab") setOpen(false);
+    };
     document.addEventListener("pointerdown", close);
     window.addEventListener("keydown", key, true);
-    return () => { document.removeEventListener("pointerdown", close); window.removeEventListener("keydown", key, true); };
+    // Move focus into the menu so the keyboard works at once.
+    const t = requestAnimationFrame(() => items()[0]?.focus({ preventScroll: true }));
+    return () => { cancelAnimationFrame(t); document.removeEventListener("pointerdown", close); window.removeEventListener("keydown", key, true); };
   }, [open]);
 
   return (
     <div ref={ref} className={cx("relative", className)}>
-      {trigger({ open, toggle: () => setOpen((v) => !v) })}
+      {trigger({ open, toggle: () => setOpen((v) => !v), triggerProps: { "aria-haspopup": "menu", "aria-expanded": open } })}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -29,6 +49,7 @@ export function Menu({ trigger, items, align = "right", side = "bottom", classNa
             style={{ transformOrigin: `${side === "top" ? "bottom" : "top"} ${align === "right" ? "right" : "left"}` }}
             className={cx("popover absolute z-50 min-w-[220px] p-1.5", side === "top" ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+6px)]", align === "right" ? "right-0" : "left-0")}
             role="menu"
+            ref={menuRef}
           >
             {items.filter(Boolean).map((it, i) =>
               it === "divider" ? (
@@ -37,11 +58,12 @@ export function Menu({ trigger, items, align = "right", side = "bottom", classNa
                 <button
                   key={it.label}
                   role="menuitem"
+                  tabIndex={-1}
                   disabled={it.disabled}
                   onClick={() => { setOpen(false); it.onClick(); }}
                   className={cx(
-                    "flex h-9 w-full items-center gap-2.5 rounded-[9px] px-2.5 text-left text-callout font-medium transition-colors disabled:opacity-40",
-                    it.danger ? "text-brand hover:bg-brand/[0.07]" : "text-ink hover:bg-ink/[0.05]",
+                    "flex h-9 w-full items-center gap-2.5 rounded-[9px] px-2.5 text-left text-callout font-medium outline-none transition-colors disabled:opacity-40",
+                    it.danger ? "text-brand-ink hover:bg-brand/[0.07] focus-visible:bg-brand/[0.07]" : "text-ink hover:bg-ink/[0.05] focus-visible:bg-ink/[0.06]",
                   )}
                 >
                   {it.icon && <it.icon className={cx("h-4 w-4", it.danger ? "" : "text-ink-mute")} strokeWidth={2} />}

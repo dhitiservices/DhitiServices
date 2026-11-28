@@ -26,8 +26,9 @@ total **19 to 32 seconds**. Do not write your own logo scene.
 
 1. **Hook scene, 2 to 3 s.** `on_screen_text` names a costly, recognisable problem or a surprising truth in **at
    most 7 words**, readable in under 2 seconds ("Your best client is funding your cash gap"). The footage must
-   show the problem in the first frame (a person on a tense call, a stack of invoices, a departure board), not a
-   slow establishing shot.
+   show the post's object in the first frame (the invoice, ledger, rooming list, refund email or desk where it
+   happens), close or medium. Silhouettes, skylines and airport windows are establishing shots and are not
+   allowed as hooks.
 2. **Problem and cause scenes (2 scenes).** Why it happens, one concrete detail each. A sourced number from the
    post may be used exactly as written.
 3. **Method scenes (2 to 3 scenes).** The practical routine, one step per scene.
@@ -87,7 +88,7 @@ Rules for every scene:
 {
   "caption": "...",
   "hashtags": ["#TravelAgency", "..."],
-  "transition": "fade",
+  "transition": "fadeblack",
   "voiceover_script": "Your best client might be funding your cash gap. ...",
   "voiceover": null,
   "scenes": [
@@ -98,7 +99,8 @@ Rules for every scene:
 }
 ```
 
-`transition`: `fade` (default, calm) or `cut` for a punchier edit; others exist (`smoothleft`, `slideup`, ...) but
+`transition`: `fadeblack` (recommended: a clean dip between scenes, no muddy double exposure), `fade` (a soft
+cross-dissolve) or `cut` for a punchier edit; others exist (`smoothleft`, `slideup`, ...) but
 use them sparingly.
 
 ## 7. Preview, look, fix (mandatory)
@@ -120,7 +122,8 @@ ffprobe -v error -show_entries format=duration -of csv=p=0 "$V"
 Pick timestamps from the timeline (text is fully visible about 1 second into each scene). Check: text is legible
 over the footage and inside the safe area (nothing hidden behind the platform's top bar or bottom caption zone);
 the hook frame works as a thumbnail; no watermark, logo or legible brand appears in the footage; the total
-duration is 22 to 35 seconds. Fix and preview again until it is right. Then save:
+duration is 22 to 35 seconds; the hook scene is at most 3.0 s; no clip or photo appears twice; no text sits in
+the right-hand action rail (x > 920) where Reels draws its buttons. Fix and preview again until it is right. Then save:
 
 ```bash
 source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js make-video --parent "<blog item id>" --spec "$WORK/<slug>/video.json"

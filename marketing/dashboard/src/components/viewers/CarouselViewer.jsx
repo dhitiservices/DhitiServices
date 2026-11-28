@@ -17,8 +17,11 @@ export function slidesOf(assets, item) {
 export function CarouselStage({ item }) {
   const { assets } = useData();
   const slides = slidesOf(assets, item);
-  const [[index, dir], setIndex] = useState([0, 0]);
+  const [[rawIndex, dir], setIndex] = useState([0, 0]);
   useEffect(() => setIndex([0, 0]), [item.id]);
+  // A revision can arrive with fewer slides while a later slide is open: clamp instead of reading past the end.
+  const index = Math.max(0, Math.min(rawIndex, slides.length - 1));
+  useEffect(() => { if (slides.length && rawIndex > slides.length - 1) setIndex([slides.length - 1, 0]); }, [slides.length, rawIndex]);
   const go = (n) => setIndex(([i]) => [Math.max(0, Math.min(slides.length - 1, i + n)), n]);
 
   useHotkeys({ arrowright: () => go(1), arrowleft: () => go(-1) });
@@ -51,7 +54,7 @@ export function CarouselStage({ item }) {
               }}
               className="absolute inset-0 cursor-grab touch-pan-y active:cursor-grabbing"
             >
-              <SignedImage path={slides[index].storage_path} className="h-full w-full" eager alt={`Slide ${index + 1}`} />
+              <SignedImage path={slides[index]?.storage_path} className="h-full w-full" eager alt={`Slide ${index + 1}`} />
             </motion.div>
           </AnimatePresence>
           <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[11.5px] font-semibold text-white backdrop-blur-md tnum">

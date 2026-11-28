@@ -79,7 +79,7 @@ async function squareHtml(g, brand) {
     const photo = g.photo ? await photoDataUri(g.photo, { width, height, focus: g.focus }) : '';
     return `
 <div class="frame g g-square g-stat bg-ink on-dark ${photo ? 'has-photo-bg' : ''}">
-  ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full" style="background:rgba(16,17,20,0.84)"></div>` : ''}
+  ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full" style="background:rgba(22,17,16,0.84)"></div>` : ''}
   <main class="g-main" data-fit-box="stat" data-fit-min="0.5">
     ${g.eyebrow ? `<div class="eyebrow">${escapeHtml(g.eyebrow)}</div>` : ''}
     ${statHtml(g.stat)}
@@ -146,7 +146,7 @@ async function landscapeHtml(g, brand) {
     const photo = g.photo ? await photoDataUri(g.photo, { ...GRAPHIC_SIZES.landscape, focus: g.focus }) : '';
     return `
 <div class="frame g g-land g-stat bg-ink on-dark ${photo ? 'has-photo-bg' : ''}">
-  ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full" style="background:rgba(16,17,20,0.84)"></div>` : ''}
+  ${photo ? `<img class="photo" src="${photo}" alt=""><div class="scrim-full" style="background:rgba(22,17,16,0.84)"></div>` : ''}
   <div class="split">
     <div class="left">
       ${g.eyebrow ? `<div class="eyebrow">${escapeHtml(g.eyebrow)}</div>` : ''}

@@ -83,9 +83,16 @@ export default function Settings() {
     try { await d.actions.saveSettings(form); } catch { /* toast shown */ } finally { setBusy(false); }
   };
   useHotkeys({ "mod+s": () => (dirty ? save() : false) });
+  // Closing or reloading the tab with unsaved settings asks first.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   useEffect(() => {
-    if (window.location.hash === "#runs" && !loading) document.getElementById("runs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (window.location.hash === "#runs" && !loading) requestAnimationFrame(() => document.getElementById("runs")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, [loading]);
 
   const perWeek = form.blogs_per_week * (1 + form.carousels_per_blog + form.graphics_per_blog + form.videos_per_blog);
@@ -102,10 +109,10 @@ export default function Settings() {
           <section>
             <h2 className="mb-3 text-headline font-semibold">Weekly output</h2>
             <Card className="divide-y divide-[color:var(--hairline)]">
-              <Row label="Blogs per week" hint="Each blog gets its own carousel, graphics and reel."><Stepper value={form.blogs_per_week} onChange={set("blogs_per_week")} min={1} max={7} /></Row>
-              <Row label="Carousels per blog"><Stepper value={form.carousels_per_blog} onChange={set("carousels_per_blog")} min={0} max={3} /></Row>
-              <Row label="Graphics per blog" hint="Square and landscape versions of each."><Stepper value={form.graphics_per_blog} onChange={set("graphics_per_blog")} min={0} max={5} /></Row>
-              <Row label="Reels per blog" hint="You record the voiceover; the reel is timed to it."><Stepper value={form.videos_per_blog} onChange={set("videos_per_blog")} min={0} max={2} /></Row>
+              <Row label="Blogs per week" hint="Each blog gets its own carousel, graphics and reel."><Stepper label="blogs per week" value={form.blogs_per_week} onChange={set("blogs_per_week")} min={1} max={7} /></Row>
+              <Row label="Carousels per blog"><Stepper label="carousels per blog" value={form.carousels_per_blog} onChange={set("carousels_per_blog")} min={0} max={3} /></Row>
+              <Row label="Graphics per blog" hint="Square and landscape versions of each."><Stepper label="graphics per blog" value={form.graphics_per_blog} onChange={set("graphics_per_blog")} min={0} max={5} /></Row>
+              <Row label="Reels per blog" hint="You record the voiceover; the reel is timed to it."><Stepper label="reels per blog" value={form.videos_per_blog} onChange={set("videos_per_blog")} min={0} max={2} /></Row>
               <div className="flex items-center justify-between bg-ink/[0.02] px-5 py-3 text-callout">
                 <span className="text-ink-mute">Every week you review</span>
                 <motion.span key={perWeek} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="tnum font-semibold text-ink">{perWeek} pieces</motion.span>
@@ -127,7 +134,7 @@ export default function Settings() {
                       className={cx("relative flex h-14 flex-col items-center justify-center rounded-xl text-callout font-semibold transition-colors", on ? "text-white" : "bg-ink/[0.04] text-ink-mute hover:bg-ink/[0.07]")}
                       aria-pressed={on}
                     >
-                      {on && <motion.span layoutId={`day-${day}`} transition={spring} className="absolute inset-0 rounded-xl bg-gradient-to-b from-[#FF2A17] to-[#E30700] shadow-glow" />}
+                      {on && <motion.span layoutId={`day-${day}`} transition={spring} className="absolute inset-0 rounded-xl bg-gradient-to-b from-[#E30700] to-[#C20600] shadow-glow" />}
                       <span className="relative">{day.slice(0, 3)}</span>
                       {on && <Check className="relative mt-0.5 h-3 w-3" strokeWidth={3} />}
                     </motion.button>
@@ -146,7 +153,7 @@ export default function Settings() {
               <Field label="Audience" hint="Who every post is written for.">
                 <textarea rows={3} className="input resize-y leading-[22px]" value={form.audience} onChange={(e) => set("audience")(e.target.value)} />
               </Field>
-              <Field label="Avoid topics" hint="Press Enter to add. The planner never picks these.">
+              <Field as="div" label="Avoid topics" hint="Press Enter to add. The planner never picks these.">
                 <TokenInput value={form.avoid_topics} onChange={set("avoid_topics")} placeholder="e.g. Visa advice" />
               </Field>
               <Field label="Extra guidance" hint="Anything the writer should know this month: offers, events, tone.">

@@ -14,8 +14,8 @@ stated as fact.
 - **What Dhiti is.** An operations company that recruits, trains and employs people in rural Maharashtra
   (Dawadi, Pune District, India) to do skilled back-office, data, support and quality work. The work comes to the
   people; nobody has to relocate to a city.
-- **Who it serves.** The travel industry: travel agencies, travel management companies (TMCs) and corporate travel
-  businesses, tour operators, OTAs and DMCs, travel-tech companies, hotels and hotel groups.
+- **Who it serves.** The travel industry: travel agencies, travel management companies (TMCs) and other corporate travel
+  businesses (companies that sell travel to corporates, not the corporates themselves), tour operators, OTAs and DMCs, travel-tech companies, hotels and hotel groups.
 - **Four service lines (names as on the site):**
   1. **Data & Back Office Operations**: data entry, cataloguing, document processing and reconciliation, each with
      a verification step built in. In travel this covers work such as rate and profile loading, refunds, ADM
@@ -148,6 +148,13 @@ LinkedIn body text.
 - Bad: "Excited to share our latest blog on hotel commissions!" Good: "The hotel confirmed the booking. The commission
   never arrived."
 - Bad: "Here are 5 things every TMC should know." Good: "The airline gets paid on Friday. Your client pays in 60 days."
+
+## 6b. Typography (owner decision)
+
+The owner asked for "SF Pro font only for all". The dashboard uses SF Pro from the operating system (real SF Pro on
+Apple devices). Creatives (carousel, graphics, reel) use Inter with SF-like alternates, deliberately: Apple's SF Pro
+licence does not allow it in rendered marketing images or on the web. This is a conscious choice, not a deviation;
+never embed SF Pro font files anywhere.
 
 ## 7. What "world-class" means here (definition of done)
 

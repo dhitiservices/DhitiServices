@@ -24,7 +24,10 @@ Contract: `marketing/ARCHITECTURE.md` (v2 with the v3 addendum). Detailed rubric
    `ai_generated: "excluded"`) and `account_balance`. Never call any Magnific generation, editing, upscaling,
    TTS, music or SFX tool, and no other image or video generator. Owner library media is preferred when it fits.
 3. **Never fabricate** facts, numbers, sources, quotes, clients or Dhiti results. Every external claim is sourced
-   and verified with WebFetch. Illustrative examples are labelled.
+   and verified with WebFetch (fallback: `node src/cli.js fetch <url> --out "$WORK/src/<n>.html"` and grep it).
+   If neither can open a source, do not use any number or rule from it. Never treat a search-result snippet as
+   verification. If fewer than 3 sources of a post can be fetched, save that blog only with a first-line owner
+   action in the run log: "UNVERIFIED SOURCES: <urls>, verify before approving". Illustrative examples are labelled.
 4. **No em dashes (—)** anywhere. No banned phrases (`quality-bar.md` section 5).
 5. **Never commit, push or edit files in the repository.** All work files live in `~/dhiti-work/`. Publishing is
    done later by GitHub Actions after the owner approves.
@@ -242,7 +245,7 @@ of time, finished blogs are what the owner needs. For each topic:
    `$WORK/<slug>/stock.json`. Update `imageAlt` to describe the chosen photo, then re-run `check-blog`.
 5. **Save**:
    ```bash
-   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic id>" --md "$WORK/<slug>/<slug>.md" --cover "$WORK/stock/<id>.jpg" --stock "$WORK/<slug>/stock.json" | tee "$WORK/<slug>/blog.saved.json"
+   source ~/dhiti-work/env.sh && cd "$ENGINE" && node src/cli.js save-blog --topic "<topic id>" --md "$WORK/<slug>/<slug>.md" --cover "$WORK/stock/<id>.jpg" --stock "$WORK/<slug>/stock.json" --meta "$WORK/<slug>/meta.json" | tee "$WORK/<slug>/blog.saved.json"
    ```
    Record the blog item id in `state.json`. The item is now `pending_review`, scheduled for the planned date 10:00 IST.
 
@@ -282,7 +285,10 @@ arrived during the run.
    - per blog: words, sources, creatives made (item ids), anything that failed and why;
    - revisions done (item ids, what changed), jobs finished;
    - **owner actions**: reels awaiting voiceover (titles), jobs that failed with an owner-readable reason;
-   - Magnific credits used (per blog and total) and balance left;
+   - Magnific credits used (per blog and total) and balance left, including any clip or photo bought and then
+     rejected (and why);
+   - research depth per blog: number of searches and of fetched sources; if below the `research.md` minimums,
+     say why;
    - deviations from this playbook, if any, and why.
 4. Finish the run (status `succeeded` if the run did what its mode required, even with some logged creative
    failures; `failed` if no blog could be saved in a weekly batch or the run could not do its work):
@@ -355,7 +361,7 @@ node src/cli.js save-topics topics.json                   -> [{id,title}]
 node src/cli.js topic --id ID --status producing|ready|failed
 node src/cli.js check-blog draft.md                       -> {passed, messages, words, sections}
 node src/cli.js fetch URL --out FILE                      -> {path, bytes, mime}
-node src/cli.js save-blog --topic ID --md F --cover F --stock F [--item ID]
+node src/cli.js save-blog --topic ID --md F --cover F --stock F --meta F [--item ID] [--owner-note "UNVERIFIED SOURCES: ..."]
 node src/cli.js preview carousel|graphic|video --spec F --out DIR
 node src/cli.js make-carousel|make-graphic|make-video --parent BLOG_ITEM_ID --spec F [--item ID] [--voiceover F]
 node src/cli.js job finish --id ID --status done|failed [--error MSG]

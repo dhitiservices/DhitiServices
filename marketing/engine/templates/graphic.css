@@ -14,8 +14,8 @@
 .g-land .g-foot { height: 36px; margin-top: 24px; }
 .g-square .g-foot .wordmark { height: 46px; }
 .g-land .g-foot .wordmark { height: 32px; }
-.g-land .url { font-size: 18px; }
-.g-square .url { font-size: 22px; }
+.g-land .url { font-size: 22px; }
+.g-square .url { font-size: 26px; }
 
 .g-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
@@ -47,8 +47,12 @@
 .g-square.g-quote .quote { font-size: calc(84px * var(--fit, 1)); line-height: 1.08; }
 .g-square.g-quote .rule { margin: calc(52px * var(--fit, 1)) 0 calc(28px * var(--fit, 1)); }
 .g-square.g-quote .attrib { font-size: calc(28px * var(--fit, 1)); }
-.g-square.g-quote.has-photo .quote { font-size: calc(76px * var(--fit, 1)); }
+.g-square.g-quote.has-photo .quote { font-size: calc(68px * var(--fit, 1)); }
 .g-square.g-quote.has-photo .g-main { justify-content: flex-end; }
+/* A deep warm scrim under the quote so it reads at feed size over any photo (the face stays in the light top). */
+.g-square.g-quote.has-photo .scrim-full {
+  background: linear-gradient(180deg, rgba(22, 17, 16, 0.38) 0%, rgba(22, 17, 16, 0.12) 22%, rgba(22, 17, 16, 0.62) 46%, rgba(22, 17, 16, 0.9) 70%, rgba(22, 17, 16, 0.95) 100%);
+}
 
 .g-land.g-quote .split { grid-template-columns: 170px 1fr; column-gap: 40px; }
 .g-land.g-quote .split .qmark { width: 150px; margin-top: 10px; }
@@ -138,7 +142,7 @@
 .g-land.g-tip .label { font-size: calc(17px * var(--fit, 1)); margin-bottom: calc(26px * var(--fit, 1)); padding: 10px 16px 10px 12px; }
 .g-land.g-tip .headline { font-size: calc(60px * var(--fit, 1)); line-height: 1.04; max-width: 920px; }
 .g-land.g-tip .rule { width: 72px; height: 6px; margin: calc(24px * var(--fit, 1)) 0 calc(20px * var(--fit, 1)); }
-.g-land.g-tip .body { font-size: calc(24px * var(--fit, 1)); line-height: 1.42; max-width: 860px; }
+.g-land.g-tip .body { font-size: calc(24px * var(--fit, 1)); line-height: 1.42; max-width: 760px; }
 .g-land.g-tip .bigmark {
   position: absolute; z-index: -1; right: -90px; bottom: -110px;
   width: 460px; height: 460px; opacity: 0.06;

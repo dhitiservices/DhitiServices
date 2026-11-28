@@ -38,7 +38,7 @@ Every command prints **one JSON value on stdout** and writes logs to stderr. Exi
 | `save-brief brief.json [--run id]` | inserts the research brief and returns `{id}` |
 | `save-topics topics.json` | inserts the topics and returns `[{id,title,planned_publish_date}]` |
 | `check-blog draft.md` | the website's exact rules plus extra checks, giving `{passed,messages,warnings,words,sections}` |
-| `save-blog --topic T --md draft.md --cover photo.jpg --stock stock.json [--item I] [--focus x,y]` | checks the draft, builds a 1600x900 WebP cover (q82, attention crop), uploads it and creates the blog item, or a new version of it, as `pending_review`. `scheduled_for` is the topic's planned date at 10:00 IST |
+| `save-blog --topic T --md draft.md --cover photo.jpg --stock stock.json [--meta meta.json] [--owner-note "..."] [--item I] [--focus x,y]` | checks the draft (including link safety: only https/mailto/#/relative links, no reference-style definitions), builds a 1600x900 WebP cover (q82, attention crop), uploads it and creates the blog item, or a new version of it, as `pending_review`. `scheduled_for` is the topic's planned date at 10:00 IST |
 | `make-carousel --parent B --spec carousel.json [--item I]` | 1080x1350 PNG slides and a PDF |
 | `make-graphic --parent B --spec graphic.json [--item I]` | 1080x1080 and 1200x627 PNGs |
 | `make-video --parent B --spec video.json [--item I] [--voiceover vo.mp3 --voiceover-asset id]` | 1080x1920 H.264 reel and a JPEG poster. With `voiceover_script` and no voiceover, the item waits in `awaiting_voiceover` |
@@ -47,15 +47,27 @@ Every command prints **one JSON value on stdout** and writes logs to stderr. Exi
 | `topic --id T --status ready` · `job claim [--kinds regenerate]` · `job finish --id J --status done` · `item --id I` | bookkeeping |
 | `publish [--dry-list]` | publishes the approved blogs that are due or have a `publish_now` job |
 
-`--item` revises an item: it bumps `version`, uploads under `items/<id>/v<version>/`, replaces the asset rows,
-sets the status back to `pending_review` and clears `feedback`. Approved or published items cannot be revised.
+`--item` revises an item: it first moves it to `generating` (the server refuses once a person approved it, and the
+dashboard hides Approve meanwhile), bumps `version`, uploads under `items/<id>/v<version>/`, inserts the new asset
+rows and only then deletes the old ones, sets the status back to `pending_review` and clears `feedback`. A failed
+revision restores the previous status and keeps the previous assets. Approved, published or rejected items cannot be
+revised.
+
+`--meta meta.json` (`{primary_keyword, secondary_keywords, faq, sources:[{title,url}]}`) fills `body.meta` and gives
+`body.sources` their "Publisher: page title (Mon YYYY)" titles. `--owner-note` stores `body.owner_note`, shown as a
+warning above the post in the dashboard (for example "UNVERIFIED SOURCES: ...").
+
+`publish` refuses to push unless `REPO_ROOT` is on `main` (or detached at `origin/main`); use a separate worktree of
+main, or `GIT_PUSH=0`. It re-reads each item right before the push and aborts (undoing the local commit) if a
+person changed or un-approved it. Pull/push retries stop after a 6-minute budget per post, and no new post starts
+after `PUBLISH_BUDGET_MS` (default 12 min). A failure of the website check in another post is transient.
 
 ### Draft and spec formats
 
 **Blog draft**: the same frontmatter as `content/blog/*.md`, with every value a quoted string except `order`:
 `title, description (<=160), category, image ("<slug>.webp"), imageAlt, order, date ("YYYY-MM-DD")`. The slug is
-taken from `image`. Optional extra keys `primary_keyword`, `secondary_keywords` and `faq: [{q,a}]` go into
-`body.meta` and are not published. The body needs at least 1000 words and **exactly 8 `##` sections**, because
+taken from `image`. Keywords and FAQ belong in `--meta meta.json` (extra frontmatter keys `primary_keyword`,
+`secondary_keywords` and `faq` are still read as a fallback and never published). The body needs at least 1000 words and **exactly 8 `##` sections**, because
 `npm run test:blog` asserts eight. It may not contain an em dash, raw HTML, a `#` H1 or inline images, and it
 needs at least one `](https://...)` source. Link related posts as `../<slug>/`, and those posts must exist.
 

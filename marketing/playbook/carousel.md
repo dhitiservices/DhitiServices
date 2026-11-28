@@ -16,14 +16,19 @@ reviewed with `cli.js preview carousel`, saved with `cli.js make-carousel`.
    - `headline`: up to 10 words, stated as a takeaway, not a topic label ("Most late payments start with a missing
      PO", not "Missing POs").
    - `body`: **at most 30 words** that explain or prove the headline, concrete and specific.
-   - `eyebrow`: a short step or section label ("Why it happens", "Step 2", "The log").
+   - `eyebrow`: a short section label ("Why it happens", "At booking", "The log"); never "Step N": the renderer
+     already numbers point slides.
    - `kind: "stat"` when the slide is built on one number from the post: `stat` holds the number exactly as the
      post writes it ("51%", "₹900", "15 to 25%"), `body` names the source ("HOTREC survey of 1,882 hotels, 2026").
+     The `headline` never repeats the number; it says what it means. Keep the source's qualifier in `stat`
+     ("55%+", ">55%", "about 1 in 2") and confirm the render shows it.
      Only numbers the post attributes to a linked source; never an illustrative number.
    - `kind: "quote"` for one sentence that appears in the post (usually the bold key sentence); `headline` holds
      it exactly, `body` is "Dhiti Services" or the named source.
    - Otherwise `kind: "point"`.
    - At most two stat slides and one quote slide.
+   - Never place more than two slides of the same kind and background in a row. Use one photo point slide or a
+     quote slide to break the run.
 3. **CTA** (`kind: "cta"`, always last). `eyebrow`: "Dhiti Services". `headline`: up to 10 words inviting the
    reader to the full guide or a conversation, calm and specific ("Read the full collections routine"). `body`: up
    to 25 words on what Dhiti does that relates to this post, using only facts from `quality-bar.md`.
@@ -40,6 +45,8 @@ Blog URL: `https://www.dhitiservices.com/blog/<slug>/`.
   paragraphs of 1 to 3 lines with blank lines between them, telling the story with 2 or 3 concrete specifics from
   the post. Then one line pointing to the full guide with the URL exactly. Last line: 3 relevant hashtags.
   At most one question in the whole caption. No "Excited to share", no "Swipe", no engagement bait.
+- Numbers from the blog's illustrative scene stay illustrative in captions; never generalise them ("every month
+  across India").
 - `caption_instagram`: 60 to 120 words, warmer and shorter, line breaks between short paragraphs, ending with the
   line "Full guide: link in bio." No hashtags in this caption.
 - `hashtags`: **8 to 15** Instagram hashtags, each starting with `#`, no spaces, CamelCase, a mix of specific

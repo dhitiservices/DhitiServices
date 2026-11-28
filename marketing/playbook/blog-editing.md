@@ -54,6 +54,14 @@ Then verify by hand:
 - `description` length: `grep '^description:' "$D" | sed 's/^description: "//; s/"$//' | tr -d '\n' | wc -m` is 130 to 155.
 - Internal links point to existing files: for each `../x/`, `content/blog/x.md` exists.
 - FAQ answers say nothing the body does not support.
+- `meta.sources[].title` / `sources.json` titles follow "Publisher: page title (Mon YYYY)", not the anchor text.
+- The reader is the travel business (planning filter 5), and the CTA names a buyer type from `quality-bar.md`
+  section 1.
+- No relative time ("has just closed", "this month") that stops being true after `planned_publish_date`.
+- Frontmatter holds only the house keys (title, description, category, image, imageAlt, order, date); keywords
+  and FAQ live in `sources.json` / `meta.json`, never as extra frontmatter keys.
+- Every link is inline `[text](https://...)`: no reference-style `[text][1]` links or `[1]: url` lines
+  (`check-blog` rejects them, along with any non-https scheme).
 
 Repeat Steps 2 and 3 until `check-blog` passes and every rubric score is 4 or 5. If `check-blog` still fails after
 three rounds, read its messages carefully: they are the site's exact rules. Do not save a failing blog.

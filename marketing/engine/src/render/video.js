@@ -5,7 +5,7 @@
 // Pipeline (robust by construction: every scene is encoded on its own, then joined):
 //   1. Normalise scenes (duration 1.5-12 s, total incl. 3 s outro clamped to 20-40 s).
 //   2. Playwright renders transparent overlays: one scrim (gradients + small wordmark), one text layer per scene,
-//      the outro background and the outro foreground. Text stays inside x 90..990, y 280..1500.
+//      the outro background and the outro foreground. Text stays inside x 90..920 (clear of the Reels action rail), y 280..1500.
 //   3. ffmpeg encodes each scene: stock clip (scaled + cropped to fill, trimmed, looped only if too short) or photo
 //      (Ken Burns via zoompan on a 2x still), scrim on top, text fading in with a slight rise, fading out before the cut.
 //   4. Scenes + outro are joined with crossfades (xfade); if that fails, with hard cuts (concat demuxer). Final encode
@@ -387,8 +387,8 @@ export async function renderVideo(body, { brand, workDir, keepWork = false } = {
   const dir = await fs.mkdtemp(path.join(base, 'reel-'));
   const started = Date.now();
   try {
-    let transition = String(body?.transition || 'fade').toLowerCase();
-    if (!TRANSITIONS.has(transition)) transition = 'fade';
+    let transition = String(body?.transition || 'fadeblack').toLowerCase();
+    if (!TRANSITIONS.has(transition)) transition = 'fadeblack';
     const cut = transition === 'cut';
 
     const overlays = await renderOverlays(scenes, resolved, dir, body);

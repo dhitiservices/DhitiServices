@@ -71,10 +71,10 @@ export default function Calendar() {
             const isPublish = publishDays.includes(day.name);
             const past = day.ymd < today;
             return (
-              <div key={day.ymd} className={cx("flex flex-col rounded-2xl p-2 md:min-h-[420px]", isPublish ? "bg-surface/70 shadow-[0_0_0_1px_var(--hairline)]" : "bg-ink/[0.02]")}>
+              <div key={day.ymd} className={cx("flex flex-col rounded-2xl p-2 md:min-h-[420px]", isPublish ? "bg-surface/70 shadow-[0_0_0_1px_var(--hairline)]" : "bg-ink/[0.02]", !loading && !topics.length && !isPublish && !isToday && "max-md:hidden")}>
                 <div className="flex items-center gap-2 px-1.5 pb-2 pt-1">
-                  <span className={cx("text-[12px] font-semibold uppercase tracking-[0.06em]", isToday ? "text-brand" : past ? "text-ink-faint" : "text-ink-mute")}>{day.name.slice(0, 3)}</span>
-                  <span className={cx("tnum flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-[15px] font-bold", isToday ? "bg-brand text-white" : past ? "text-ink-faint" : "text-ink")}>
+                  <span className={cx("text-[12px] font-semibold uppercase tracking-[0.06em]", isToday ? "text-brand-ink" : past ? "text-ink-faint" : "text-ink-mute")}>{day.name.slice(0, 3)}</span>
+                  <span className={cx("tnum flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-[15px] font-bold", isToday ? "bg-brand-deep text-white" : past ? "text-ink-faint" : "text-ink")}>
                     {Number(day.ymd.slice(8))}
                   </span>
                   {isPublish && <span className="ml-auto rounded-md bg-ok/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ok">Publish</span>}
@@ -137,7 +137,7 @@ function TopicCard({ topic, onSkip }) {
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[10.5px] font-bold uppercase tracking-[0.07em] text-brand">{topic.category || "Topic"}</div>
+          <div className="truncate text-[10.5px] font-bold uppercase tracking-[0.07em] text-brand-ink">{topic.category || "Topic"}</div>
           <button
             onClick={() => blog && navigate(`/review/${blog.id}`)}
             className={cx("mt-1 text-left text-[13.5px] font-semibold leading-[18px] tracking-[-0.008em] text-ink", blog && "hover:underline", skipped && "line-through")}
@@ -151,10 +151,10 @@ function TopicCard({ topic, onSkip }) {
               blog && { label: "Open blog", icon: FileText, onClick: () => navigate(`/review/${blog.id}`) },
               { label: "Skip topic", icon: SkipForward, danger: true, onClick: onSkip },
             ]}
-            trigger={({ toggle, open }) => <IconButton icon={MoreHorizontal} label="Topic actions" size="sm" onClick={toggle} active={open} className="-mr-1.5 -mt-1 h-7 w-7 opacity-60 group-hover:opacity-100" />}
+            trigger={({ toggle, open, triggerProps }) => <IconButton icon={MoreHorizontal} label="Topic actions" size="sm" onClick={toggle} active={open} {...triggerProps} className="-mr-1.5 -mt-1 h-7 w-7 opacity-60 group-hover:opacity-100" />}
           />
         ) : (
-          <IconButton icon={Undo2} label="Restore topic" size="sm" className="-mr-1.5 -mt-1 h-7 w-7" onClick={() => d.backend.updateTopic(topic.id, { status: "planned" }).then(() => d.actions.reload())} />
+          <IconButton icon={Undo2} label="Restore topic" size="sm" className="-mr-1.5 -mt-1 h-7 w-7" onClick={() => d.actions.restoreTopic(topic)} />
         )}
       </div>
       {topic.primary_keyword && (

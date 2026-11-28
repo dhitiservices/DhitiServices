@@ -14,7 +14,8 @@ human approval in the dashboard → blog auto-published to www.dhitiservices.com
    Download URLs expire in ~5 minutes (video) / ~15 minutes (photo): download immediately with `cli.js fetch`.
    Never call any `images_generate`, `video_generate` or other generation tool.
 3. **3 blogs per week** (settings.blogs_per_week = 3), each with 1 carousel, 2 graphics, 1 reel.
-4. **Dashboard font: SF Pro only** (system stack `-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text"`),
+4. **Dashboard font: SF Pro only** (system stack `-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display"`,
+   no font files: real SF Pro on Apple devices, the system UI font elsewhere, because SF Pro may not be web-served),
    Dhiti colours, premium/smooth/real-app feel. Creatives (carousel/graphic/video) use **Inter** — the closest
    openly licensed match to SF Pro (Apple's SF Pro licence does not allow use in marketing graphics).
 
@@ -65,15 +66,23 @@ website build; root `npm run build` must keep passing.
 | `list_items` | `{status?, type?, topic_id?, parent_id?, limit?}` | rows |
 | `insert_asset` | asset object | row |
 | `list_assets` | `{content_item_id}` | rows |
-| `delete_assets` | `{content_item_id}` | `{deleted}` |
+| `delete_assets` | `{content_item_id, ids?}` | `{deleted}` (only `ids` when given) |
 | `sign_upload` | `{path}` | `{signedUrl, token, path}` (storage `createSignedUploadUrl`, bucket `marketing`, upsert true) |
 | `sign_download` | `{path, expiresIn?}` | `{signedUrl}` |
-| `claim_jobs` | `{kinds?:[], limit?}` | jobs moved queued→running (conditional update) |
-| `finish_job` | `{id, status, error?}` | row |
+| `claim_jobs` | `{kinds?:[], limit?}` | jobs moved queued→running (conditional update), plus jobs left `running` past their lease |
+| `finish_job` | `{id, status, error?}` | row (only a `running` job of the caller's own kinds) |
 | `list_jobs` | `{kind?, status?, limit?}` (read-only; publisher: `kind:'publish_now'` only) | rows |
 
 v2.3.0 additions (v3): item status `awaiting_voiceover` (session-settable), job kind `render_video` (session default
-claim), `sign_download` also reads `library/<uuid>/<file>`. Extra session-only helpers: `get_topic`, `list_topics`,
+claim), `sign_download` also reads `library/<uuid>/<file>`.
+v2.4.0 (security review): the approval gate covers files too (`sign_upload`, `insert_asset`, `delete_assets` answer
+409 for approved/published items and 404 for unknown items); `delete_assets` takes `ids` so a revision inserts its
+new rows before deleting the old ones; sessions may also set `changes_requested` (to restore a failed revision); jobs
+belong to a token kind (publisher: `publish_now`; session: `run_weekly`, `regenerate`, `render_video`; claiming or
+finishing another kind is 403) and only `running` jobs can be finished (409); `claim_jobs` re-claims jobs left
+`running` past a lease (publish_now 30 min, regenerate/render_video 3 h, run_weekly 10 h); runs: the publisher creates
+and finishes only `publish` runs, sessions the others, and only `running` runs can be finished. A revision moves the
+item to `generating` first (conditional, so it fails once a person approved it). Extra session-only helpers: `get_topic`, `list_topics`,
 `get_brief`, `delete_files` (see `marketing/supabase/README.md`).
 
 Patch fields are whitelisted per table (never allow changing ids/created_at).
@@ -120,8 +129,9 @@ Local file fields are stripped/replaced by stock metadata before saving to the D
 
 ## Brand
 
-- Colours: brand red `#EE0800` (deep `#C20600`, bright `#FF3322`), ink `#15161A` (soft `#3a3d45`, mute `#6b6f7a`),
-  white, warm off-white `#FAF7F2`.
+- Colours: brand red `#EE0800` (deep `#C20600`, bright `#FF3A26`), warm ink `#161110` (soft `#4A403E`, mute
+  `#857A77`), white, warm off-white `#FAF7F2`; dark bands `#251c1b` to `#181315` (as on dhitiservices.com). The
+  dashboard uses `#C20600` for brand-coloured text so it meets WCAG AA.
 - Logo: `src/assets/logos/dhiti-logo.webp` (wordmark), `src/assets/logos/dhiti-mark.webp` (mark).
 - Voice: read recent posts in `content/blog/` — practical, specific, plain English, scenario openings, a bold key
   sentence, real external sources cited inline, no hype, no em dashes (—), illustrative examples labelled.
@@ -143,14 +153,14 @@ Every command prints a single JSON object to stdout (logs to stderr) and exits n
 | `save-brief <brief.json>` | insert research brief → `{id}` |
 | `save-topics <topics.json>` | insert topics (array) → `[{id,title}]` |
 | `check-blog <draft.md>` | validate a full markdown file with frontmatter using the site's exact rules → `{passed, messages, words, sections}` |
-| `save-blog --topic <id> --md <draft.md> --cover <photo> --stock <stock.json> [--item <id>]` | validates, makes 1600x900 webp cover, uploads, creates (or new version of) blog item `pending_review`, sets `scheduled_for` = topic.planned_publish_date 10:00 IST |
+| `save-blog --topic <id> --md <draft.md> --cover <photo> --stock <stock.json> [--meta <meta.json>] [--owner-note <text>] [--item <id>]` | validates, makes 1600x900 webp cover, uploads, creates (or new version of) blog item `pending_review`, sets `scheduled_for` = topic.planned_publish_date 10:00 IST |
 | `make-carousel --parent <blogItemId> --spec <carousel.json> [--item <id>]` | renders slides + PDF, uploads, item `pending_review` |
 | `make-graphic --parent <blogItemId> --spec <graphic.json> [--item <id>]` | renders 1080² + 1200×627, uploads |
 | `make-video --parent <blogItemId> --spec <video.json> [--item <id>]` | renders reel MP4 + poster, uploads |
 | `preview <kind> --spec <file> --out <dir>` | render locally without uploading (for self-review) |
 | `topic --id <id> --status ready` | update topic status |
 | `job finish --id <id> --status done` | finish a job |
-| `publish` | publish approved blogs due now (or with a `publish_now` job): download cover → write md+webp → run `node scripts/check-blog.mjs` → commit "Blog: <title>" as "Dhiti Marketing Bot <marketing-bot@dhitiservices.com>" → `git pull --rebase` → push `main` → item `published` with URL `https://www.dhitiservices.com/blog/<slug>/` |
+| `publish` | (refuses unless REPO_ROOT is on `main` or detached at `origin/main` when pushing; re-reads the item before the push and aborts if it changed) publish approved blogs due now (or with a `publish_now` job): download cover → write md+webp → run `node scripts/check-blog.mjs` → commit "Blog: <title>" as "Dhiti Marketing Bot <marketing-bot@dhitiservices.com>" → `git pull --rebase` → push `main` → item `published` with URL `https://www.dhitiservices.com/blog/<slug>/` |
 
 `--item <id>` = revision: bump `version`, upload under new version path, replace asset rows, status back to
 `pending_review`, clear `feedback`.
@@ -161,7 +171,8 @@ Every command prints a single JSON object to stdout (logs to stderr) and exits n
 - `store.js` — same function names as before, backed by the edge function (`ENGINE_TOKEN`) or the DRY_RUN JSON
   file. `uploadFile(path, buffer, mime)` = `sign_upload` then PUT to signed URL; `downloadFile(path)` = `sign_download` then GET.
 - `brand.js` — `getBrandContext()` → `{colors, logoDataUri, markDataUri, voiceSamples, existingPosts, categories, nextOrder}`.
-- `blogcheck.js` — exact mirror of `scripts/check-blog.mjs` + `scripts/blog-data.mjs` rules for one file.
+- `blogcheck.js` — exact mirror of `scripts/check-blog.mjs` + `scripts/blog-data.mjs` rules for one file, plus link
+  safety: every marked link token must be https/http/mailto/#anchor/relative, reference-style definitions are rejected.
 - `render/browser.js`, `render/carousel.js`, `render/graphic.js`, `render/video.js`, templates in `marketing/engine/templates/`.
 - `publish/blog.js`, `cli.js`.
 - Remove anything that calls Anthropic or Gemini APIs.

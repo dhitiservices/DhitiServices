@@ -13,7 +13,7 @@
 }
 .top .wordmark { height: 46px; }
 .counter {
-  font-size: 24px; font-weight: 600; letter-spacing: 0.04em;
+  font-size: 26px; font-weight: 600; letter-spacing: 0.04em;
   color: var(--ink-mute);
   font-variant-numeric: tabular-nums;
 }
@@ -32,7 +32,7 @@
 .bottom .url { flex: none; }
 .progress {
   flex: 1; height: 4px; border-radius: 2px;
-  background: rgba(21, 22, 26, 0.10);
+  background: rgba(22, 17, 16, 0.10);
   overflow: hidden;
 }
 .progress i { display: block; height: 100%; border-radius: 2px; background: var(--red); }
@@ -87,9 +87,9 @@
 .slide--cover.no-photo .content { justify-content: center; }
 
 /* ---------- Point ---------- */
-.slide--point .content { justify-content: space-between; }
+.slide--point .content { justify-content: center; gap: calc(64px * var(--fit, 1)); }
 .numeral {
-  font-size: calc(300px * var(--fit, 1));
+  font-size: calc(170px * var(--fit, 1));
   font-weight: 800;
   line-height: 0.74;
   letter-spacing: -0.045em;
@@ -107,7 +107,7 @@
 .slide--point .headline {
   font-size: calc(86px * var(--fit, 1));
   line-height: 1.04;
-  letter-spacing: -0.024em;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 .slide--point .rule { margin: calc(44px * var(--fit, 1)) 0 calc(36px * var(--fit, 1)); }
@@ -119,7 +119,7 @@
 .figure {
   position: relative; flex: none;
   height: 470px; border-radius: 28px; overflow: hidden;
-  box-shadow: 0 24px 48px -28px rgba(21, 22, 26, 0.32);
+  box-shadow: 0 24px 48px -28px rgba(22, 17, 16, 0.32);
 }
 .figure img { width: 100%; height: 100%; object-fit: cover; }
 .figure .chip {

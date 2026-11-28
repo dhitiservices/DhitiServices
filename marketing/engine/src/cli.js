@@ -30,7 +30,8 @@ const HELP = `Dhiti marketing engine
   save-brief <brief.json> [--run <runId>]   insert research brief -> {id}
   save-topics <topics.json>                 insert topics -> [{id,title,planned_publish_date}]
   check-blog <draft.md> [--slug <slug>]     site rules for one post -> {passed,messages,words,sections}
-  save-blog --topic <id> --md <draft.md> --cover <photo> --stock <stock.json> [--item <id>] [--focus x,y]
+  save-blog --topic <id> --md <draft.md> --cover <photo> --stock <stock.json> [--meta <meta.json>] [--item <id>]
+            [--focus x,y] [--owner-note "<text shown to the owner above the post>"]
   make-carousel --parent <blogId> --spec <carousel.json> [--item <id>]
   make-graphic  --parent <blogId> --spec <graphic.json>  [--item <id>]
   make-video    --parent <blogId> --spec <video.json>    [--item <id>] [--voiceover <file>] [--voiceover-asset <id>]
@@ -184,33 +185,56 @@ const uniqStock = (list) => {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Returns { item, version, isNew }. With itemId: loads it, checks type, bumps version. Otherwise inserts a new
- * item with status 'generating'.
+ * Returns { item, version, isNew, prevStatus }. With itemId: loads it, checks type, bumps version and moves it to
+ * 'generating' first. That status change is conditional on the server (409 once a person approved it), and it hides
+ * Approve / Publish in the dashboard while the revision is being made, so nobody can approve a half-replaced item.
+ * Otherwise inserts a new item with status 'generating'.
  */
 async function openItem({ itemId, type, topicId, parentId, title }) {
   if (itemId) {
     const item = await store.getItem(itemId);
     if (!item) throw new Error(`item ${itemId} not found`);
     if (item.type !== type) throw new UsageError(`item ${itemId} is a ${item.type}, not a ${type}`);
-    if (['approved', 'published'].includes(item.status)) throw new UsageError(`item ${itemId} is ${item.status}; it can no longer be revised`);
-    return { item, version: (Number(item.version) || 1) + 1, isNew: false };
+    if (['approved', 'published', 'rejected'].includes(item.status)) throw new UsageError(`item ${itemId} is ${item.status}; it can no longer be revised`);
+    const prevStatus = item.status;
+    if (prevStatus !== 'generating') {
+      try {
+        await store.updateItem(item.id, { status: 'generating' });
+      } catch (err) {
+        if (err.status === 409) throw new UsageError(`item ${itemId} was approved or published meanwhile; it can no longer be revised`);
+        throw err;
+      }
+    }
+    return { item, version: (Number(item.version) || 1) + 1, isNew: false, prevStatus };
   }
   const item = await store.insertItem({ type, topic_id: topicId ?? null, parent_id: parentId ?? null, title: title || '', status: 'generating', body: {}, version: 1 });
   return { item, version: 1, isNew: true };
 }
 
-/** Marks a half-made item failed (new items) or records the error (revisions keep their previous content). */
+const RESTORABLE = new Set(['awaiting_voiceover', 'pending_review', 'changes_requested', 'failed']);
+
+/**
+ * Marks a half-made item failed (new items), or puts a revision back in the status it had before (its previous
+ * content and asset rows are untouched: replaceAssets only swaps rows once every new row exists).
+ */
 async function failItem(ctx, err) {
   if (!ctx?.item) return;
   try {
     if (ctx.isNew) await store.updateItem(ctx.item.id, { status: 'failed', error: errorMessage(err) });
-    else await store.updateItem(ctx.item.id, { error: `revision v${ctx.version} failed: ${errorMessage(err)}` });
+    else {
+      const status = RESTORABLE.has(ctx.prevStatus) ? ctx.prevStatus : 'pending_review';
+      await store.updateItem(ctx.item.id, { status, error: `revision v${ctx.version} failed: ${errorMessage(err)}` });
+    }
   } catch (e) {
     log.warn(`could not record the failure on item ${ctx.item.id}: ${e.message}`);
   }
 }
 
-/** Uploads buffers and replaces the item's asset rows. files: [{name, buffer, mime, kind, width, height, position, meta}] */
+/**
+ * Uploads buffers and replaces the item's asset rows. files: [{name, buffer, mime, kind, width, height, position, meta}]
+ * Order matters: upload every file, insert every new row, and only then delete the previous rows by id. A failure
+ * part-way removes the rows this call inserted, so the item always keeps one complete set of assets.
+ */
 async function replaceAssets(itemId, version, files) {
   const uploaded = [];
   for (const f of files) {
@@ -219,21 +243,29 @@ async function replaceAssets(itemId, version, files) {
     uploaded.push({ ...f, storagePath });
     log(`uploaded ${storagePath} (${(f.buffer.length / 1e6).toFixed(2)} MB)`);
   }
-  await store.deleteAssets(itemId);
+  const previous = (await store.listAssets(itemId)) || [];
   const rows = [];
-  for (const f of uploaded) {
-    rows.push(
-      await store.insertAsset({
-        content_item_id: itemId,
-        kind: f.kind,
-        storage_path: f.storagePath,
-        mime: f.mime,
-        width: f.width ?? null,
-        height: f.height ?? null,
-        position: f.position ?? 0,
-        meta: f.meta ?? {},
-      }),
-    );
+  try {
+    for (const f of uploaded) {
+      rows.push(
+        await store.insertAsset({
+          content_item_id: itemId,
+          kind: f.kind,
+          storage_path: f.storagePath,
+          mime: f.mime,
+          width: f.width ?? null,
+          height: f.height ?? null,
+          position: f.position ?? 0,
+          meta: f.meta ?? {},
+        }),
+      );
+    }
+    const newIds = new Set(rows.map((r) => r.id));
+    const oldIds = previous.map((a) => a.id).filter((id) => !newIds.has(id));
+    if (oldIds.length) await store.deleteAssets(itemId, { ids: oldIds });
+  } catch (err) {
+    if (rows.length) await store.deleteAssets(itemId, { ids: rows.map((r) => r.id) }).catch((e) => log.warn(`could not remove the partial asset rows: ${e.message}`));
+    throw err;
   }
   return rows;
 }
@@ -449,17 +481,29 @@ async function cmdCheckBlog({ pos, opts }) {
   return { result: out, exitCode: r.passed ? 0 : 2 };
 }
 
-/** Sources = unique external https links in the post, in order of appearance. */
-function extractSources(markdown) {
+/**
+ * Sources = unique external https links in the post, in order of appearance. A title from meta.json's sources
+ * ("Publisher: page title (Mon YYYY)") wins over the link's anchor text.
+ */
+function extractSources(markdown, titled = []) {
+  const titles = new Map((Array.isArray(titled) ? titled : []).filter((s) => s?.url && s?.title).map((s) => [String(s.url).trim(), String(s.title).trim()]));
   const seen = new Set();
   const out = [];
   for (const m of String(markdown).matchAll(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g)) {
     const url = m[2];
     if (/dhitiservices\.com/i.test(url) || seen.has(url)) continue;
     seen.add(url);
-    out.push({ title: m[1].replace(/[*_`]/g, '').trim(), url });
+    out.push({ title: titles.get(url) || m[1].replace(/[*_`]/g, '').trim(), url });
   }
   return out;
+}
+
+/** meta.json: { primary_keyword, secondary_keywords[], faq[{q,a}], sources[{title,url}] } (all optional). */
+async function readMeta(file) {
+  if (!file) return {};
+  const meta = await jsonArg(file, 'meta');
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) throw new UsageError('--meta must be a JSON object {primary_keyword, secondary_keywords, faq, sources}');
+  return meta;
 }
 
 /** 1600x900 WebP q82 cover, attention crop (or --focus). Returns { buffer, source: {width,height,format} }. */
@@ -493,6 +537,8 @@ async function cmdSaveBlog({ opts }) {
   if (!existsSync(coverFile)) throw new UsageError(`--cover not found: ${coverFile}`);
   const stock = normalizeStock(await jsonArg(stockFile, 'stock'), 'stock');
   if (!stock.length) throw new UsageError('--stock must describe the cover photo ({"id","title","url_preview"})');
+  const meta = await readMeta(optStr(opts, 'meta'));
+  const ownerNote = optStr(opts, 'owner-note')?.trim().slice(0, 1000) || null;
 
   const topic = await store.getTopic(topicId);
   if (!topic) throw new UsageError(`topic ${topicId} not found`);
@@ -525,7 +571,8 @@ async function cmdSaveBlog({ opts }) {
   const planned = topic.planned_publish_date || null;
   const scheduledFor = planned ? istToUTC(planned, config.publishTimeIST) : null;
   const frontmatter = { ...check.frontmatter, image: `${check.slug}.webp`, ...(planned ? { date: planned } : {}) };
-  const faq = Array.isArray(extra.faq) ? extra.faq.filter((f) => f && (f.q || f.question)).map((f) => ({ q: String(f.q ?? f.question), a: String(f.a ?? f.answer ?? '') })) : [];
+  const faqSrc = Array.isArray(meta.faq) ? meta.faq : extra.faq;
+  const faq = Array.isArray(faqSrc) ? faqSrc.filter((f) => f && (f.q || f.question)).map((f) => ({ q: String(f.q ?? f.question), a: String(f.a ?? f.answer ?? '') })) : [];
 
   const ctx = await openItem({ itemId, type: 'blog', topicId, title: frontmatter.title });
   try {
@@ -548,11 +595,12 @@ async function cmdSaveBlog({ opts }) {
       markdown: check.markdown,
       word_count: check.words,
       meta: {
-        primary_keyword: extra.primary_keyword ?? topic.primary_keyword ?? '',
-        secondary_keywords: Array.isArray(extra.secondary_keywords) ? extra.secondary_keywords : topic.secondary_keywords ?? [],
+        primary_keyword: meta.primary_keyword ?? extra.primary_keyword ?? topic.primary_keyword ?? '',
+        secondary_keywords: Array.isArray(meta.secondary_keywords) ? meta.secondary_keywords : Array.isArray(extra.secondary_keywords) ? extra.secondary_keywords : topic.secondary_keywords ?? [],
         faq,
       },
-      sources: extractSources(check.markdown),
+      sources: extractSources(check.markdown, meta.sources),
+      owner_note: ownerNote,
       checks: { passed: true, messages: [], warnings: check.warnings, sections: check.sections, minutes: check.minutes, checked_at: new Date().toISOString() },
       cover_stock: { id: stock[0].id, title: stock[0].title, provider: stock[0].provider, url_preview: stock[0].url_preview },
     };
@@ -930,7 +978,14 @@ async function cmdPublish({ opts }) {
   });
   const result = { run_id: run?.id ?? null, published: [], skipped: [], failed: [], jobs: [] };
   let jobs = [];
+  // Stop starting new publishes after this long, so the CI job (timeout 20 min) never dies mid-push with jobs held.
+  const budgetMs = Number(process.env.PUBLISH_BUDGET_MS) || 12 * 60_000;
+  const deadline = now + budgetMs;
   try {
+    if (config.gitPush) {
+      const { assertPublishBranch } = await import('./publish/blog.js');
+      await assertPublishBranch(config.repoRoot);
+    }
     try {
       jobs = await store.claimJobs({ limit: 20, kinds: ['publish_now'] });
     } catch (err) {
@@ -947,6 +1002,11 @@ async function cmdPublish({ opts }) {
     const { publishBlog } = await import('./publish/blog.js');
     const outcome = new Map(); // itemId -> {ok, error}
     for (const summary of queue) {
+      if (Date.now() > deadline - 60_000) {
+        result.skipped.push({ id: summary.id, title: summary.title, reason: 'time budget used; next run' });
+        outcome.set(summary.id, { ok: false, retry: true, error: 'time budget used; next run' });
+        continue;
+      }
       try {
         const item = await store.getItem(summary.id);
         if (item.status !== 'approved') {
@@ -958,7 +1018,15 @@ async function cmdPublish({ opts }) {
         if (!coverAsset) throw Object.assign(new Error('no blog_cover asset'), { permanent: true });
         const cover = await store.downloadFile(coverAsset.storage_path);
         log(`publish: "${item.title}" (${item.id})`);
-        const pub = await publishBlog({ item, cover });
+        // Re-read right before the push: an un-approve, edit or reject in the dashboard meanwhile aborts the publish
+        // (the local commit is undone) instead of putting unapproved content live.
+        const beforePush = async () => {
+          const now2 = await store.getItem(item.id);
+          if (now2?.status !== 'approved' || String(now2.updated_at) !== String(item.updated_at) || Number(now2.version) !== Number(item.version)) {
+            throw Object.assign(new Error(`item changed during publish (now ${now2?.status ?? 'missing'}); not published`), { changed: true });
+          }
+        };
+        const pub = await publishBlog({ item, cover, beforePush, deadline: Math.max(deadline, Date.now() + 3 * 60_000) });
         await retry(
           () => store.updateItem(item.id, { status: 'published', published_at: new Date().toISOString(), published_url: pub.url, error: null }),
           { retries: 4, baseMs: 2000, label: 'mark published' },
@@ -967,6 +1035,12 @@ async function cmdPublish({ opts }) {
         outcome.set(item.id, { ok: true });
       } catch (err) {
         const msg = errorMessage(err);
+        if (err.changed) {
+          log.warn(`publish skipped for ${summary.id}: ${msg}`);
+          result.skipped.push({ id: summary.id, title: summary.title, reason: msg });
+          outcome.set(summary.id, { ok: false, error: msg });
+          continue;
+        }
         log.error(`publish failed for ${summary.id}: ${msg}`);
         result.failed.push({ id: summary.id, title: summary.title, error: msg, permanent: Boolean(err.permanent) });
         outcome.set(summary.id, { ok: false, error: msg });
@@ -983,7 +1057,8 @@ async function cmdPublish({ opts }) {
       if (!id) [status, error] = ['failed', 'payload.content_item_id is missing'];
       else if (outcome.has(id)) {
         const o = outcome.get(id);
-        if (!o.ok) [status, error] = ['failed', o.error];
+        if (o.retry) [status, error] = ['queued', o.error]; // released for the next run
+        else if (!o.ok) [status, error] = ['failed', o.error];
       } else if (!byId.has(id)) {
         const item = await store.getItem(id).catch(() => null);
         if (item?.status === 'published') status = 'done';

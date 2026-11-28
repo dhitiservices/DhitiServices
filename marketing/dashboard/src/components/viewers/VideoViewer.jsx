@@ -123,7 +123,7 @@ export function VoiceoverPanel({ item }) {
             </motion.button>
           )}
         </AnimatePresence>
-        {err && <div className="mt-2 text-[12px] font-medium text-brand">{err}</div>}
+        {err && <div className="mt-2 text-[12px] font-medium text-brand-ink">{err}</div>}
       </div>
 
       {renderJob && (

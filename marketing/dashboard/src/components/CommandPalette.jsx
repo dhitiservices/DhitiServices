@@ -25,7 +25,13 @@ export function CommandPalette({ open, onClose }) {
   const [, setTheme] = useTheme();
   const listRef = useRef(null);
 
-  useEffect(() => { if (open) { setQ(""); setIndex(0); } }, [open]);
+  // Focus returns to whatever opened the palette.
+  useEffect(() => {
+    if (!open) return;
+    setQ(""); setIndex(0);
+    const prev = document.activeElement;
+    return () => { if (prev && prev !== document.body) prev.focus?.({ preventScroll: true }); };
+  }, [open]);
 
   const results = useMemo(() => {
     const out = [];
@@ -64,6 +70,7 @@ export function CommandPalette({ open, onClose }) {
     else if (e.key === "ArrowUp") { e.preventDefault(); setIndex((i) => Math.max(0, i - 1)); }
     else if (e.key === "Enter") { e.preventDefault(); results[index] && run(results[index]); }
     else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    else if (e.key === "Tab") e.preventDefault(); // modal: focus stays in the search field (options are aria-activedescendant)
   };
 
   let lastGroup = null;
@@ -83,6 +90,7 @@ export function CommandPalette({ open, onClose }) {
             transition={spring}
             className="popover relative w-full max-w-[620px] overflow-hidden !bg-surface-raised/95 backdrop-blur-2xl"
             role="dialog"
+            aria-modal="true"
             aria-label="Command menu"
           >
             <div className="hairline-b flex items-center gap-3 px-4">
@@ -95,10 +103,15 @@ export function CommandPalette({ open, onClose }) {
                 placeholder="Search content, pages and actions…"
                 className="h-[54px] flex-1 bg-transparent text-[16px] tracking-[-0.01em] text-ink outline-none placeholder:text-ink-faint"
                 aria-label="Search"
+                role="combobox"
+                aria-expanded={results.length > 0}
+                aria-controls="cmdk-list"
+                aria-autocomplete="list"
+                aria-activedescendant={results[index] ? `cmdk-opt-${index}` : undefined}
               />
               <Kbd>esc</Kbd>
             </div>
-            <div ref={listRef} className="max-h-[min(420px,60vh)] overflow-y-auto p-2">
+            <div ref={listRef} id="cmdk-list" role="listbox" aria-label="Results" className="max-h-[min(420px,60vh)] overflow-y-auto p-2">
               {results.length === 0 && <div className="px-3 py-10 text-center text-body text-ink-mute">No matches for “{q}”</div>}
               {results.map((r, i) => {
                 const header = r.group !== lastGroup ? r.group : null;
@@ -106,15 +119,19 @@ export function CommandPalette({ open, onClose }) {
                 const Icon = r.icon || ArrowRight;
                 const active = i === index;
                 return (
-                  <div key={r.id}>
-                    {header && <div className="px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">{header}</div>}
+                  <div key={r.id} role="presentation">
+                    {header && <div role="presentation" className="px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">{header}</div>}
                     <button
+                      id={`cmdk-opt-${i}`}
+                      role="option"
+                      aria-selected={active}
+                      tabIndex={-1}
                       data-index={i}
                       onMouseMove={() => setIndex(i)}
                       onClick={() => run(r)}
                       className={cx("relative flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left transition-colors duration-100", active ? "bg-ink/[0.06]" : "bg-transparent")}
                     >
-                      <span className={cx("relative flex h-7 w-7 items-center justify-center rounded-lg", active ? "bg-brand text-white" : "bg-ink/[0.05] text-ink-soft")}>
+                      <span className={cx("relative flex h-7 w-7 items-center justify-center rounded-lg", active ? "bg-brand-deep text-white" : "bg-ink/[0.05] text-ink-soft")}>
                         <Icon className="h-[15px] w-[15px]" strokeWidth={2.1} />
                       </span>
                       <span className="relative flex-1 truncate text-body font-medium text-ink">{r.label}</span>

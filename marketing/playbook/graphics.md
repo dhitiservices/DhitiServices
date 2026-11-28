@@ -14,7 +14,8 @@ seen the post and be worth saving or sharing. Output: `$WORK/<slug>/graphic-1.js
 - **quote**: one sharp, quotable sentence. Either the post's bold key sentence or another line from the post
   (attribution "Dhiti Services"), or a quotation from a named external source that appears in the post (attribute it
   exactly as the post does). `headline` holds the quote copied exactly (you may drop surrounding quotation marks
-  and trailing punctuation). `body` empty or one short line of context. Keep quotes under about 30 words.
+  and trailing punctuation). `body` empty or one short line of context. Keep quotes under about 30 words; with a
+  photo, at most 18 words, or set `photo: null`.
 - **tip**: one practical action a reader can take this week, from the post's method. `headline` (up to 10 words)
   is the instruction ("Call at day seven, not day sixty"); `body` (up to 30 words) says how. `attribution` empty.
   Optional `eyebrow` overrides the default "Operations tip" label (for example "Collections tip").
@@ -22,11 +23,15 @@ seen the post and be worth saving or sharing. Output: `$WORK/<slug>/graphic-1.js
 Good pairs: stat + tip (most posts), quote + tip (posts with few strong numbers), stat + quote (evidence-heavy
 posts). Prefer the pair that makes the two graphics feel like different reasons to read the post.
 
+Each graphic must carry an idea that is not the headline of any carousel slide or reel scene. When the post has a
+blockquote artefact (a log, checklist or ladder), one graphic should be that artefact as a tip: headline "Keep one
+<artefact name>", body naming the 5 to 7 most important columns or steps.
+
 ## 2. Photos (optional)
 
 A photo is optional and should earn its place. Use one when it strengthens the message (a quote over a calm,
-relevant workplace scene; a tip next to the desk where it happens). Use the blog cover photo or the carousel photo
-when it fits (no extra credits); otherwise follow `stock-selection.md`. Stat graphics usually read best without a
+relevant workplace scene; a tip next to the desk where it happens). The blog cover photo may appear in at most one derived
+creative per blog (usually the carousel cover), so prefer a second photo or none; otherwise follow `stock-selection.md`. Stat graphics usually read best without a
 photo. Never use the same photo on both graphics of one blog. Set `focus` so the subject survives both the square
 and the landscape layouts.
 

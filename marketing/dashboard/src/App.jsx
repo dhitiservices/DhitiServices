@@ -3,6 +3,7 @@ import { MotionConfig, motion } from "framer-motion";
 import { ToastProvider } from "./components/Toast.jsx";
 import { Sidebar, TabBar, MobileHeader, NAV, isActive } from "./components/Shell.jsx";
 import { CommandPalette } from "./components/CommandPalette.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { AppMark } from "./components/ui.jsx";
 import { DataProvider, useData } from "./lib/store.jsx";
 import { createSupabaseBackend } from "./lib/backend.js";
@@ -160,7 +161,9 @@ function Shell({ onSignOut, demo }) {
   }, [route]);
 
   const section = "/" + (pathname.split("/")[1] || "");
-  useEffect(() => { window.scrollTo({ top: 0 }); }, [section]);
+  // New section: start at the top, unless the URL targets an anchor (for example /settings#runs), which the page
+  // scrolls to itself.
+  useEffect(() => { if (!window.location.hash) window.scrollTo({ top: 0 }); }, [section]);
 
   const title = NAV.find((n) => isActive(n.to, pathname))?.label || "Studio";
   useEffect(() => {
@@ -178,7 +181,9 @@ function Shell({ onSignOut, demo }) {
           {/* Enter-only page transition: a keyed remount fades/slides the new page in. No exit wait, so a
               slow or interrupted exit can never leave the screen blank. */}
           <motion.div key={section} variants={page} initial="initial" animate="animate">
-            <Suspense fallback={<PageFallback />}>{route ? route.r.el(route.p) : null}</Suspense>
+            <ErrorBoundary resetKey={pathname}>
+              <Suspense fallback={<PageFallback />}>{route ? route.r.el(route.p) : null}</Suspense>
+            </ErrorBoundary>
           </motion.div>
         </main>
       </div>

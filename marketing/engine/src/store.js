@@ -318,7 +318,12 @@ const FIELDS = {
   itemPatchPublisher: ['status', 'published_at', 'published_url', 'error'],
   asset: ['content_item_id', 'kind', 'storage_path', 'mime', 'width', 'height', 'position', 'meta'],
 };
-const SESSION_ITEM_STATUSES = ['generating', 'awaiting_voiceover', 'pending_review', 'failed'];
+const SESSION_ITEM_STATUSES = ['generating', 'awaiting_voiceover', 'pending_review', 'changes_requested', 'failed'];
+const JOB_LEASE_MIN = { publish_now: 30, regenerate: 180, render_video: 180, run_weekly: 600 };
+const SESSION_JOB_KINDS = ['run_weekly', 'regenerate', 'render_video'];
+const PUBLISHER_JOB_KINDS = ['publish_now'];
+/** Job kinds a caller owns (DRY_RUN 'any' = all). */
+const ownJobKinds = (kind) => (kind === 'publisher' ? PUBLISHER_JOB_KINDS : kind === 'session' ? SESSION_JOB_KINDS : ENUMS.jobKind);
 const PUBLISHER_ITEM_STATUSES = ['published', 'failed'];
 const LOCKED_FOR_SESSION = ['approved', 'published'];
 const PUBLISHER_ACTIONS = new Set(['get_settings', 'list_items', 'get_item', 'list_assets', 'sign_download', 'update_item', 'create_run', 'finish_run', 'claim_jobs', 'finish_job', 'list_jobs']);
@@ -425,6 +430,12 @@ const findRow = (data, table, id) => data[table].find((r) => r.id === id) || nul
 function requireFk(data, table, id, col) {
   if (id && !findRow(data, table, id)) bad(`${col}: no ${table} row ${id} (foreign key violation)`);
 }
+/** Approval gate for files (mirror of the edge function): the item must exist and not be approved/published. */
+function assertItemWritable(data, id, label, kind) {
+  const item = findRow(data, 'content_items', id);
+  if (!item) fail(404, `${label}: item ${id} not found`);
+  if (kind !== 'any' && LOCKED_FOR_SESSION.includes(item.status)) fail(409, `${label}: item ${id} is ${item.status}; its files can no longer change`);
+}
 const settingsData = (data) => data.settings.find((r) => r.id === 1)?.data ?? { ...CONTRACT_SETTINGS };
 
 const localActions = {
@@ -446,12 +457,18 @@ const localActions = {
     return { settings: settingsData(data), recent_topics: recent, pending_jobs: jobs, revisions, since, week_start: weekStartIST() };
   },
 
-  create_run: (p, k, data) => insertRow(data, 'runs', { kind: oneOf(p.kind, ENUMS.runKind, 'kind'), status: 'running' }),
+  create_run(p, k, data) {
+    const kind = oneOf(p.kind, ENUMS.runKind, 'kind');
+    if (k === 'publisher' && kind !== 'publish') fail(403, "publisher tokens may only create 'publish' runs");
+    return insertRow(data, 'runs', { kind, status: 'running' });
+  },
 
   finish_run(p, k, data) {
     const id = uuid(p.id);
     const status = oneOf(p.status ?? 'succeeded', ENUMS.runFinish, 'status');
     const row = findRow(data, 'runs', id) || fail(404, `run ${id} not found`);
+    if (k !== 'any' && (k === 'publisher') !== (row.kind === 'publish')) fail(403, `${k} tokens may not finish ${row.kind} runs`);
+    if (row.status !== 'running') fail(409, `run ${id} is already ${row.status}`);
     const patch = { status, finished_at: status === 'running' ? null : nowISO() };
     if (p.error !== undefined) patch.error = p.error === null ? null : truncateTail(p.error, 8000);
     if (p.log !== undefined) patch.log = truncateTail(p.log, 1_000_000);
@@ -562,6 +579,7 @@ const localActions = {
   insert_asset(p, k, data) {
     const row = pick(p, FIELDS.asset, 'insert_asset');
     row.content_item_id = uuid(row.content_item_id, 'content_item_id');
+    assertItemWritable(data, row.content_item_id, 'insert_asset', k);
     const sp = storagePathOf(row.storage_path);
     if (sp.split('/')[1].toLowerCase() !== row.content_item_id) bad('insert_asset: storage_path must be under items/<content_item_id>/');
     row.storage_path = sp;
@@ -579,13 +597,21 @@ const localActions = {
 
   delete_assets(p, k, data) {
     const id = uuid(p.content_item_id, 'content_item_id');
-    const n = data.assets.filter((a) => a.content_item_id === id).length;
-    data.assets = data.assets.filter((a) => a.content_item_id !== id);
+    assertItemWritable(data, id, 'delete_assets', k);
+    let ids = null;
+    if (p.ids !== undefined) {
+      if (!Array.isArray(p.ids) || p.ids.length > 500) bad('delete_assets: ids must be an array (max 500)');
+      ids = new Set(p.ids.map((x, i) => uuid(x, `ids[${i}]`)));
+    }
+    const hit = (a) => a.content_item_id === id && (!ids || ids.has(a.id));
+    const n = data.assets.filter(hit).length;
+    data.assets = data.assets.filter((a) => !hit(a));
     return { deleted: n };
   },
 
-  sign_upload(p) {
+  sign_upload(p, k, data) {
     const sp = storagePathOf(p.path);
+    assertItemWritable(data, sp.split('/')[1].toLowerCase(), 'sign_upload', k);
     return { signedUrl: pathToFileURL(path.join(storageRoot(), sp)).href, token: 'dry-run', path: sp };
   },
 
@@ -626,11 +652,16 @@ const localActions = {
 
   claim_jobs(p, kind, data) {
     const limit = int(p.limit, 'limit', { min: 1, max: 50, dflt: 5 });
-    const dflt = kind === 'publisher' ? ['publish_now'] : ['run_weekly', 'regenerate', 'render_video'];
-    const kinds = inList(p.kinds, ENUMS.jobKind, 'kinds') ?? dflt;
-    if (kind === 'publisher' && kinds.some((x) => x !== 'publish_now')) fail(403, 'publisher tokens may only claim publish_now jobs');
-    const claimed = data.jobs.filter((j) => j.status === 'queued' && kinds.includes(j.kind)).sort(byCreated(true)).slice(0, limit);
-    for (const j of claimed) Object.assign(j, { status: 'running', started_at: nowISO(), finished_at: null, error: null });
+    const own = ownJobKinds(kind);
+    const kinds = inList(p.kinds, ENUMS.jobKind, 'kinds') ?? (kind === 'any' ? SESSION_JOB_KINDS : own);
+    if (kinds.some((x) => !own.includes(x))) fail(403, `${kind} tokens may only claim ${own.join(', ')} jobs`);
+    const now = Date.now();
+    const stale = (j) => j.status === 'running' && j.started_at && Date.parse(j.started_at) < now - (JOB_LEASE_MIN[j.kind] ?? 60) * 60_000;
+    const claimed = data.jobs.filter((j) => kinds.includes(j.kind) && (j.status === 'queued' || stale(j))).sort(byCreated(true)).slice(0, limit);
+    for (const j of claimed) {
+      const reclaimed = j.status === 'running';
+      Object.assign(j, { status: 'running', started_at: nowISO(), finished_at: null, error: reclaimed ? `re-claimed: the previous worker did not finish within ${JOB_LEASE_MIN[j.kind] ?? 60} min` : null });
+    }
     return claimed;
   },
 
@@ -646,6 +677,8 @@ const localActions = {
     const id = uuid(p.id);
     const status = oneOf(p.status ?? 'done', ENUMS.jobFinish, 'status');
     const row = findRow(data, 'jobs', id) || fail(404, `job ${id} not found`);
+    if (!ownJobKinds(k).includes(row.kind)) fail(403, `${k} tokens may not finish ${row.kind} jobs`);
+    if (row.status !== 'running') fail(409, `job ${id} is ${row.status}, not running; claim it first`);
     const error = p.error == null ? null : truncateTail(p.error, 8000);
     return Object.assign(row, status === 'queued' ? { status, started_at: null, finished_at: null, error } : { status, finished_at: nowISO(), error });
   },
@@ -852,9 +885,14 @@ export async function listItems(filter = {}, opts = {}) {
 
 export const insertAsset = (asset) => engineCall('insert_asset', normalizeFks(asset));
 export const listAssets = (itemId) => engineCall('list_assets', { content_item_id: idOf(itemId) });
-/** Deletes the asset rows of an item (files are kept; new versions use new paths). Returns the count. */
-export async function deleteAssets(itemId) {
-  const res = await engineCall('delete_assets', { content_item_id: idOf(itemId) });
+/**
+ * Deletes the asset rows of an item (files are kept; new versions use new paths): all of them, or only `ids`.
+ * Refused (409) once the item is approved or published. Returns the count.
+ */
+export async function deleteAssets(itemId, { ids } = {}) {
+  const payload = { content_item_id: idOf(itemId) };
+  if (ids) payload.ids = ids.map(idOf);
+  const res = await engineCall('delete_assets', payload);
   return res?.deleted ?? 0;
 }
 

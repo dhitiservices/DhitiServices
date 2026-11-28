@@ -8,13 +8,14 @@ import { Card, Chip, Skeleton, EmptyState, StatusChip, cx } from "../components/
 import { TOPIC_STATUS } from "../lib/model.js";
 import { formatDate, dateOnly, relative, hostOf, plural } from "../lib/format.js";
 import { list, listItem, spring } from "../lib/motion.js";
+import { safeHref } from "../lib/safe.js";
 
 function SourceLinks({ urls = [] }) {
   if (!urls?.length) return null;
   return (
     <div className="mt-3 flex flex-wrap gap-1.5">
       {urls.map((u) => (
-        <a key={u} href={u} target="_blank" rel="noreferrer" className="inline-flex h-6 items-center gap-1 rounded-full bg-ink/[0.05] px-2 text-[11.5px] font-medium text-ink-soft transition-colors hover:bg-info/10 hover:text-info">
+        <a key={u} href={safeHref(u)} target="_blank" rel="noopener noreferrer" className="inline-flex h-6 items-center gap-1 rounded-full bg-ink/[0.05] px-2 text-[11.5px] font-medium text-ink-soft transition-colors hover:bg-info/10 hover:text-info">
           {hostOf(u) || "source"} <ArrowUpRight className="h-3 w-3" />
         </a>
       ))}
@@ -23,7 +24,7 @@ function SourceLinks({ urls = [] }) {
 }
 
 function Section({ icon: Icon, title, count, tone, children }) {
-  const tones = { brand: "bg-brand/10 text-brand", info: "bg-info/10 text-info", violet: "bg-violet/10 text-violet", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn" };
+  const tones = { brand: "bg-brand/10 text-brand-ink", info: "bg-info/10 text-info", violet: "bg-violet/10 text-violet", ok: "bg-ok/10 text-ok", warn: "bg-warn/10 text-warn" };
   return (
     <section className="mt-10">
       <div className="mb-4 flex items-center gap-2.5">
@@ -104,7 +105,7 @@ export default function Research({ id }) {
                 {topics.map((t) => (
                   <button key={t.id} onClick={() => navigate("/calendar")} className="card p-4 text-left transition-shadow hover:card-lift">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-brand">{t.category}</span>
+                      <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-brand-ink">{t.category}</span>
                       <StatusChip map={TOPIC_STATUS} status={t.status} size="sm" />
                     </div>
                     <div className="mt-2 text-body font-semibold leading-5">{t.title}</div>
@@ -171,7 +172,7 @@ export default function Research({ id }) {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-body font-semibold">{c.competitor}</span>
-                        {c.url && <a href={c.url} target="_blank" rel="noreferrer" className="text-[12px] font-medium text-info hover:underline">{hostOf(c.url)}</a>}
+                        {c.url && <a href={safeHref(c.url)} target="_blank" rel="noopener noreferrer" className="text-[12px] font-medium text-info hover:underline">{hostOf(c.url)}</a>}
                       </div>
                       <p className="mt-1 text-callout text-ink-soft">{c.observation}</p>
                     </div>
@@ -185,7 +186,7 @@ export default function Research({ id }) {
             <Section icon={BookOpen} title="Sources" count={brief.sources.length} tone="info">
               <div className="grid gap-2 sm:grid-cols-2">
                 {brief.sources.map((s, i) => (
-                  <a key={i} href={s.url} target="_blank" rel="noreferrer" className="card group flex items-center gap-3 p-3.5 transition-shadow hover:card-lift">
+                  <a key={i} href={safeHref(s.url)} target="_blank" rel="noopener noreferrer" className="card group flex items-center gap-3 p-3.5 transition-shadow hover:card-lift">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink/[0.05] text-[12px] font-bold uppercase text-ink-mute">{hostOf(s.url)[0] || "?"}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-callout font-semibold text-ink">{s.title || s.url}</span>

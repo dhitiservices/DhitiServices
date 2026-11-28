@@ -41,12 +41,16 @@ export function Sheet({ open, onClose, title, description, children, footer, wid
   const panel = useRef(null);
   const drag = useDragControls();
   useScrollLock(open);
+  // Callers pass inline arrows, so onClose changes on every parent render (every data poll). Keep the latest one in a
+  // ref and run the focus effect only when `open` changes; otherwise each poll would blur the field being typed in.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement;
     const onKey = (e) => {
-      if (e.key === "Escape") { e.stopPropagation(); onClose?.(); }
+      if (e.key === "Escape") { e.stopPropagation(); closeRef.current?.(); }
       if (e.key === "Tab" && panel.current) {
         const f = panel.current.querySelectorAll('a[href],button:not([disabled]),textarea,input,select,[tabindex]:not([tabindex="-1"])');
         if (!f.length) return;
@@ -68,7 +72,7 @@ export function Sheet({ open, onClose, title, description, children, footer, wid
       if (el?.contains(document.activeElement)) document.activeElement.blur();
       if (prev && prev !== document.body) prev.focus?.({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return createPortal(
     <AnimatePresence>
@@ -147,7 +151,7 @@ export function Confirm({ open, onClose, onConfirm, title, description, confirmL
             disabled={busy}
             className={cx(
               "h-9 rounded-xl px-4 text-callout font-semibold text-white transition-opacity disabled:opacity-60",
-              tone === "danger" ? "bg-brand-deep hover:bg-brand" : "bg-gradient-to-b from-[#FF2A17] to-[#E30700] shadow-glow",
+              tone === "danger" ? "bg-brand-deep hover:bg-brand" : "bg-gradient-to-b from-[#E30700] to-[#C20600] shadow-glow",
             )}
             onClick={async () => { setBusy(true); try { await onConfirm(); onClose(); } finally { setBusy(false); } }}
           >

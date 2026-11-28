@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarClock, Check, Send } from "lucide-react";
 import { Sheet } from "./Sheet.jsx";
 import { Button, Kbd, cx } from "./ui.jsx";
@@ -14,7 +14,13 @@ function defaultSlot(item, topic) {
 /** Approve a blog with an optional publish datetime (IST). */
 export function ApproveSheet({ open, onClose, item, topic, onApprove }) {
   const [value, setValue] = useState("");
-  useEffect(() => { if (open && item) setValue(toISTInput(defaultSlot(item, topic))); }, [open, item, topic]);
+  // Reset only when the sheet opens or moves to another item. Polls, focus refetches and realtime events create a
+  // new `item` object every few seconds; resetting on those would silently undo the time the owner picked.
+  const latest = useRef({ item, topic });
+  latest.current = { item, topic };
+  useEffect(() => {
+    if (open && latest.current.item) setValue(toISTInput(defaultSlot(latest.current.item, latest.current.topic)));
+  }, [open, item?.id]);
   const iso = fromISTInput(value);
   const past = iso && new Date(iso) < new Date(Date.now() - 60000);
   const presets = [
@@ -72,7 +78,10 @@ const SUGGESTIONS = [
 export function ChangesSheet({ open, onClose, item, onSubmit }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setText(item?.feedback || ""); }, [open, item]);
+  // Same rule as ApproveSheet: a refetch must never wipe feedback that is being typed.
+  const feedbackRef = useRef(item?.feedback);
+  feedbackRef.current = item?.feedback;
+  useEffect(() => { if (open) setText(feedbackRef.current || ""); }, [open, item?.id]);
   const ok = text.trim().length >= 3;
   const submit = async () => {
     if (!ok || busy) return;
@@ -138,7 +147,7 @@ export function PostedSheet({ open, onClose, item, onSubmit }) {
     >
       <form onSubmit={(e) => { e.preventDefault(); if (valid) { onSubmit(url); onClose(); } }}>
         <input data-autofocus type="url" inputMode="url" placeholder="https://www.linkedin.com/posts/…" className="input h-11" value={url} onChange={(e) => setUrl(e.target.value)} />
-        {!valid && <div className="mt-2 text-[12.5px] font-medium text-brand">Enter a full link starting with https://</div>}
+        {!valid && <div className="mt-2 text-[12.5px] font-medium text-brand-ink">Enter a full link starting with https://</div>}
         <div className="mt-3 text-[12.5px] text-ink-mute">{item?.title}</div>
       </form>
     </Sheet>

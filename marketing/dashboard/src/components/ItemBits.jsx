@@ -43,6 +43,7 @@ export function ContentChips({ items, onOpen, size = "md", compact = false }) {
             key={i.id}
             onClick={(e) => { e.stopPropagation(); onOpen?.(i); }}
             title={`${TYPE_META[i.type]?.label}: ${ITEM_STATUS[i.status]?.label || i.status}`}
+            aria-label={`${TYPE_META[i.type]?.label}: ${ITEM_STATUS[i.status]?.label || i.status}`}
             className={cx(
               "inline-flex items-center gap-1.5 rounded-full bg-surface font-medium text-ink-soft shadow-[0_0_0_1px_var(--hairline)] transition-colors hover:bg-surface-sunken",
               size === "sm" ? "h-6 px-2 text-[11.5px]" : "h-7 px-2.5 text-[12.5px]",

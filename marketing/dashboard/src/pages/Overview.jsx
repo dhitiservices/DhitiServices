@@ -110,7 +110,7 @@ export default function Overview() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-5">
         <section className="lg:col-span-3">
-          <SectionTitle action={<Link to="/calendar" className="text-callout font-semibold text-brand hover:underline">Calendar</Link>}>Upcoming publishes</SectionTitle>
+          <SectionTitle action={<Link to="/calendar" className="text-callout font-semibold text-brand-ink hover:underline">Calendar</Link>}>Upcoming publishes</SectionTitle>
           <Card className="p-2">
             {loading ? (
               <div className="space-y-2 p-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-16" />)}</div>
@@ -127,7 +127,7 @@ export default function Overview() {
         </section>
 
         <section className="lg:col-span-2">
-          <SectionTitle action={<Link to="/settings#runs" className="text-callout font-semibold text-brand hover:underline">All runs</Link>}>Recent activity</SectionTitle>
+          <SectionTitle action={<Link to="/settings#runs" className="text-callout font-semibold text-brand-ink hover:underline">All runs</Link>}>Recent activity</SectionTitle>
           <Card className="divide-y divide-[color:var(--hairline)]">
             {loading ? (
               <div className="space-y-2 p-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
@@ -145,7 +145,7 @@ export default function Overview() {
                 ))}
                 {d.runs.slice(0, 5).map((r) => (
                   <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className={cx("flex h-8 w-8 items-center justify-center rounded-[9px]", r.status === "failed" ? "bg-brand/10 text-brand" : "bg-ink/[0.05] text-ink-soft")}>
+                    <span className={cx("flex h-8 w-8 items-center justify-center rounded-[9px]", r.status === "failed" ? "bg-brand/10 text-brand-ink" : "bg-ink/[0.05] text-ink-soft")}>
                       {r.status === "failed" ? <AlertCircle className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -236,7 +236,7 @@ function ResearchCard({ loading, brief, className }) {
   return (
     <Card as="button" onClick={() => navigate(`/research/${brief.id}`)} className={cx("group flex flex-col p-6 text-left transition-shadow hover:card-lift", className)}>
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/10 text-brand"><Telescope className="h-3.5 w-3.5" strokeWidth={2.2} /></span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/10 text-brand-ink"><Telescope className="h-3.5 w-3.5" strokeWidth={2.2} /></span>
         <span className="eyebrow">Research · week of {formatDate(dateOnly(brief.week_start))}</span>
       </div>
       <p className="mt-4 line-clamp-5 text-body text-ink-soft">{brief.summary}</p>
@@ -244,13 +244,13 @@ function ResearchCard({ loading, brief, className }) {
         <Chip tone="neutral" dot={false}>{plural(brief.trends?.length || 0, "trend")}</Chip>
         <Chip tone="neutral" dot={false}>{plural(brief.pain_points?.length || 0, "pain point")}</Chip>
         <Chip tone="neutral" dot={false}>{plural(brief.opportunities?.length || 0, "opportunity", "opportunities")}</Chip>
-        <ArrowRight className="ml-auto h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
+        <ArrowRight className="ml-auto h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-brand-ink" />
       </div>
     </Card>
   );
 }
 
-const STAT_TONE = { brand: "text-brand bg-brand/10", violet: "text-violet bg-violet/10", warn: "text-warn bg-warn/10", ok: "text-ok bg-ok/10", info: "text-info bg-info/10" };
+const STAT_TONE = { brand: "text-brand-ink bg-brand/10", violet: "text-violet bg-violet/10", warn: "text-warn bg-warn/10", ok: "text-ok bg-ok/10", info: "text-info bg-info/10" };
 function Stat({ loading, icon: Icon, tone, label, value, to }) {
   return (
     <motion.button variants={listItem} onClick={() => navigate(to)} whileTap={{ scale: 0.98 }} className="card group p-4 text-left transition-shadow hover:card-lift">
@@ -267,11 +267,17 @@ function TimelineRow({ row, last }) {
   const date = formatDate(when, { day: "numeric" });
   const status = blog?.status;
   return (
-    <motion.li variants={listItem} className="relative">
-      <button onClick={() => navigate(blog ? `/review/${blog.id}` : "/calendar")} className="flex w-full gap-4 rounded-xl p-3 text-left transition-colors hover:bg-ink/[0.03]">
+    <motion.li variants={listItem} className="group/row relative">
+      {/* Stretched button covers the row; the content chips sit above it, so no button is nested in another. */}
+      <button
+        onClick={() => navigate(blog ? `/review/${blog.id}` : "/calendar")}
+        aria-label={`${blog?.body?.frontmatter?.title || topic.title}, ${day} ${date}`}
+        className="absolute inset-0 rounded-xl transition-colors hover:bg-ink/[0.03]"
+      />
+      <div className="pointer-events-none relative flex w-full gap-4 rounded-xl p-3 text-left">
         <div className="relative flex w-11 shrink-0 flex-col items-center">
           <div className={cx("flex h-11 w-11 flex-col items-center justify-center rounded-xl", status === "approved" ? "bg-ok/10 text-ok" : "bg-ink/[0.05] text-ink")}>
-            <span className="text-[10px] font-bold uppercase leading-3 tracking-wider opacity-70">{day}</span>
+            <span className="text-[10px] font-bold uppercase leading-3 tracking-wider">{day}</span>
             <span className="tnum text-[17px] font-bold leading-5">{date}</span>
           </div>
           {!last && <div className="absolute top-[52px] h-[calc(100%-36px)] w-px bg-ink/[0.08]" />}
@@ -284,9 +290,9 @@ function TimelineRow({ row, last }) {
           <div className="mt-0.5 text-[12.5px] text-ink-mute">
             {topic.category}{blog?.scheduled_for ? ` · ${formatTime(blog.scheduled_for)} IST` : ""}{topic.primary_keyword ? ` · “${topic.primary_keyword}”` : ""}
           </div>
-          <div className="mt-2"><ContentChips items={children} size="sm" onOpen={(i) => navigate(`/review/${i.id}`)} /></div>
+          <div className="pointer-events-auto relative mt-2 w-fit"><ContentChips items={children} size="sm" onOpen={(i) => navigate(`/review/${i.id}`)} /></div>
         </div>
-      </button>
+      </div>
     </motion.li>
   );
 }

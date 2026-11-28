@@ -1,5 +1,6 @@
 /* Reel overlays, 1080 x 1920. Rendered to transparent PNGs and composited by ffmpeg.
-   Safe area for text: x 90..990, y 280..1500 (keeps clear of Instagram / LinkedIn UI). */
+   Safe area for text: x 90..920, y 280..1500 (keeps clear of Instagram / LinkedIn UI: the Reels action rail
+   covers about x 930..1080, y 1100..1650). */
 
 .v { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
 
@@ -8,8 +9,8 @@
   content: '';
   position: absolute; inset: 0;
   background:
-    linear-gradient(180deg, rgba(8, 9, 12, 0.62) 0px, rgba(8, 9, 12, 0.36) 300px, rgba(8, 9, 12, 0.0) 620px),
-    linear-gradient(0deg, rgba(8, 9, 12, 0.90) 0px, rgba(8, 9, 12, 0.80) 420px, rgba(8, 9, 12, 0.60) 800px, rgba(8, 9, 12, 0.26) 1100px, rgba(8, 9, 12, 0.0) 1380px);
+    linear-gradient(180deg, rgba(22, 17, 16, 0.62) 0px, rgba(22, 17, 16, 0.36) 300px, rgba(22, 17, 16, 0.0) 620px),
+    linear-gradient(0deg, rgba(22, 17, 16, 0.90) 0px, rgba(22, 17, 16, 0.80) 420px, rgba(22, 17, 16, 0.60) 800px, rgba(22, 17, 16, 0.26) 1100px, rgba(22, 17, 16, 0.0) 1380px);
 }
 .v-brand {
   position: absolute; left: 90px; top: 288px;
@@ -28,13 +29,13 @@
 
 /* ---------- Text layer (animated in) ---------- */
 .v-safe {
-  position: absolute; left: 90px; right: 90px; top: 380px; bottom: 420px; /* bottom edge = y 1500 */
+  position: absolute; left: 90px; right: 160px; top: 380px; bottom: 420px; /* x 90..920, bottom edge = y 1500 */
   display: flex; flex-direction: column; justify-content: flex-end;
 }
 .v-kicker {
   display: inline-flex; align-items: center; gap: 14px; align-self: flex-start;
   margin-bottom: calc(34px * var(--fit, 1));
-  font-size: calc(28px * var(--fit, 1)); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  font-size: calc(34px * var(--fit, 1)); font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
   color: #fff;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
 }
@@ -45,6 +46,7 @@
   font-weight: 800;
   line-height: 1.06;
   letter-spacing: -0.024em;
+  word-spacing: 0.03em;
   color: #fff;
   text-wrap: balance;
   text-shadow: 0 2px 28px rgba(0, 0, 0, 0.32);

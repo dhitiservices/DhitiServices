@@ -18,6 +18,12 @@ files in `content/blog/`). Match their rhythm: short paragraphs, plain sentences
    published it. Write these into `$WORK/<slug>/sources.json` as you go:
    `[{"title":"Publisher: page title (Mon YYYY)","url":"https://...","claim":"the exact fact you will use"}]`.
 4. If a source cannot be opened or does not say it, do not use the claim. Never cite a URL you have not fetched.
+   A search-result snippet is not a fetch (fallback when WebFetch is blocked: `node src/cli.js fetch <url> --out
+   "$WORK/src/<n>.html"`, then grep the file).
+5. For tax, regulation or settlement topics (GST, TCS, BSP, IATA, RBI, card rules), search for rule changes in
+   the last 24 months and cite the primary text (Act section, notification, circular, GSTN / IATA advisory) for
+   every rule you state. Write dates explicitly ("on 30 November each year"). Never write relative time ("has just
+   closed", "this month", "last week") unless it is true on `planned_publish_date` and stays true for 12 months.
 
 ## 2. Structure: exactly 8 `##` sections
 
@@ -151,5 +157,8 @@ The email arrives on a Tuesday morning. ...
 - `order`: `ctx` next order for the first blog of the run, +1 for each following blog (never reuse a number).
 - `date`: the topic's `planned_publish_date`.
 
-Also prepare `$WORK/<slug>/meta.json` (used by save-blog if the CLI reads it, and by you for creatives):
-`{"primary_keyword":"","secondary_keywords":[],"faq":[{"q":"","a":""}],"sources":[{"title":"","url":""}]}`.
+Also prepare `$WORK/<slug>/meta.json` (passed to `save-blog --meta`, and used by you for creatives):
+`{"primary_keyword":"","secondary_keywords":[],"faq":[{"q":"","a":""}],"sources":[{"title":"Publisher: page title (Mon YYYY)","url":"https://..."}]}`.
+Keywords and FAQ live here, never as extra frontmatter keys. If a source could not be fetched (PLAYBOOK rule 3),
+also pass `--owner-note "UNVERIFIED SOURCES: <urls>, verify before approving"`: the dashboard shows it above the
+post.

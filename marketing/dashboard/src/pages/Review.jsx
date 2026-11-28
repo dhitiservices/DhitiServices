@@ -20,6 +20,9 @@ import { CarouselStage, CarouselMeta } from "../components/viewers/CarouselViewe
 import { GraphicStage, GraphicMeta, useGraphicVariant } from "../components/viewers/GraphicViewer.jsx";
 import { VideoStage, VideoMeta } from "../components/viewers/VideoViewer.jsx";
 import { MetaSection } from "../components/viewers/Meta.jsx";
+import { openSafe } from "../lib/safe.js";
+import { useToast } from "../components/Toast.jsx";
+import { fromISTInput, addDays, todayIST } from "../lib/format.js";
 
 const FILTERS = {
   review: { label: "To review", test: (i) => i.status === "pending_review" || i.status === "awaiting_voiceover" },
@@ -62,7 +65,9 @@ export default function Review({ id }) {
     }
     return [...map.entries()]
       .map(([key, items]) => ({ topic: d.topicById.get(key), key, items: items.sort(byType) }))
-      .sort((a, b) => String(a.topic?.planned_publish_date || "9").localeCompare(String(b.topic?.planned_publish_date || "9")));
+      // Topics with something waiting for review come first (matters in "All"), then by planned date.
+      .sort((a, b) => Number(b.items.some(FILTERS.review.test)) - Number(a.items.some(FILTERS.review.test))
+        || String(a.topic?.planned_publish_date || "9").localeCompare(String(b.topic?.planned_publish_date || "9")));
   }, [d.items, d.topicById, filter]);
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
@@ -103,17 +108,30 @@ export default function Review({ id }) {
     navigate(n ? `/review/${n.id}${filter === "review" ? "" : `?filter=${filter}`}` : `/review${filter === "review" ? "" : `?filter=${filter}`}`, { replace: true });
   };
 
+  const toast = useToast();
+  const why = (item, verb) => toast({ tone: "neutral", title: `Can't ${verb} this ${TYPE_META[item.type]?.label.toLowerCase() || "item"}`, description: `It is ${ITEM_STATUS[item.status]?.label?.toLowerCase() || item.status}.`, duration: 2200 });
   const act = {
     approve: (item = sel) => {
-      if (!item || !canApprove(item)) return;
+      if (!item) return;
+      if (!canApprove(item)) return why(item, "approve");
       if (item.type === "blog") return setApproveOpen(true);
       advanceFrom(item, "approved");
       d.actions.approve(item);
     },
+    /** Shift+A: approve a blog at its default slot without opening the sheet. */
+    quickApprove: (item = sel) => {
+      if (!item) return;
+      if (!canApprove(item)) return why(item, "approve");
+      if (item.type !== "blog") return act.approve(item);
+      const slot = defaultBlogSlot(item, d.topicById.get(item.topic_id));
+      advanceFrom(item, "approved");
+      d.actions.approve(item, { scheduledFor: slot });
+    },
     approveBlog: (iso) => { advanceFrom(sel, "approved"); d.actions.approve(sel, { scheduledFor: iso }); },
     reject: (item = sel) => { if (!item) return; advanceFrom(item, "rejected"); d.actions.reject(item); },
-    changes: () => sel && canChange(sel) && setChangesOpen(true),
-    submitChanges: async (text) => { const item = sel; await d.actions.requestChanges(item, text); advanceFrom(item, "changes_requested"); },
+    changes: () => { if (!sel) return; if (!canChange(sel)) return why(sel, "send back"); setChangesOpen(true); },
+    // Close and move on at once; the write runs in the background (it toasts and reverts on failure).
+    submitChanges: (text) => { const item = sel; advanceFrom(item, "changes_requested"); d.actions.requestChanges(item, text).catch(() => {}); },
   };
 
   useHotkeys(
@@ -123,8 +141,13 @@ export default function Review({ id }) {
       arrowdown: () => (desktop ? step(1) : false),
       arrowup: () => (desktop ? step(-1) : false),
       a: () => act.approve(),
+      "shift+a": () => act.quickApprove(),
       r: () => act.changes(),
-      e: () => (sel?.type === "blog" && !editing ? setEditing(true) : false),
+      e: () => {
+        if (!sel || editing) return false;
+        if (sel.type !== "blog" || ["published", "generating"].includes(sel.status)) return why(sel, "edit");
+        setEditing(true);
+      },
       escape: () => { if (editing) return false; if (!desktop && id) navigate(`/review${filter === "review" ? "" : `?filter=${filter}`}`); else return false; },
     },
     { enabled: !sheetsOpen && d.status === "ready" },
@@ -149,7 +172,8 @@ export default function Review({ id }) {
           options={Object.entries(FILTERS).map(([value, f]) => ({ value, label: f.label, count: value === "all" ? null : counts[value] }))}
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-28 sm:px-3 lg:pb-6">
+      {/* Only the desktop column scrolls itself; on phones the window scrolls, so the sticky group headers stick under the app header. */}
+      <div className="min-h-0 flex-1 px-2.5 pb-28 sm:px-3 lg:overflow-y-auto lg:pb-6">
         {loading ? (
           <div className="space-y-2 px-1.5 pt-2">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex gap-3 p-2"><Skeleton className="h-12 w-12 shrink-0" /><div className="flex-1 space-y-2 pt-1"><Skeleton className="h-3.5 w-4/5" /><Skeleton className="h-3 w-1/3" /></div></div>)}</div>
         ) : flat.length === 0 ? (
@@ -163,7 +187,7 @@ export default function Review({ id }) {
         ) : (
           groups.map((g) => (
             <div key={g.key} className="mb-3">
-              <div className="sticky top-0 z-[1] -mx-0.5 flex items-center gap-2 bg-canvas/90 px-3 pb-1.5 pt-3 backdrop-blur-md lg:bg-transparent lg:backdrop-blur-none">
+              <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-[1] -mx-0.5 flex items-center gap-2 bg-canvas/90 px-3 pb-1.5 pt-3 backdrop-blur-md lg:top-0 lg:bg-transparent lg:backdrop-blur-none">
                 <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-soft">{g.topic?.title || "Other"}</span>
                 {g.topic?.planned_publish_date && <span className="tnum shrink-0 text-[11.5px] text-ink-faint">{formatDate(dateOnly(g.topic.planned_publish_date), { weekday: "short", day: "numeric", month: "short" })}</span>}
               </div>
@@ -249,12 +273,19 @@ export default function Review({ id }) {
 }
 
 const canApprove = (i) => i.status === "pending_review" || i.status === "changes_requested";
+
+/** Same default as the approve sheet: a future scheduled_for, else the topic's planned date 10:00 IST, else tomorrow. */
+function defaultBlogSlot(item, topic) {
+  if (item.scheduled_for && new Date(item.scheduled_for) > new Date()) return item.scheduled_for;
+  if (topic?.planned_publish_date && topic.planned_publish_date >= todayIST()) return fromISTInput(`${topic.planned_publish_date}T10:00`) || new Date(`${topic.planned_publish_date}T10:00:00+05:30`).toISOString();
+  return new Date(`${addDays(todayIST(), 1)}T10:00:00+05:30`).toISOString();
+}
 const canChange = (i) => ["pending_review", "awaiting_voiceover", "changes_requested", "failed", "approved"].includes(i.status);
 
 function QueueRow({ item, topic, active, onClick }) {
   const T = TYPE_META[item.type];
   return (
-    <button onClick={onClick} className="group relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left">
+    <button onClick={onClick} aria-current={active ? "true" : undefined} className="group relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left">
       {active && (
         <motion.span
           layoutId="queue-active"
@@ -325,7 +356,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
     </div>
   ) : item.status === "failed" && item.error ? (
     <div className="mx-auto mb-6 flex max-w-[720px] gap-3 rounded-2xl bg-brand/[0.07] p-4">
-      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
+      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-brand-ink" />
       <div className="text-callout text-ink-soft"><span className="font-semibold text-ink">This piece failed. </span>{item.error}</div>
     </div>
   ) : null;
@@ -335,7 +366,7 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
   return (
     <div className="flex h-full flex-col">
       {/* toolbar */}
-      <div className={cx("glass hairline-b z-20 flex shrink-0 items-center gap-2", desktop ? "h-[60px] px-4 xl:px-6" : "h-[52px] px-2 pt-[env(safe-area-inset-top)]")}>
+      <div className={cx("glass hairline-b z-20 flex shrink-0 items-center gap-2", desktop ? "h-[60px] px-4 xl:px-6" : "h-[calc(52px+env(safe-area-inset-top))] px-2 pt-[env(safe-area-inset-top)]")}>
         {!desktop && <IconButton icon={ChevronLeft} label="Back" onClick={onBack} />}
         {desktop && (
           <div className="flex items-center">
@@ -357,6 +388,12 @@ function Viewer({ item, topic, desktop, index, total, onStep, onBack, editing, s
         </div>
         {desktop && actions}
         {!desktop && <span className="sm:hidden"><StatusChip map={ITEM_STATUS} status={item.status} size="sm" /></span>}
+        {!desktop && total > 1 && (
+          <div className="flex items-center">
+            <IconButton icon={ChevronUp} label="Previous item" size="sm" onClick={() => onStep(-1)} disabled={index <= 0} />
+            <IconButton icon={ChevronDown} label="Next item" size="sm" onClick={() => onStep(1)} disabled={index === -1 || index >= total - 1} />
+          </div>
+        )}
       </div>
 
       {/* body */}
@@ -401,11 +438,12 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
   const d = useData();
   const s = item.status;
   const more = [
-    item.type === "blog" && s !== "published" && { label: "Edit article", icon: Pencil, onClick: () => setEditing(true), kbd: "E" },
-    item.type === "blog" && s !== "published" && { label: "Publish now", icon: Rocket, onClick: onPublish },
+    item.type === "blog" && !["published", "generating"].includes(s) && { label: "Edit article", icon: Pencil, onClick: () => setEditing(true), kbd: "E" },
+    // Never offered while a revision is being made (generating) or the item has no reviewable content.
+    item.type === "blog" && ["pending_review", "changes_requested", "approved"].includes(s) && { label: "Publish now", icon: Rocket, onClick: onPublish },
     item.type !== "blog" && s === "approved" && { label: "Mark as posted", icon: Send, onClick: onPosted },
     (s === "approved" || s === "rejected") && { label: "Move back to review", icon: RotateCcw, onClick: () => d.actions.unapprove(item) },
-    item.published_url && { label: "Open live post", icon: ExternalLink, onClick: () => window.open(item.published_url || blogUrl(item), "_blank", "noopener") },
+    item.published_url && { label: "Open live post", icon: ExternalLink, onClick: () => openSafe(item.published_url || blogUrl(item)) },
     "divider",
     s !== "rejected" && s !== "published" && { label: "Reject", icon: X, danger: true, onClick: () => act.reject(item) },
   ].filter(Boolean);
@@ -418,7 +456,7 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
           <Button size={compact ? "lg" : "md"} variant="secondary" icon={MessageSquareWarning} onClick={act.changes} kbd={compact ? null : "R"} className={compact ? "flex-1" : ""}>
             {compact ? "Changes" : "Request changes"}
           </Button>
-          <Button size={compact ? "lg" : "md"} variant="primary" icon={Check} onClick={() => act.approve(item)} kbd={compact ? null : "A"} className={compact ? "flex-1" : ""}>
+          <Button size={compact ? "lg" : "md"} variant="primary" icon={Check} onClick={() => act.approve(item)} kbd={compact ? null : "A"} title={item.type === "blog" ? "A: choose the publish time · Shift+A: approve for the planned slot" : "A"} className={compact ? "flex-1" : ""}>
             {s === "changes_requested" ? "Approve anyway" : "Approve"}
           </Button>
         </>
@@ -434,7 +472,7 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
     if (s === "approved" && item.type === "blog") return <Button size={compact ? "lg" : "md"} variant="dark" icon={Rocket} onClick={onPublish} className={compact ? "flex-1" : ""}>Publish now</Button>;
     if (s === "approved") return <Button size={compact ? "lg" : "md"} variant="primary" icon={Send} onClick={onPosted} className={compact ? "flex-1" : ""}>Mark as posted</Button>;
     if (s === "rejected") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={Undo2} onClick={() => d.actions.unapprove(item)} className={compact ? "flex-1" : ""}>Restore to review</Button>;
-    if (s === "published" && (item.published_url || item.type === "blog")) return <Button size={compact ? "lg" : "md"} variant="secondary" icon={ExternalLink} onClick={() => window.open(item.published_url || blogUrl(item), "_blank", "noopener")} className={compact ? "flex-1" : ""}>View live</Button>;
+    if (s === "published" && (item.published_url || item.type === "blog")) return <Button size={compact ? "lg" : "md"} variant="secondary" icon={ExternalLink} onClick={() => openSafe(item.published_url || blogUrl(item))} className={compact ? "flex-1" : ""}>View live</Button>;
     if (s === "failed") return <Button size={compact ? "lg" : "md"} variant="secondary" icon={RotateCcw} onClick={act.changes} className={compact ? "flex-1" : ""}>Retry with notes</Button>;
     return null;
   })();
@@ -447,8 +485,8 @@ function ActionBar({ item, act, onPublish, onPosted, setEditing, compact }) {
         <Menu
           items={cleanMore}
           side={compact ? "top" : "bottom"}
-          trigger={({ toggle, open }) => (
-            <IconButton icon={MoreHorizontal} label="More actions" onClick={toggle} active={open} className={compact ? "h-11 w-11 bg-ink/[0.05]" : ""} />
+          trigger={({ toggle, open, triggerProps }) => (
+            <IconButton icon={MoreHorizontal} label="More actions" onClick={toggle} active={open} {...triggerProps} className={compact ? "h-11 w-11 bg-ink/[0.05]" : ""} />
           )}
           className="shrink-0"
         />

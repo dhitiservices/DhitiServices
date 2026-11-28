@@ -9,6 +9,7 @@ import { ItemThumb } from "../components/ItemBits.jsx";
 import { TYPE_META, itemTitle, blogUrl } from "../lib/model.js";
 import { formatDate, hostOf } from "../lib/format.js";
 import { list, listItem } from "../lib/motion.js";
+import { safeHref } from "../lib/safe.js";
 
 export default function Published() {
   const d = useData();
@@ -37,7 +38,7 @@ export default function Published() {
             const url = i.type === "blog" ? blogUrl(i) : i.published_url;
             return (
               <motion.div key={i.id} variants={listItem} className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-ink/[0.02] sm:px-5">
-                <button onClick={() => navigate(`/review/${i.id}?filter=all`)} className="shrink-0">
+                <button onClick={() => navigate(`/review/${i.id}?filter=all`)} className="shrink-0" aria-label={`Open ${TYPE_META[i.type].label.toLowerCase()}: ${i.type === "blog" ? itemTitle(i, topic) : topic?.title || ""}`} tabIndex={-1}>
                   <ItemThumb item={i} className={i.type === "blog" ? "h-14 w-[96px]" : "h-14 w-14"} />
                 </button>
                 <button onClick={() => navigate(`/review/${i.id}?filter=all`)} className="min-w-0 flex-1 text-left">
@@ -48,7 +49,7 @@ export default function Published() {
                   </div>
                 </button>
                 {url ? (
-                  <a href={url} target="_blank" rel="noreferrer" className="flex shrink-0 items-center gap-1 rounded-full bg-ink/[0.05] px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-info/10 hover:text-info">
+                  <a href={safeHref(url)} target="_blank" rel="noopener noreferrer" aria-label={`Open live post on ${hostOf(url)} (new tab)`} className="flex shrink-0 items-center gap-1 rounded-full bg-ink/[0.05] px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-info/10 hover:text-info">
                     <span className="hidden sm:inline">{hostOf(url)}</span><ArrowUpRight className="h-3.5 w-3.5" />
                   </a>
                 ) : <span className="text-[12px] text-ink-faint">No link</span>}

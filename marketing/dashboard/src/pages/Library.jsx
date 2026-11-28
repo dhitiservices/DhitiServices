@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { UploadCloud, Image as ImageIcon, Film, Mic, Music, Shapes, FolderOpen, MoreHorizontal, Trash2, Download, X, Check } from "lucide-react";
 import { useData } from "../lib/store.jsx";
@@ -64,13 +64,31 @@ export default function Library() {
   };
   const uploading = queue.some((q) => q.status === "uploading");
 
+  // Drag and drop anywhere in the window: a file dropped outside the centred column must never make the browser
+  // navigate away to it. A depth counter stops the overlay flickering as the pointer crosses child elements.
+  const addRef = useRef(addFiles);
+  addRef.current = addFiles;
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
+    const enter = (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth += 1; setDrag(true); };
+    const over = (e) => { if (hasFiles(e)) e.preventDefault(); };
+    const leave = (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) setDrag(false); };
+    const drop = (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth = 0; setDrag(false); addRef.current(e.dataTransfer.files || []); };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, []);
+
   return (
-    <div
-      className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10"
-      onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setDrag(true); } }}
-      onDragLeave={(e) => { if (e.currentTarget === e.target) setDrag(false); }}
-      onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files || []); }}
-    >
+    <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-8 lg:py-10">
       <PageHeader
         title="Library"
         subtitle="Your own photos, footage and voiceovers. The weekly run prefers these over stock when they fit."
@@ -91,7 +109,7 @@ export default function Library() {
         {drag && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-brand/[0.06] backdrop-blur-[2px]">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} transition={spring} className="popover flex flex-col items-center px-10 py-8">
-              <UploadCloud className="h-8 w-8 text-brand" />
+              <UploadCloud className="h-8 w-8 text-brand-ink" />
               <div className="mt-3 text-headline font-semibold">Drop to add to the library</div>
             </motion.div>
           </motion.div>
@@ -124,15 +142,15 @@ export default function Library() {
                         <SignedAudio path={r.storage_path} className="w-full" />
                       </div>
                     )}
-                    <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100 [&:has([aria-expanded=true])]:opacity-100 max-lg:opacity-100">
+                    <div className="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [&:has([aria-expanded=true])]:opacity-100 max-lg:opacity-100">
                       <Menu
                         items={[
                           { label: "Download", icon: Download, onClick: () => downloadPath(r.storage_path, r.storage_path.split("/").pop()) },
                           "divider",
                           { label: "Delete", icon: Trash2, danger: true, onClick: () => setDel(r) },
                         ]}
-                        trigger={({ toggle, open }) => (
-                          <button onClick={toggle} aria-expanded={open} aria-label="File actions" className="flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md hover:bg-black/60"><MoreHorizontal className="h-4 w-4" /></button>
+                        trigger={({ toggle, open, triggerProps }) => (
+                          <button onClick={toggle} {...triggerProps} aria-label="File actions" className="flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md hover:bg-black/60"><MoreHorizontal className="h-4 w-4" /></button>
                         )}
                       />
                     </div>
@@ -182,14 +200,14 @@ export default function Library() {
               </div>
               {q.status === "ready" && (
                 <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_140px]">
-                  <input className="input h-9 text-callout" value={q.title} onChange={(e) => setQueue((s) => s.map((x) => (x.id === q.id ? { ...x, title: e.target.value } : x)))} placeholder="Title" />
-                  <select className="input h-9 text-callout" value={q.kind} onChange={(e) => setQueue((s) => s.map((x) => (x.id === q.id ? { ...x, kind: e.target.value } : x)))}>
+                  <input className="input h-9 text-callout" value={q.title} onChange={(e) => setQueue((s) => s.map((x) => (x.id === q.id ? { ...x, title: e.target.value } : x)))} placeholder="Title" aria-label={`Title for ${q.file.name}`} />
+                  <select aria-label={`Kind of ${q.file.name}`} className="input h-9 text-callout" value={q.kind} onChange={(e) => setQueue((s) => s.map((x) => (x.id === q.id ? { ...x, kind: e.target.value } : x)))}>
                     {Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v.one}</option>)}
                   </select>
-                  <input className="input h-9 text-callout sm:col-span-2" value={q.tags} onChange={(e) => setQueue((s) => s.map((x) => (x.id === q.id ? { ...x, tags: e.target.value } : x)))} placeholder="Tags: team, office, saswad" />
+                  <input className="input h-9 text-callout sm:col-span-2" value={q.tags} onChange={(e) => setQueue((s) => s.map((x) => (x.id === q.id ? { ...x, tags: e.target.value } : x)))} placeholder="Tags: team, office, saswad" aria-label={`Tags for ${q.file.name}`} />
                 </div>
               )}
-              {q.error && <div className={cx("mt-2 text-[12px] text-brand")}>{q.error}</div>}
+              {q.error && <div className={cx("mt-2 text-[12px] text-brand-ink")}>{q.error}</div>}
             </div>
           ))}
         </div>

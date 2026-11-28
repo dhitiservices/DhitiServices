@@ -51,7 +51,8 @@ before expiry). Live updates: Realtime `postgres_changes` on `content_items`, `j
 
 ## Design
 
-SF Pro only: `-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui`. Apple devices use the
-system SF; elsewhere the owner-supplied `public/fonts/SF-Pro-Display-*.otf` (not committed, licence) are used via
-`@font-face` when present. Dhiti colours as CSS variables (`src/index.css`) with a dark theme (Auto/Light/Dark).
+SF Pro only, from the system: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui`.
+Apple devices (Mac, iPhone, iPad) render real SF Pro. No font files are loaded or shipped: Apple's SF Pro licence
+does not allow serving the fonts from a website, so Windows and Android show their own system UI font. Do not add
+`public/fonts/` or `@font-face` rules (CSP `font-src 'none'`). Dhiti colours as CSS variables (`src/index.css`) with a dark theme (Auto/Light/Dark).
 Motion animates transform/opacity only and honours `prefers-reduced-motion`.

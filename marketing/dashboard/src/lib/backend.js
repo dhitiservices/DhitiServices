@@ -49,14 +49,15 @@ export function createSupabaseBackend() {
       },
     },
 
-    async fetchAll() {
+    /** Everything the app shows. `withAssets: false` skips the asset rows (polls while realtime keeps them fresh). */
+    async fetchAll({ withAssets = true } = {}) {
       const [settings, runs, briefs, topics, items, assets, jobs, library] = await Promise.all([
         sb.from("settings").select("data,updated_at").eq("id", 1).maybeSingle().then(must),
         sb.from("runs").select(RUN_COLS).order("started_at", { ascending: false }).limit(40).then(must),
         sb.from("research_briefs").select("*").order("week_start", { ascending: false }).order("created_at", { ascending: false }).limit(12).then(must),
         sb.from("topics").select("*").order("week_start", { ascending: false }).order("priority", { ascending: true }).limit(240).then(must),
         sb.from("content_items").select(ITEM_COLS).order("created_at", { ascending: false }).limit(400).then(must),
-        sb.from("assets").select("*").order("created_at", { ascending: false }).limit(5000).then(must),
+        withAssets ? sb.from("assets").select("*").order("created_at", { ascending: false }).limit(5000).then(must) : Promise.resolve(undefined),
         sb.from("jobs").select("*").order("created_at", { ascending: false }).limit(60).then(must),
         sb.from("library_assets").select("*").order("created_at", { ascending: false }).limit(400).then(must),
       ]);
@@ -103,19 +104,30 @@ export function createSupabaseBackend() {
     async updateLibrary(id, patch) {
       return must(await sb.from("library_assets").update(patch).eq("id", id).select("*").single());
     },
+    /** Row first (so the app never points at a missing file), then the object; both errors surface. */
     async deleteLibrary(row) {
-      if (row.storage_path?.startsWith("library/")) await sb.storage.from(STORAGE_BUCKET).remove([row.storage_path]);
       must(await sb.from("library_assets").delete().eq("id", row.id));
+      if (row.storage_path?.startsWith("library/")) must(await sb.storage.from(STORAGE_BUCKET).remove([row.storage_path]));
+    },
+    async removeLibraryFile(path) {
+      if (path?.startsWith("library/")) must(await sb.storage.from(STORAGE_BUCKET).remove([path]));
     },
 
-    /** Realtime row changes. Returns an unsubscribe function. `onStatus(true|false)` reports liveness. */
+    /**
+     * Realtime row changes (tables are in the supabase_realtime publication; RLS applies per event). Returns an
+     * unsubscribe function. `onStatus(true|false)` reports liveness: true only once the server has acknowledged the
+     * postgres_changes subscription (SUBSCRIBED), false on CHANNEL_ERROR / TIMED_OUT / CLOSED.
+     */
     subscribe(onChange, onStatus) {
       const ch = sb.channel("dashboard-live");
-      for (const table of ["content_items", "jobs", "runs", "topics", "library_assets"]) {
+      for (const table of ["content_items", "jobs", "runs", "topics", "library_assets", "assets"]) {
         ch.on("postgres_changes", { event: "*", schema: "public", table }, (p) =>
           onChange({ table, eventType: p.eventType, row: p.new && Object.keys(p.new).length ? p.new : null, old: p.old }));
       }
-      ch.subscribe((status) => onStatus?.(status === "SUBSCRIBED"));
+      ch.subscribe((status, err) => {
+        if (err) console.warn("realtime:", status, err.message || err);
+        onStatus?.(status === "SUBSCRIBED");
+      });
       return () => { sb.removeChannel(ch); };
     },
   };

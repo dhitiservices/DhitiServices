@@ -12,10 +12,10 @@ import { listExistingPosts } from './blogcheck.js';
 export const BRAND_COLORS = Object.freeze({
   red: '#EE0800',
   redDeep: '#C20600',
-  redBright: '#FF3322',
-  ink: '#15161A',
-  inkSoft: '#3a3d45',
-  inkMute: '#6b6f7a',
+  redBright: '#FF3A26',
+  ink: '#161110', // warm ink, as on dhitiservices.com
+  inkSoft: '#4A403E',
+  inkMute: '#857A77',
   white: '#FFFFFF',
   paper: '#FAF7F2',
 });

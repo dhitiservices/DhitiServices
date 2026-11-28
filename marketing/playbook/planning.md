@@ -21,7 +21,13 @@ supporting brief items.
 3. **Evidence.** At least two credible, recent sources exist for the problem (from the brief or one quick search).
 4. **Searchable.** The primary keyword is a phrase a real buyer types (2 to 5 words, lowercase, no brand names),
    and what ranks for it today is beatable (thin vendor pages, old listicles), not government or airline pages the
-   reader needs instead of us. Not a pure news query that will be stale in a month.
+   reader needs instead of us. Not a pure news query that will be stale in a month. Reject navigational queries
+   (download, login, portal, "by PNR", a brand name plus "invoice"): if the top 5 results are self-service pages,
+   the keyword fails.
+5. **Right reader.** The reader is a travel-industry business (agency, TMC, tour operator, OTA, DMC, travel-tech
+   company, hotel), not that business's customer. A topic about the customer's pain (a corporate client's lost
+   tax credit, a traveller's refund) is allowed only when it is written to the travel company that has to fix it
+   for them, with that company's own exposure (retention, renewals, its own invoices) in the angle.
 
 ## 3. Score the survivors (1 to 5 each, total out of 30)
 

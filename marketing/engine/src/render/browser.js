@@ -31,10 +31,10 @@ const GOOGLE_FONTS_CSS = 'https://fonts.googleapis.com/css2?family=Inter:opsz,wg
 export const DEFAULT_COLORS = Object.freeze({
   red: '#EE0800',
   redDeep: '#C20600',
-  redBright: '#FF3322',
-  ink: '#15161A',
-  inkSoft: '#3a3d45',
-  inkMute: '#6b6f7a',
+  redBright: '#FF3A26',
+  ink: '#161110',
+  inkSoft: '#4A403E',
+  inkMute: '#857A77',
   white: '#FFFFFF',
   paper: '#FAF7F2',
 });
@@ -291,7 +291,9 @@ export function cleanText(value) {
 
 /** Escaped HTML with **highlight** (or *highlight*) spans and line breaks preserved. */
 export function richText(value, { highlightClass = 'hl' } = {}) {
-  const esc = escapeHtml(cleanText(value));
+  // Hyphenated codes ("GSTR-2B", "e-invoice", "B2B-ready") never break at the hyphen: a U+2011 non-breaking hyphen
+  // keeps them whole (Inter has the glyph).
+  const esc = escapeHtml(cleanText(value)).replace(/([A-Za-z0-9])-(?=[A-Za-z0-9])/g, '$1\u2011');
   return esc
     .replace(/\*\*(.+?)\*\*/g, `<span class="${highlightClass}">$1</span>`)
     .replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, `$1<span class="${highlightClass}">$2</span>`)
