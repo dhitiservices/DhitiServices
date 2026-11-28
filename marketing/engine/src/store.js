@@ -587,10 +587,12 @@ const localActions = {
     return { signedUrl: pathToFileURL(path.join(storageRoot(), sp)).href, token: 'dry-run', path: sp };
   },
 
-  sign_download(p) {
+  async sign_download(p) {
     const sp = storagePathOf(p.path);
     const expiresIn = int(p.expiresIn, 'expiresIn', { min: 10, max: 7 * 24 * 3600, dflt: 600 });
-    return { signedUrl: pathToFileURL(path.join(storageRoot(), sp)).href, path: sp, expiresIn };
+    const file = path.join(storageRoot(), sp);
+    if (!(await fs.stat(file).catch(() => null))?.isFile()) fail(404, `sign_download: Object not found (${sp})`);
+    return { signedUrl: pathToFileURL(file).href, path: sp, expiresIn };
   },
 
   async delete_files(p, k, data) {
@@ -687,9 +689,13 @@ function toConditions(filter = {}) {
   return conds;
 }
 
+const ISO_TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+/** Timestamps compare as instants ("...+00:00" from Postgres vs "...Z" from JS); everything else as-is. */
+const comparable = (x, val) => (typeof x === 'string' && typeof val === 'string' && ISO_TS.test(x) && ISO_TS.test(val) ? [Date.parse(x), Date.parse(val)] : [x, val]);
+
 function matches(row, conds) {
-  return conds.every(([col, op, val]) => {
-    const x = row[col];
+  return conds.every(([col, op, v]) => {
+    const [x, val] = ['lt', 'lte', 'gt', 'gte'].includes(op) ? comparable(row[col], v) : [row[col], v];
     switch (op) {
       case 'eq': return x === val;
       case 'neq': return x !== val;

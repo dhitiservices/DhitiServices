@@ -16,7 +16,7 @@
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const BUCKET = "marketing";
 
 // ---------------------------------------------------------------------------------------------------------------
