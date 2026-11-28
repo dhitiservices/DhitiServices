@@ -20,7 +20,8 @@
     "gray-matter": "^4.0.3",
     "marked": "15.0.12",
     "playwright": "1.56.0",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "unpdf": "1.9.1"
   },
   "bin": {
     "dhiti-engine": "src/cli.js"
