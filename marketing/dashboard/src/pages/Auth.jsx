@@ -185,6 +185,7 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
   const [email, setEmail] = useState(pending?.email || "");
   const [sentAt, setSentAt] = useState(pending?.sentAt || 0);
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
@@ -227,6 +228,13 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
     const addr = email.trim().toLowerCase();
     if (!validEmail(addr)) { setError("Enter a valid email address."); emailRef.current?.focus(); return; }
     setEmail(addr);
+    if (password && backend.auth.signInWithPassword) {
+      setError(null); setInfo(null); setBusy(true);
+      backend.auth.signInWithPassword(addr, password)
+        .then(() => setPassword(""))
+        .catch(() => { setBusy(false); setError("Email or password is not right. Try again, or leave the password empty to get an email code."); });
+      return;
+    }
     send(addr);
   };
 
@@ -308,9 +316,21 @@ export function Login({ backend, notice, verifying, onDemo, onLeaveDemo }) {
                       aria-invalid={!!error || undefined}
                     />
                   </div>
+                  {backend.auth.signInWithPassword && (
+                    <input
+                      type="password"
+                      name="password"
+                      autoComplete="current-password"
+                      placeholder="Password (leave empty to get an email code)"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); if (error) setError(null); }}
+                      className="input h-[50px] rounded-[14px] px-4 text-[16px]"
+                      aria-label="Password"
+                    />
+                  )}
                   <AnimatePresence initial={false}>{error && <Notice key="err" tone="error">{error}</Notice>}</AnimatePresence>
                   <Button type="submit" variant="primary" size="lg" className="h-[50px] w-full rounded-[14px] text-[16px]" loading={busy} iconRight={busy ? undefined : ArrowRight}>
-                    {busy ? "Sending…" : "Email me a code"}
+                    {busy ? (password ? "Signing in…" : "Sending…") : (password ? "Sign in" : "Email me a code")}
                   </Button>
                   {DEMO_AVAILABLE && !demo && (
                     <Button type="button" variant="ghost" size="md" className="w-full" icon={FlaskConical} onClick={onDemo}>Try it with sample data</Button>

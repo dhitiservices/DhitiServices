@@ -99,6 +99,14 @@ export function createSupabaseBackend() {
         const data = authMust(await sb.auth.verifyOtp({ email, token, type: "email" }));
         return data.session;
       },
+      async signInWithPassword(email, password) {
+        freshSignIn();
+        const data = authMust(await sb.auth.signInWithPassword({ email, password }));
+        return data.session;
+      },
+      async setPassword(password) {
+        authMust(await sb.auth.updateUser({ password }));
+      },
       /** Sign in with the link copied from the email (works even when the link would open the wrong page). */
       async verifyLink(link) {
         let u;

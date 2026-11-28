@@ -153,7 +153,7 @@ function Root() {
   }, [backend, check]);
 
   const signOut = useCallback((scope = "local") => endSession(scope === "global" ? "global" : null, scope), [endSession]);
-  const authValue = useMemo(() => ({ user: auth.user, signOut, demo: backend?.kind === "demo" }), [auth.user, signOut, backend]);
+  const authValue = useMemo(() => ({ user: auth.user, signOut, demo: backend?.kind === "demo", setPassword: backend?.auth?.setPassword }), [auth.user, signOut, backend]);
 
   const enterDemo = useCallback(() => {
     setDemo(true);

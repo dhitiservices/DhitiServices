@@ -6,7 +6,7 @@ import { Confirm } from "../components/Sheet.jsx";
 import { useData } from "../lib/store.jsx";
 import { PageHeader, useTheme } from "../components/Shell.jsx";
 import { LinkedInSettings } from "../components/linkedin/Settings.jsx";
-import { Button, Card, Field, Stepper, StatusChip, Skeleton, Segmented, EmptyState, Avatar, cx } from "../components/ui.jsx";
+import { Button, Card, Field, Stepper, StatusChip, Skeleton, Segmented, EmptyState, Avatar, Switch, cx } from "../components/ui.jsx";
 import { RUN_STATUS, RUN_KIND } from "../lib/model.js";
 import { formatDateTime, duration, relative } from "../lib/format.js";
 import { spring } from "../lib/motion.js";
@@ -302,12 +302,12 @@ function SecuritySection() {
           <Avatar email={user?.email || ""} size={36} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-body font-semibold text-ink">{user?.email || "Signed in"}</div>
-            <div className="text-[12.5px] text-ink-mute">{demo ? "Demo with sample data" : "Signed in with an emailed code"}</div>
+            <div className="text-[12.5px] text-ink-mute">{demo ? "Demo with sample data" : "Private: only this email can sign in"}</div>
           </div>
           <Button variant="secondary" icon={LogOut} onClick={() => run("local")} loading={busy === "local"}>Sign out</Button>
         </div>
         {[
-          [Mail, "Sign in with an email code", "A 6-digit code (or the link in the same email) each time. No password, no extra app."],
+          [Mail, "Sign in with your password or an email code", "Leave the password empty on the sign-in screen to get a code by email instead."],
           [Timer, "Signs out by itself", "After 30 minutes without use (with a 60-second warning), and when Studio has been in the background for more than 12 hours."],
         ].map(([I, t, h]) => (
           <div key={t} className="flex items-start gap-3 px-5 py-4">
@@ -315,6 +315,8 @@ function SecuritySection() {
             <div className="flex-1"><div className="text-body font-semibold">{t}</div><div className="text-[12.5px] text-ink-mute">{h}</div></div>
           </div>
         ))}
+        <ExtraSafety />
+        <ChangePassword />
         <Row label="Sign out everywhere" hint="Signs you out on every phone and computer, this one too.">
           <Button variant="danger" icon={MonitorSmartphone} onClick={() => setConfirm(true)} loading={busy === "global"}>Sign out everywhere</Button>
         </Row>
@@ -329,5 +331,62 @@ function SecuritySection() {
         onConfirm={() => run("global")}
       />
     </section>
+  );
+}
+
+/** Extra safety: when on, only email-code sign-ins can see anything (enforced by the database). */
+function ExtraSafety() {
+  const d = useData();
+  const { signOut, demo } = useAuth();
+  const on = !!d.settings?.require_email_code;
+  const [ask, setAsk] = useState(false);
+  const apply = async (v) => {
+    try { await d.actions.saveSettings({ require_email_code: v }); } catch { return; }
+    if (v && !demo) await signOut("global");
+  };
+  return (
+    <>
+      <Row label="Extra safety" hint={on ? "On: you must sign in with an email code. Passwords alone do not work." : "Off: you can sign in with your password. Turn on if you think someone is trying to get in."}>
+        <Switch checked={on} onChange={(v) => (v ? setAsk(true) : apply(false))} label="Extra safety" />
+      </Row>
+      <Confirm
+        open={ask}
+        onClose={() => setAsk(false)}
+        title="Turn on extra safety?"
+        description="You will be signed out on every device. Then sign in again with an email code (leave the password empty)."
+        confirmLabel="Turn on and sign out"
+        onConfirm={async () => { setAsk(false); await apply(true); }}
+      />
+    </>
+  );
+}
+
+/** Change the sign-in password. */
+function ChangePassword() {
+  const backendAuth = useAuth();
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  if (!backendAuth?.setPassword) return null;
+  const save = async (e) => {
+    e.preventDefault();
+    if (pw.length < 10) { setMsg("Use at least 10 characters."); return; }
+    setBusy(true); setMsg(null);
+    try { await backendAuth.setPassword(pw); setPw(""); setOpen(false); setMsg("Password changed."); }
+    catch (err) { setMsg(err?.message || "Could not change the password. Try again."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Row label="Password" hint={msg || "Change the password you use to sign in."}>
+      {open ? (
+        <form onSubmit={save} className="flex gap-2">
+          <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="New password" className="input h-10 rounded-xl px-3" aria-label="New password" />
+          <Button type="submit" variant="primary" loading={busy}>Save</Button>
+        </form>
+      ) : (
+        <Button variant="secondary" onClick={() => { setOpen(true); setMsg(null); }}>Change password</Button>
+      )}
+    </Row>
   );
 }
