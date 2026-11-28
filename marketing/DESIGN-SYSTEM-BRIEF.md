@@ -73,3 +73,12 @@ Every blog gets one hero reel (always), plus cut-downs from the same render. Vid
 5. Outputs per blog from one render: 9:16 1080x1920 (Reels, Shorts, LinkedIn), 4:5 1080x1350 and 1:1 1080x1080 smart crops for feeds, a 16:9 1920x1080 version for YouTube/blog embed, a cover frame (thumbnail) with the hook text, and the .srt.
 6. Blog embed: the 16:9 version is placed near the top of the blog post with VideoObject structured data (helps SEO and time on page) once hosting is decided (YouTube unlisted/public is the simplest).
 7. Quality gate before review: frame sheet + safe-zone sheet checked, no text overflow, every on-screen number covered by the claims ledger, hook readable in under 1.5 s.
+
+## Video plan v2.1 (owner, 2026-11-28) — overrides v2 where different
+- ONLY 9:16, 1080x1920, 30 fps. No 4:5, 1:1 or 16:9 versions.
+- Frame 0 to 0.30 s: a designed THUMBNAIL frame (bold hook text + best still from the footage, Dhiti style) so the platform cover and the first impression are premium; then cut straight into the hook.
+- Each stock footage shot stays on screen 3-4 s at most (often 1.5-3 s). Between shots, short branded motion-graphic moments (0.8-2 s: kinetic headline, number counter, UI card, highlight sweep, mask wipe transition) keep it engaging.
+- Engaging pacing: something changes every 1-2 s (cut, text beat, zoom, card).
+- Background music: a licensed music bed chosen per mood (energetic/confident/calm), ducked under the voice (voice -14 LUFS, music about -28 LUFS under speech, swell at hook and CTA). Source: owner-licensed tracks uploaded once to the Media Library under "music" (Magnific stock has no music; never generated). Until tracks exist, render without music.
+- SFX: subtle whoosh on transitions, soft click/pop on card and chip animations, riser into the CTA. Made procedurally in code with ffmpeg (filtered noise sweeps, short tones), so no licence issue and no AI generation; kept quiet (about -30 LUFS).
+- Magnific stock "motion_graphics" clips may be used sparingly as textures/backgrounds, never as the main message.
