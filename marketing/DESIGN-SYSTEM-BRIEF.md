@@ -29,3 +29,15 @@ Rules: every motion lasts 300-700 ms, holds long enough to read (≈ 0.35 s per 
 
 ## Quality bar
 Each template is screenshot/frame-checked at phone size; text never overflows (auto-fit with min sizes); contrast AA on footage (adaptive scrim); looks like a premium brand's motion package, not a template app.
+
+## Reference direction (owner): josephswork, Tom Lulofs, top SaaS launch-film motion designers
+Style = premium SaaS product-launch motion, adapted to Dhiti's travel-operations stories:
+- Abstracted UI: simplified, beautiful versions of real artefacts (airline invoice, GSTR-2B row, booking profile, reconciliation sheet, email) built as HTML cards, animated in and assembled like a product demo.
+- Depth: subtle 3D perspective tilt (rotateX/Y 6-12deg), soft layered shadows, depth-of-field blur on background layers, glass panels, grain, glow from a Dhiti-red gradient light source.
+- Camera: virtual camera moves across one big canvas (pan, push-in, zoom-through a card into the next scene) instead of plain cuts.
+- Kinetic type: large stacked headlines, word/line masks, weight and colour emphasis, tight tracking; numbers that count and morph.
+- Cursor and interaction cues: an animated pointer clicks, toggles, ticks a checklist, highlights a row.
+- Spring physics easing (overshoot 3-6%) and expo-out curves; motion on beats; holds long enough to read.
+- Backgrounds: off-white or deep warm black with a faint grid, soft red gradient orbs moving slowly.
+- Stock footage used sparingly as texture/b-roll inside masks or cards, not as the main visual.
+To match taste exactly, the owner will send screen recordings; extract frames with ffmpeg (1-2 fps + scene-change frames) and study timing, easing, type scale and transitions before building.
